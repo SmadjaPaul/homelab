@@ -1,0 +1,88 @@
+# Keycloak - Identity and Access Management
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: keycloak
+    targetRevision: 21.1.1
+    helm:
+      valuesObject:
+        # Production mode
+        production: true
+        
+        # Proxy settings (behind Cloudflare)
+        proxy: edge
+        
+        # Admin credentials
+        auth:
+          adminUser: admin
+          # Password from secret (create with SOPS)
+          existingSecret: keycloak-admin
+          passwordSecretKey: admin-password
+        
+        # Resource limits (optimized for homelab)
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        
+        # PostgreSQL database (embedded)
+        postgresql:
+          enabled: true
+          auth:
+            existingSecret: keycloak-postgresql
+            secretKeys:
+              adminPasswordKey: postgres-password
+              userPasswordKey: password
+          primary:
+            persistence:
+              enabled: true
+              size: 1Gi
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 256Mi
+        
+        # Metrics for Prometheus
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        
+        # Logging
+        logging:
+          output: default
+          level: INFO
+        
+        # Extra environment variables
+        extraEnvVars:
+          - name: KC_HOSTNAME
+            value: auth.smadja.dev
+          - name: KC_HOSTNAME_STRICT
+            value: "false"
+          - name: KC_HOSTNAME_STRICT_HTTPS
+            value: "true"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: identity
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

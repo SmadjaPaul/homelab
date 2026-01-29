@@ -3,5 +3,6 @@ kind: Kustomization
 
 resources:
   - homepage/application.yaml
+  - keycloak/application.yaml
   # Add more apps as needed:
   # - docuseal/application.yaml

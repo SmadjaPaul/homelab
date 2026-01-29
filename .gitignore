@@ -11,6 +11,12 @@ cozystackwebsite/
 
 # Terraform
 *.tfstate
+
+# SOPS - Never commit unencrypted secrets
+secrets/*.yaml
+!secrets/*.enc.yaml
+!secrets/README.md
+**/keys.txt
 terraform.tfvars
 backend_override.tf
 .terraform/
@@ -49,3 +55,4 @@ Thumbs.db
 terraform/cloudflare/terraform.tfvars
 terraform/cloudflare/.terraform/
 terraform/cloudflare/terraform.tfstate*
+terraform/cloudflare/backend_override.tf

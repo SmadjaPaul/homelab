@@ -1,0 +1,25 @@
+# SOPS Configuration
+# Secrets are encrypted with age and can be safely committed to Git
+# 
+# Usage:
+#   Encrypt: sops -e secrets.yaml > secrets.enc.yaml
+#   Decrypt: sops -d secrets.enc.yaml
+#   Edit:    sops secrets.enc.yaml
+
+creation_rules:
+  # Kubernetes secrets
+  - path_regex: kubernetes/.*secrets?\.yaml$
+    encrypted_regex: "^(data|stringData)$"
+    age: age1jesgdd6k6c8j9dwejz64e3jrmdssdw8sc6y2seaz0y94nm8z6dvqdky30z
+
+  # Terraform tfvars (sensitive)
+  - path_regex: terraform/.*/secrets\.tfvars$
+    age: age1jesgdd6k6c8j9dwejz64e3jrmdssdw8sc6y2seaz0y94nm8z6dvqdky30z
+
+  # Generic secrets in secrets/ folder
+  - path_regex: secrets/.*\.yaml$
+    age: age1jesgdd6k6c8j9dwejz64e3jrmdssdw8sc6y2seaz0y94nm8z6dvqdky30z
+
+  # Environment files
+  - path_regex: .*\.env\.enc$
+    age: age1jesgdd6k6c8j9dwejz64e3jrmdssdw8sc6y2seaz0y94nm8z6dvqdky30z

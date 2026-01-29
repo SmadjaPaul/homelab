@@ -13,9 +13,16 @@ terraform {
     }
   }
 
-  # Local backend for now - can switch to TFstate.dev later
-  backend "local" {
-    path = "terraform.tfstate"
+  # TFstate.dev for remote state (same as OCI)
+  # Uses GITHUB_TOKEN for authentication - no additional secrets needed
+  backend "http" {
+    address        = "https://api.tfstate.dev/github/v1"
+    lock_address   = "https://api.tfstate.dev/github/v1/lock"
+    lock_method    = "PUT"
+    unlock_address = "https://api.tfstate.dev/github/v1/lock"
+    unlock_method  = "DELETE"
+    username       = "SmadjaPaul/homelab"
+    # TF_HTTP_PASSWORD is set to GITHUB_TOKEN in CI/CD
   }
 }
 
