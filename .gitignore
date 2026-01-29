@@ -46,3 +46,6 @@ talos-secrets.yaml
 # OS
 .DS_Store
 Thumbs.db
+terraform/cloudflare/terraform.tfvars
+terraform/cloudflare/.terraform/
+terraform/cloudflare/terraform.tfstate*
