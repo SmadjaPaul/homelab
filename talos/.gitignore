@@ -1,0 +1,34 @@
+# Talos Linux Secrets and Sensitive Files
+# DO NOT COMMIT THESE FILES TO GIT
+
+# Cluster secrets
+talos-secrets.yaml
+secrets.yaml
+*.secret.yaml
+
+# API certificates and keys
+*.crt
+*.key
+*.pem
+ca.crt
+admin.crt
+admin.key
+
+# Kubeconfig files
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# Talos client configuration
+talosconfig
+.talosconfig
+
+# IP KVM credentials (if stored in files)
+ip-kvm-credentials.txt
+ip-kvm-config.txt
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

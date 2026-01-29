@@ -1,0 +1,119 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-21T23:07:58Z"
+project: "homelab"
+project_type: "homelab"
+selected_track: "bmad-method"
+field_type: "greenfield"
+workflow_path: "{project-root}/_bmad/bmm/workflows/workflow-status/paths/method-greenfield.yaml"
+workflow_status:
+  phases:
+    - phase: 1
+      name: "Analysis (Optional)"
+      optional: true
+      workflows:
+        - id: "brainstorm-project"
+          status: "optional"
+          agent: "analyst"
+          command: "/bmad:bmm:workflows:brainstorming"
+          note: "Uses core brainstorming workflow with project context template"
+        
+        - id: "research"
+          status: "optional"
+          agent: "analyst"
+          command: "/bmad:bmm:workflows:research"
+          note: "Can have multiple research workflows"
+        
+        - id: "product-brief"
+          status: "planning-artifacts/product-brief-homelab-2026-01-21.md"
+          agent: "analyst"
+          command: "/bmad:bmm:workflows:create-product-brief"
+          note: "Recommended for greenfield Method projects"
+          completed: "2026-01-22T08:40:43Z"
+          finalized: true
+    
+    - phase: 2
+      name: "Planning"
+      required: true
+      workflows:
+        - id: "prd"
+          status: "planning-artifacts/prd-homelab-2026-01-29.md"
+          agent: "pm"
+          command: "/bmad:bmm:workflows:create-prd"
+          output: "Product Requirements Document v2.0 - aligned with Architecture v4.0 (Proxmox + Omni + ArgoCD)"
+          completed: "2026-01-29T12:00:00Z"
+          finalized: false
+          previous_versions:
+            - "planning-artifacts/prd-homelab-2026-01-22.md"
+        
+        - id: "create-ux-design"
+          status: "conditional"
+          condition: "if_has_ui"
+          agent: "ux-designer"
+          command: "/bmad:bmm:workflows:create-ux-design"
+          note: "Determined after PRD - user/agent decides if needed"
+    
+    - phase: 3
+      name: "Solutioning"
+      required: true
+      workflows:
+        - id: "create-architecture"
+          status: "planning-artifacts/architecture-proxmox-omni.md"
+          agent: "architect"
+          command: "/bmad:bmm:workflows:create-architecture"
+          output: "System architecture document - Proxmox + Omni with Dev/Prod environments"
+          note: "Updated architecture: Proxmox hypervisor, Talos Linux, Omni management, ArgoCD GitOps, hybrid cloud"
+          completed: "2026-01-28T12:00:00Z"
+          finalized: true
+          previous_versions:
+            - "planning-artifacts/architecture-homelab.md"
+            - "planning-artifacts/architecture-cozystack.md"
+        
+        - id: "create-epics-and-stories"
+          status: "planning-artifacts/epics-and-stories-homelab.md"
+          agent: "pm"
+          command: "/bmad:bmm:workflows:create-epics-and-stories"
+          output: "20 Epics, 70 Stories across 6 phases (Foundation → Gaming)"
+          note: "Aligned with PRD v2.0 and Architecture v4.0"
+          completed: "2026-01-29T14:00:00Z"
+          finalized: false
+        
+        - id: "test-design"
+          status: "optional"
+          agent: "tea"
+          command: "/bmad:bmm:workflows:test-design"
+          output: "System-level testability review"
+          note: "Testability assessment before gate check - auto-detects system-level mode"
+        
+        - id: "implementation-readiness"
+          status: "required"
+          agent: "architect"
+          command: "/bmad:bmm:workflows:implementation-readiness"
+          output: "Implementation Readiness Assessment"
+          note: "Validates PRD v2.0 + Architecture v4.0 + Epics (needs regeneration)"
+    
+    - phase: 4
+      name: "Implementation"
+      required: true
+      workflows:
+        - id: "sprint-planning"
+          status: "required"
+          agent: "sm"
+          command: "/bmad:bmm:workflows:sprint-planning"
+          output: "Sprint status tracking file"
+          note: "Blocked: Requires completed Epics & Stories first"

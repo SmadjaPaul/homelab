@@ -1,0 +1,83 @@
+# Talos Linux Machine Configuration - Worker Node
+# Generated for: AOOSTAR WTR MAX 8845 (Future expansion)
+# Story: 1.1 - Install and Configure Talos Linux Base System
+# Date: 2026-01-22
+# Note: This is a template for future worker nodes. Currently single-node cluster.
+
+version: v1alpha1
+machine:
+  type: worker
+  
+  # Network configuration
+  network:
+    hostname: homelab-worker-1
+    interfaces:
+      - interface: eth0
+        addresses:
+          - 192.168.1.101/24  # Static IP - adjust to your network
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        mtu: 1500
+    nameservers:
+      - 192.168.1.1  # Local DNS (Pi-hole will be configured later)
+      - 1.1.1.1     # Cloudflare DNS fallback
+      - 8.8.8.8     # Google DNS fallback
+  
+  # Kernel configuration
+  kernel:
+    modules:
+      - name: zfs
+      - name: zfs_vdev
+      - name: zfs_zil
+      - name: zfs_arc
+      - name: zfs_znode
+      - name: zfs_zvol
+      - name: spl
+  
+  # System extensions (for ZFS support)
+  systemExtensions:
+    - image: ghcr.io/siderolabs/zfs:latest
+  
+  # Install configuration
+  install:
+    disk: /dev/sda  # Adjust based on actual disk
+    image: ghcr.io/siderolabs/installer:v1.12.1
+    bootloader: true
+    wipe: false
+  
+  # Time synchronization
+  time:
+    servers:
+      - time.cloudflare.com
+      - pool.ntp.org
+  
+  # Kubelet configuration
+  kubelet:
+    extraArgs:
+      max-pods: "110"
+      node-ip: "192.168.1.101"
+
+cluster:
+  # Cluster configuration
+  id: homelab-cluster
+  secret: <CLUSTER_SECRET>  # Must match control plane secret
+  
+  # Control plane endpoint
+  controlplane:
+    endpoint: https://192.168.1.100:6443
+  
+  # Cluster discovery
+  discovery:
+    enabled: true
+    registries:
+      kubernetes:
+        disabled: false
+      service:
+        disabled: false
+  
+  # Network configuration
+  network:
+    dnsDomain: cluster.local
+    podSubnet: 10.244.0.0/16
+    serviceSubnet: 10.96.0.0/12

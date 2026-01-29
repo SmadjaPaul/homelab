@@ -1,0 +1,25 @@
+# Cursor Rules for Homelab BMad Method Project
+
+## Project Context
+This is a homelab configuration project using the BMad Method for structured development.
+
+## Key Principles
+- Always use fresh chats when switching between BMad workflows
+- Follow the BMad Method phases: Analysis → Planning → Solutioning → Implementation
+- Keep generated artifacts in `_bmad-output/` separate from source code
+- Maintain clean separation between infrastructure code and BMad planning documents
+
+## BMad Workflow Commands
+- `*workflow-init` - Initialize project (Analyst agent)
+- `*workflow-status` - Check progress (Any agent)
+- `*prd` - Create Product Requirements Document (PM agent)
+- `*create-architecture` - Create architecture document (Architect agent)
+- `*create-epics-and-stories` - Break down into epics (PM agent)
+- `*sprint-planning` - Initialize sprint tracking (SM agent)
+- `*dev-story` - Implement a story (DEV agent)
+- `*code-review` - Review code (DEV agent)
+
+## File Organization
+- Planning documents: `_bmad-output/`
+- Infrastructure code: `infrastructure/` or `services/`
+- Documentation: `docs/` or root `README.md`

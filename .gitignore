@@ -1,0 +1,44 @@
+# BMad Framework (external)
+_bmad/
+
+# External documentation
+cozystackwebsite/
+
+# IDE/Agent folders
+.agent/
+.claude/
+.cursor/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+.terraform.lock.hcl
+terraform.tfplan
+*.log
+
+# Ansible
+*.retry
+.vault_pass
+
+# Secrets
+*.pem
+*.key
+*.crt
+secrets.yaml
+talos-secrets.yaml
+.envrc
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

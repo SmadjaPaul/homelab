@@ -1,0 +1,119 @@
+# Talos Linux Machine Configuration - Control Plane Node
+# Generated for: AOOSTAR WTR MAX 8845
+# Story: 1.1 - Install and Configure Talos Linux Base System
+# Date: 2026-01-22
+
+version: v1alpha1
+machine:
+  type: controlplane
+  
+  # Network configuration
+  network:
+    hostname: homelab-controlplane
+    interfaces:
+      - interface: eth0
+        addresses:
+          - 192.168.1.100/24  # Static IP - adjust to your network
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        mtu: 1500
+    nameservers:
+      - 192.168.1.1  # Local DNS (Pi-hole will be configured later)
+      - 1.1.1.1     # Cloudflare DNS fallback
+      - 8.8.8.8     # Google DNS fallback
+  
+  # Kernel configuration
+  kernel:
+    modules:
+      - name: zfs
+      - name: zfs_vdev
+      - name: zfs_zil
+      - name: zfs_arc
+      - name: zfs_znode
+      - name: zfs_zvol
+      - name: spl
+  
+  # System extensions (for ZFS support)
+  systemExtensions:
+    - image: ghcr.io/siderolabs/zfs:latest
+  
+  # Install configuration
+  install:
+    disk: /dev/sda  # 1TB SSD - adjust based on actual disk
+    image: ghcr.io/siderolabs/installer:v1.12.1
+    bootloader: true
+    wipe: false  # Set to true for fresh install
+  
+  # Time synchronization
+  time:
+    servers:
+      - time.cloudflare.com
+      - pool.ntp.org
+  
+  # Kubelet configuration
+  kubelet:
+    extraArgs:
+      max-pods: "110"
+      node-ip: "192.168.1.100"
+  
+  # Logging
+  logging:
+    destinations:
+      - endpoint: tcp://127.0.0.1:3100  # Loki endpoint (to be configured)
+
+cluster:
+  # Cluster configuration
+  id: homelab-cluster
+  secret: <CLUSTER_SECRET>  # Generate with: talosctl gen secrets
+  
+  # Control plane configuration
+  controlplane:
+    endpoint: https://192.168.1.100:6443
+  
+  # Cluster discovery
+  discovery:
+    enabled: true
+    registries:
+      kubernetes:
+        disabled: false
+      service:
+        disabled: false
+  
+  # Proxy configuration (if needed)
+  proxy:
+    disabled: false
+    image: ghcr.io/siderolabs/kube-proxy:v1.35.0
+  
+  # Network configuration
+  network:
+    dnsDomain: cluster.local
+    podSubnet: 10.244.0.0/16
+    serviceSubnet: 10.96.0.0/12
+  
+  # API server configuration
+  apiServer:
+    certSANs:
+      - 192.168.1.100
+      - homelab-controlplane
+      - homelab-controlplane.cluster.local
+    extraArgs:
+      audit-log-maxage: "30"
+      audit-log-maxbackup: "3"
+      audit-log-maxsize: "100"
+      audit-log-path: /var/log/audit.log
+  
+  # Controller manager configuration
+  controllerManager:
+    extraArgs:
+      bind-address: "0.0.0.0"
+  
+  # Scheduler configuration
+  scheduler:
+    extraArgs:
+      bind-address: "0.0.0.0"
+  
+  # Etcd configuration
+  etcd:
+    extraArgs:
+      listen-metrics-urls: "http://0.0.0.0:2381"
