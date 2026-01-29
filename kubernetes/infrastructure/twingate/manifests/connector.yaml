@@ -1,0 +1,76 @@
+# Twingate Connector Deployment
+# This connects your Kubernetes cluster to Twingate's network
+#
+# Setup:
+# 1. Create account at https://www.twingate.com (free tier: 5 users)
+# 2. Create a Remote Network in Twingate Admin Console
+# 3. Generate a Connector and copy the tokens
+# 4. Update the secret below with your tokens
+# 5. Define Resources (e.g., *.svc.cluster.local, 10.0.0.0/8)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twingate-connector
+  namespace: twingate
+  labels:
+    app: twingate-connector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: twingate-connector
+  template:
+    metadata:
+      labels:
+        app: twingate-connector
+    spec:
+      containers:
+        - name: connector
+          image: twingate/connector:latest
+          env:
+            - name: TWINGATE_NETWORK
+              valueFrom:
+                secretKeyRef:
+                  name: twingate-credentials
+                  key: network
+            - name: TWINGATE_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: twingate-credentials
+                  key: access-token
+            - name: TWINGATE_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: twingate-credentials
+                  key: refresh-token
+            - name: TWINGATE_LOG_LEVEL
+              value: "3"  # Info level
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+      restartPolicy: Always
+
+---
+# Twingate Credentials Secret
+# Replace with values from Twingate Admin Console
+apiVersion: v1
+kind: Secret
+metadata:
+  name: twingate-credentials
+  namespace: twingate
+type: Opaque
+stringData:
+  # Your Twingate network name (e.g., "smadja" for smadja.twingate.com)
+  network: "REPLACE_WITH_NETWORK_NAME"
+  # Access token from connector setup
+  access-token: "REPLACE_WITH_ACCESS_TOKEN"
+  # Refresh token from connector setup
+  refresh-token: "REPLACE_WITH_REFRESH_TOKEN"

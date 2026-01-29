@@ -4,4 +4,5 @@ kind: Kustomization
 resources:
   - cert-manager/application.yaml
   - cloudflared/application.yaml
+  - twingate/application.yaml
   # - external-secrets/application.yaml

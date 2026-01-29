@@ -1,0 +1,65 @@
+# Discord Webhook for Alertmanager
+# Uses alertmanager-discord to format alerts nicely
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager-discord
+  namespace: monitoring
+  labels:
+    app: alertmanager-discord
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager-discord
+  template:
+    metadata:
+      labels:
+        app: alertmanager-discord
+    spec:
+      containers:
+        - name: alertmanager-discord
+          image: benjojo/alertmanager-discord:latest
+          ports:
+            - containerPort: 9094
+          env:
+            - name: DISCORD_WEBHOOK
+              valueFrom:
+                secretKeyRef:
+                  name: discord-webhook
+                  key: webhook-url
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-discord
+  namespace: monitoring
+spec:
+  selector:
+    app: alertmanager-discord
+  ports:
+    - port: 9094
+      targetPort: 9094
+
+---
+# Create this secret with your Discord webhook URL
+# kubectl create secret generic discord-webhook -n monitoring \
+#   --from-literal=webhook-url="https://discord.com/api/webhooks/xxx/yyy"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: discord-webhook
+  namespace: monitoring
+type: Opaque
+stringData:
+  # Replace with your Discord webhook URL
+  # Create in Discord: Server Settings → Integrations → Webhooks → New Webhook
+  webhook-url: "REPLACE_WITH_DISCORD_WEBHOOK_URL"

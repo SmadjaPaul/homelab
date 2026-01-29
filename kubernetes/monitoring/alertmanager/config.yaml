@@ -1,0 +1,70 @@
+# Alertmanager Configuration
+# Applied via kube-prometheus-stack Helm values
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+type: Opaque
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+      # SMTP for email (optional)
+      # smtp_smarthost: 'smtp.gmail.com:587'
+      # smtp_from: 'alertmanager@smadja.dev'
+      # smtp_auth_username: 'your-email@gmail.com'
+      # smtp_auth_password: 'app-password'
+
+    route:
+      group_by: ['alertname', 'namespace', 'severity']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: 'default'
+
+      routes:
+        # Critical alerts - immediate notification
+        - match:
+            severity: critical
+          receiver: 'critical'
+          group_wait: 10s
+          repeat_interval: 1h
+
+        # Warning alerts - less urgent
+        - match:
+            severity: warning
+          receiver: 'warning'
+          repeat_interval: 4h
+
+        # Watchdog - confirms alerting pipeline works
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
+
+    receivers:
+      - name: 'null'
+
+      - name: 'default'
+        webhook_configs:
+          - url: 'http://alertmanager-discord:9094'
+            send_resolved: true
+
+      - name: 'critical'
+        webhook_configs:
+          - url: 'http://alertmanager-discord:9094'
+            send_resolved: true
+        # Add PagerDuty, email, etc. for critical
+
+      - name: 'warning'
+        webhook_configs:
+          - url: 'http://alertmanager-discord:9094'
+            send_resolved: true
+
+    inhibit_rules:
+      # If critical, suppress warning for same alert
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'namespace']

@@ -1,0 +1,25 @@
+# Twingate Connector - Zero Trust Network Access
+# Free tier: 5 users, 1 remote network
+# https://www.twingate.com/pricing
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: twingate
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/SmadjaPaul/homelab.git
+    targetRevision: main
+    path: kubernetes/infrastructure/twingate/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: twingate
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
