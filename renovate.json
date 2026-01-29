@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:enableMajor",
+    ":semanticCommits",
+    ":automergeDigest",
+    ":automergeBranch"
+  ],
+  "timezone": "Europe/Paris",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate Dashboard 🤖",
+  "suppressNotifications": ["prEditedNotification"],
+  "rebaseWhen": "conflicted",
+  "kubernetes": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
+  "helm-values": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
+  "terraform": {
+    "fileMatch": ["terraform/.+\\.tf$"]
+  },
+  "packageRules": [
+    {
+      "description": "Auto-merge minor/patch for trusted container images",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchDatasources": ["docker"],
+      "matchPackagePatterns": [
+        "ghcr.io/linuxserver/*",
+        "ghcr.io/onedr0p/*"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Group Prometheus stack updates",
+      "matchPackagePatterns": ["prometheus", "grafana", "alertmanager", "loki"],
+      "groupName": "monitoring-stack"
+    },
+    {
+      "description": "Group ArgoCD updates",
+      "matchPackagePatterns": ["argocd", "argo-cd"],
+      "groupName": "argocd"
+    },
+    {
+      "description": "Group Cilium updates",
+      "matchPackagePatterns": ["cilium"],
+      "groupName": "cilium"
+    },
+    {
+      "description": "Group Terraform providers",
+      "matchManagers": ["terraform"],
+      "matchPackagePatterns": ["*"],
+      "groupName": "terraform-providers"
+    }
+  ]
+}

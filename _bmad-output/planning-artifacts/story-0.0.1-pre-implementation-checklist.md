@@ -3,7 +3,7 @@
 **Type**: Setup / Prerequisites  
 **Priority**: P0 (Blocking)  
 **Estimated Time**: 1-2 hours  
-**Status**: In Progress
+**Status**: Completed (2026-01-29)
 
 ---
 
@@ -347,17 +347,15 @@ Then proceed to: `*sprint-planning`
 
 ## Quick Reference Card
 
-After completing this checklist, you should have:
-
 | Item | Value |
 |------|-------|
-| Domain | _________________ |
-| Cloudflare Zone ID | _________________ |
+| Domain | `smadja.dev` |
+| Cloudflare Zone ID | `bda8e2196f6b4f1684c6c9c06d996109` |
 | Cloudflare API Token | (in password manager) |
-| OCI Region | _________________ |
-| Proxmox IP | 192.168.68.51 |
-| GitHub Repo | _________________ |
-| Secrets Backend | _________________ |
+| OCI Region | `eu-paris-1` (France Central) |
+| Proxmox IP | `192.168.68.51` |
+| GitHub Repo | `https://github.com/SmadjaPaul/homelab` |
+| Secrets Backend | TBD (Bitwarden or SOPS)
 
 ---
 

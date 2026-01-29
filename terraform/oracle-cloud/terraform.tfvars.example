@@ -1,0 +1,36 @@
+# Oracle Cloud Terraform Variables
+# Copy this file to terraform.tfvars and fill in the values
+
+# Your OCI compartment OCID
+# Find it: OCI Console → Identity → Compartments → Copy OCID
+compartment_id = "ocid1.compartment.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Your SSH public key (for instance access)
+# Generate with: ssh-keygen -t ed25519 -f ~/.ssh/oci-homelab
+ssh_public_key = "ssh-ed25519 AAAAC3... your-email@example.com"
+
+# Region (default: eu-paris-1)
+region = "eu-paris-1"
+
+# Optional: Customize instance sizes (defaults are optimized for Always Free)
+# management_vm = {
+#   name   = "oci-mgmt"
+#   ocpus  = 1
+#   memory = 6
+#   disk   = 50
+# }
+
+# k8s_nodes = [
+#   {
+#     name   = "oci-node-1"
+#     ocpus  = 2
+#     memory = 12
+#     disk   = 64
+#   },
+#   {
+#     name   = "oci-node-2"
+#     ocpus  = 1
+#     memory = 6
+#     disk   = 75
+#   }
+# ]

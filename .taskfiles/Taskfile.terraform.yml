@@ -1,0 +1,41 @@
+version: '3'
+
+vars:
+  TF_DIR: '{{.TF_DIR | default "terraform/proxmox"}}'
+
+tasks:
+  init:
+    desc: Initialize Terraform
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform init
+
+  plan:
+    desc: Plan Terraform changes
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform plan -out=terraform.tfplan
+
+  apply:
+    desc: Apply Terraform changes
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform apply terraform.tfplan
+
+  destroy:
+    desc: Destroy Terraform resources
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform destroy
+
+  fmt:
+    desc: Format Terraform files
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform fmt -recursive
+
+  validate:
+    desc: Validate Terraform configuration
+    dir: '{{.TF_DIR}}'
+    cmds:
+      - terraform validate

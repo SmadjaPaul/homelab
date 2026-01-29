@@ -1,0 +1,89 @@
+# https://taskfile.dev
+version: '3'
+
+vars:
+  CLUSTER: '{{.CLUSTER | default "dev"}}'
+  PROXMOX_HOST: "192.168.68.51"
+
+includes:
+  terraform: .taskfiles/Taskfile.terraform.yml
+  kubernetes: .taskfiles/Taskfile.kubernetes.yml
+  talos: .taskfiles/Taskfile.talos.yml
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list-all
+
+  # ==================== Setup ====================
+  setup:tools:
+    desc: Install required CLI tools
+    cmds:
+      - brew install kubectl helm terraform ansible k9s kubectx jq yq
+      - brew install siderolabs/tap/talosctl argocd oci-cli
+
+  setup:oci:
+    desc: Configure OCI CLI
+    cmds:
+      - oci setup config
+
+  # ==================== Proxmox ====================
+  proxmox:ssh:
+    desc: SSH into Proxmox host
+    cmds:
+      - ssh root@{{.PROXMOX_HOST}}
+
+  proxmox:web:
+    desc: Open Proxmox web UI
+    cmds:
+      - open "https://{{.PROXMOX_HOST}}:8006"
+
+  # ==================== Kubernetes ====================
+  k8s:ctx:
+    desc: Switch kubectl context
+    cmds:
+      - kubectx {{.CLUSTER}}
+
+  k8s:dash:
+    desc: Open k9s dashboard
+    cmds:
+      - k9s --context {{.CLUSTER}}
+
+  # ==================== ArgoCD ====================
+  argocd:ui:
+    desc: Port-forward ArgoCD UI and open browser
+    cmds:
+      - kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+      - sleep 2
+      - open "https://localhost:8080"
+
+  argocd:password:
+    desc: Get ArgoCD initial admin password
+    cmds:
+      - kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+
+  # ==================== Validation ====================
+  validate:manifests:
+    desc: Validate Kubernetes manifests
+    cmds:
+      - |
+        find kubernetes -name "*.yaml" -o -name "*.yml" | xargs -I {} kubectl apply --dry-run=client -f {}
+
+  validate:yaml:
+    desc: Lint YAML files
+    cmds:
+      - yamllint kubernetes/
+
+  # ==================== Git ====================
+  git:status:
+    desc: Show git status
+    cmds:
+      - git status
+
+  git:push:
+    desc: Add, commit and push changes
+    cmds:
+      - git add .
+      - git commit -m "{{.MSG | default "Update configuration"}}"
+      - git push
