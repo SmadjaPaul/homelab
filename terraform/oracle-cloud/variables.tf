@@ -70,6 +70,12 @@ variable "k8s_nodes" {
   ]
 }
 
+# Budget Alert Email
+variable "budget_alert_email" {
+  description = "Email address for budget alerts"
+  type        = string
+}
+
 # Tags
 variable "tags" {
   description = "Tags to apply to resources"
