@@ -145,19 +145,19 @@ output "quota_status" {
         used      = local.total_resources.ocpus
         limit     = local.free_tier_limits.arm_ocpus
         remaining = local.free_tier_limits.arm_ocpus - local.total_resources.ocpus
-        percent   = round((local.total_resources.ocpus / local.free_tier_limits.arm_ocpus) * 100)
+         percent   = floor((local.total_resources.ocpus / local.free_tier_limits.arm_ocpus) * 100)
       }
       memory_gb = {
         used      = local.total_resources.memory
         limit     = local.free_tier_limits.arm_memory_gb
         remaining = local.free_tier_limits.arm_memory_gb - local.total_resources.memory
-        percent   = round((local.total_resources.memory / local.free_tier_limits.arm_memory_gb) * 100)
+         percent   = floor((local.total_resources.memory / local.free_tier_limits.arm_memory_gb) * 100)
       }
       storage_gb = {
         used      = local.total_resources.disk
         limit     = local.free_tier_limits.block_storage_gb
         remaining = local.free_tier_limits.block_storage_gb - local.total_resources.disk
-        percent   = round((local.total_resources.disk / local.free_tier_limits.block_storage_gb) * 100)
+         percent   = floor((local.total_resources.disk / local.free_tier_limits.block_storage_gb) * 100)
       }
     }
     status = local.quota_validation.all_ok ? "✅ Within Free Tier limits" : "❌ Exceeds Free Tier limits"

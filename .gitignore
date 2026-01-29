@@ -11,6 +11,10 @@ cozystackwebsite/
 
 # Terraform
 *.tfstate
+terraform.tfvars
+backend_override.tf
+.terraform/
+.terraform.lock.hcl
 *.tfstate.*
 *.tfvars
 !terraform.tfvars.example

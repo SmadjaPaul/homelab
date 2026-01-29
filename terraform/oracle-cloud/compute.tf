@@ -53,21 +53,9 @@ resource "oci_core_instance" "management" {
   })
 }
 
-# Reserved Public IP for Management VM
-resource "oci_core_public_ip" "management" {
-  compartment_id = var.compartment_id
-  display_name   = "${var.management_vm.name}-public-ip"
-  lifetime       = "RESERVED"
-  private_ip_id  = data.oci_core_private_ips.management.private_ips[0].id
-
-  freeform_tags = var.tags
-}
-
-data "oci_core_private_ips" "management" {
-  vnic_id = oci_core_instance.management.create_vnic_details[0].vnic_id
-
-  depends_on = [oci_core_instance.management]
-}
+# Note: The management VM will get an ephemeral public IP automatically
+# Reserved IPs can be added later if needed for static IP requirements
+# The public IP is accessible via: oci_core_instance.management.public_ip
 
 # Kubernetes Nodes
 resource "oci_core_instance" "k8s_node" {

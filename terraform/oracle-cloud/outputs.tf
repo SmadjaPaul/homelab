@@ -15,7 +15,7 @@ output "management_vm" {
   value = {
     id         = oci_core_instance.management.id
     name       = oci_core_instance.management.display_name
-    public_ip  = oci_core_public_ip.management.ip_address
+    public_ip  = oci_core_instance.management.public_ip
     private_ip = oci_core_instance.management.private_ip
   }
 }
@@ -35,10 +35,10 @@ output "k8s_nodes" {
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances"
   value = {
-    management = "ssh ubuntu@${oci_core_public_ip.management.ip_address}"
+    management = "ssh -i ~/.ssh/oci-homelab ubuntu@${oci_core_instance.management.public_ip}"
     k8s_nodes = [
       for node in oci_core_instance.k8s_node :
-      "ssh ubuntu@${node.public_ip}"
+      "ssh -i ~/.ssh/oci-homelab ubuntu@${node.public_ip}"
     ]
   }
 }
