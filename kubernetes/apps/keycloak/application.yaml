@@ -16,17 +16,17 @@ spec:
       valuesObject:
         # Production mode
         production: true
-        
+
         # Proxy settings (behind Cloudflare)
         proxy: edge
-        
+
         # Admin credentials
         auth:
           adminUser: admin
           # Password from secret (create with SOPS)
           existingSecret: keycloak-admin
           passwordSecretKey: admin-password
-        
+
         # Resource limits (optimized for homelab)
         resources:
           requests:
@@ -35,7 +35,7 @@ spec:
           limits:
             cpu: 1000m
             memory: 1Gi
-        
+
         # PostgreSQL database (embedded)
         postgresql:
           enabled: true
@@ -55,18 +55,18 @@ spec:
               limits:
                 cpu: 500m
                 memory: 256Mi
-        
+
         # Metrics for Prometheus
         metrics:
           enabled: true
           serviceMonitor:
             enabled: true
-        
+
         # Logging
         logging:
           output: default
           level: INFO
-        
+
         # Extra environment variables
         extraEnvVars:
           - name: KC_HOSTNAME
@@ -75,11 +75,11 @@ spec:
             value: "false"
           - name: KC_HOSTNAME_STRICT_HTTPS
             value: "true"
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: identity
-  
+
   syncPolicy:
     automated:
       prune: true

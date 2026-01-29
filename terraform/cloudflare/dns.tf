@@ -7,14 +7,14 @@
 resource "cloudflare_record" "root" {
   zone_id = var.zone_id
   name    = "@"
-  content = "192.0.2.1"  # Placeholder - will be replaced by Tunnel
+  content = "192.0.2.1" # Placeholder - will be replaced by Tunnel
   type    = "A"
   proxied = true
-  ttl     = 1  # Auto when proxied
+  ttl     = 1 # Auto when proxied
   comment = "Root domain - placeholder for Cloudflare Tunnel"
 
   lifecycle {
-    ignore_changes = [content]  # Will be managed by Tunnel later
+    ignore_changes = [content] # Will be managed by Tunnel later
   }
 }
 
@@ -40,14 +40,14 @@ resource "cloudflare_record" "homelab_services" {
 
   zone_id = var.zone_id
   name    = each.value.subdomain
-  content = "192.0.2.1"  # Placeholder - will be Tunnel UUID
+  content = "192.0.2.1" # Placeholder - will be Tunnel UUID
   type    = "A"
   proxied = true
   ttl     = 1
   comment = each.value.description
 
   lifecycle {
-    ignore_changes = [content, type]  # Will be managed by Tunnel later
+    ignore_changes = [content, type] # Will be managed by Tunnel later
   }
 }
 
@@ -63,7 +63,7 @@ resource "cloudflare_record" "oci_mgmt" {
   name    = "oci-mgmt"
   content = var.oci_management_ip
   type    = "A"
-  proxied = false  # Direct access for SSH
+  proxied = false # Direct access for SSH
   ttl     = 300
   comment = "OCI Management VM - direct access"
 }
@@ -76,7 +76,7 @@ resource "cloudflare_record" "oci_nodes" {
   name    = "oci-node-${count.index + 1}"
   content = var.oci_node_ips[count.index]
   type    = "A"
-  proxied = false  # Direct access for K8s API
+  proxied = false # Direct access for K8s API
   ttl     = 300
   comment = "OCI K8s Node ${count.index + 1}"
 }
@@ -100,7 +100,7 @@ resource "cloudflare_record" "oci_nodes" {
 resource "cloudflare_record" "spf" {
   zone_id = var.zone_id
   name    = "@"
-  content = "v=spf1 -all"  # No email sent from this domain (for now)
+  content = "v=spf1 -all" # No email sent from this domain (for now)
   type    = "TXT"
   ttl     = 3600
   comment = "SPF - no email sending allowed"

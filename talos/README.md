@@ -122,7 +122,7 @@ kubectl get pods --all-namespaces
 
 - **Control Plane IP**: 192.168.1.100/24
 - **Gateway**: 192.168.1.1
-- **DNS**: 
+- **DNS**:
   - Primary: 192.168.1.1 (Pi-hole - to be configured)
   - Fallback: 1.1.1.1, 8.8.8.8
 

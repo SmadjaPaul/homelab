@@ -6,7 +6,7 @@
 # Budget for the entire tenancy
 resource "oci_budget_budget" "homelab" {
   compartment_id = var.compartment_id
-  amount         = 1  # 1 EUR budget
+  amount         = 1 # 1 EUR budget
   reset_period   = "MONTHLY"
   display_name   = "homelab-free-tier-budget"
   description    = "Budget to monitor homelab spending and ensure we stay within free tier"

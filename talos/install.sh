@@ -32,31 +32,31 @@ log_error() {
 
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     # Check if talosctl is installed
     if ! command -v talosctl &> /dev/null; then
         log_error "talosctl is not installed. Please install it first:"
         echo "  https://www.talos.dev/latest/talos-guides/install/talosctl/"
         exit 1
     fi
-    
+
     # Check if kubectl is installed (optional but recommended)
     if ! command -v kubectl &> /dev/null; then
         log_warn "kubectl is not installed. It's recommended for cluster management."
     fi
-    
+
     # Check if config files exist
     if [ ! -f "${CONFIG_DIR}/controlplane.yaml" ]; then
         log_error "controlplane.yaml not found in ${CONFIG_DIR}"
         exit 1
     fi
-    
+
     log_info "Prerequisites check passed"
 }
 
 generate_secrets() {
     log_info "Generating cluster secrets..."
-    
+
     if [ ! -f "${CONFIG_DIR}/talos-secrets.yaml" ]; then
         talosctl gen secrets -o "${CONFIG_DIR}/talos-secrets.yaml"
         log_info "Cluster secrets generated: ${CONFIG_DIR}/talos-secrets.yaml"
@@ -64,7 +64,7 @@ generate_secrets() {
     else
         log_warn "talos-secrets.yaml already exists. Skipping generation."
     fi
-    
+
     # Extract cluster secret from talos-secrets.yaml and update controlplane.yaml
     if [ -f "${CONFIG_DIR}/talos-secrets.yaml" ] && [ -f "${CONFIG_DIR}/controlplane.yaml" ]; then
         log_info "Updating controlplane.yaml with cluster secret..."
@@ -100,7 +100,7 @@ generate_secrets() {
 
 validate_config() {
     log_info "Validating Talos configuration..."
-    
+
     if talosctl validate --config "${CONFIG_DIR}/controlplane.yaml"; then
         log_info "Configuration is valid"
     else
@@ -111,7 +111,7 @@ validate_config() {
 
 apply_config() {
     log_info "Applying Talos configuration to ${CONTROL_PLANE_IP}..."
-    
+
     log_warn "This will apply the configuration to the Talos node."
     read -p "Continue? (y/N): " -n 1 -r
     echo
@@ -119,44 +119,44 @@ apply_config() {
         log_info "Installation cancelled"
         exit 0
     fi
-    
+
     talosctl apply-config \
         --insecure \
         --nodes "${CONTROL_PLANE_IP}" \
         --file "${CONFIG_DIR}/controlplane.yaml"
-    
+
     log_info "Configuration applied successfully"
 }
 
 generate_kubeconfig() {
     log_info "Generating kubeconfig..."
-    
+
     talosctl kubeconfig \
         --nodes "${CONTROL_PLANE_IP}" \
         --output "${CONFIG_DIR}/kubeconfig"
-    
+
     log_info "kubeconfig generated: ${CONFIG_DIR}/kubeconfig"
     log_info "To use kubectl, run: export KUBECONFIG=${CONFIG_DIR}/kubeconfig"
 }
 
 verify_installation() {
     log_info "Verifying installation..."
-    
+
     # Check Talos version
     log_info "Talos version:"
     talosctl version --nodes "${CONTROL_PLANE_IP}" || log_warn "Could not get version"
-    
+
     # Check node status
     log_info "Node status:"
     talosctl get nodes --nodes "${CONTROL_PLANE_IP}" || log_warn "Could not get nodes"
-    
+
     # Check Kubernetes cluster
     if [ -f "${CONFIG_DIR}/kubeconfig" ]; then
         export KUBECONFIG="${CONFIG_DIR}/kubeconfig"
         log_info "Kubernetes nodes:"
         kubectl get nodes || log_warn "Could not get Kubernetes nodes"
     fi
-    
+
     log_info "Verification complete"
 }
 
@@ -166,14 +166,14 @@ main() {
     log_info "Control Plane IP: ${CONTROL_PLANE_IP}"
     log_info "Talos Version: ${TALOS_VERSION}"
     echo
-    
+
     check_prerequisites
     generate_secrets
     validate_config
     apply_config
     generate_kubeconfig
     verify_installation
-    
+
     log_info "✨ Installation complete!"
     log_info "Next steps:"
     log_info "  1. Configure ZFS storage pool (Story 1.2)"

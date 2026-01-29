@@ -1,0 +1,80 @@
+# Pre-commit hooks for security and code quality
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # =============================================================================
+  # Security - Secret Detection
+  # =============================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: 🔐 Detect secrets (gitleaks)
+
+  # =============================================================================
+  # Terraform
+  # =============================================================================
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.4
+    hooks:
+      - id: terraform_fmt
+        name: 📐 Terraform format
+      - id: terraform_validate
+        name: ✅ Terraform validate
+        args:
+          - --tf-init-args=-backend=false
+
+  # =============================================================================
+  # YAML
+  # =============================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: 📋 YAML lint
+        args: [-c=.yamllint.yaml]
+
+  # =============================================================================
+  # General Code Quality
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: 🧹 Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: 📄 Fix end of files
+      - id: check-yaml
+        name: ✅ Check YAML syntax
+        args: [--allow-multiple-documents]
+        exclude: (realm-homelab|_bmad)
+      - id: check-json
+        name: ✅ Check JSON syntax
+      - id: check-merge-conflict
+        name: 🔀 Check merge conflicts
+      - id: check-added-large-files
+        name: 📦 Check large files
+        args: [--maxkb=1000]
+      - id: detect-private-key
+        name: 🔑 Detect private keys
+        exclude: docs/.*\.md$  # Docs contain example keys
+
+  # =============================================================================
+  # Shell Scripts
+  # =============================================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: 🐚 Shell script lint
+        exclude: talos/.*  # External scripts
+
+# Skip certain files globally
+exclude: |
+  (?x)^(
+    \.terraform/.*|
+    \.terraform\.lock\.hcl|
+    secrets/.*\.enc\.yaml|
+    _bmad.*
+  )$

@@ -26,7 +26,7 @@ variable "homelab_services" {
   type = map(object({
     subdomain   = string
     description = string
-    internal    = bool  # true = only via Tunnel, false = public
+    internal    = bool # true = only via Tunnel, false = public
   }))
   default = {
     # Monitoring
@@ -78,13 +78,13 @@ variable "homelab_services" {
 variable "oci_management_ip" {
   description = "OCI Management VM public IP"
   type        = string
-  default     = ""  # Will be set after VM creation
+  default     = "" # Will be set after VM creation
 }
 
 variable "oci_node_ips" {
   description = "OCI K8s node public IPs"
   type        = list(string)
-  default     = []  # Will be set after VM creation
+  default     = [] # Will be set after VM creation
 }
 
 # Proxmox (local network, accessed via Tunnel)

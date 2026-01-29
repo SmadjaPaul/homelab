@@ -15,7 +15,7 @@ spec:
     helm:
       valuesObject:
         installCRDs: true
-        
+
         resources:
           requests:
             cpu: 10m
@@ -23,7 +23,7 @@ spec:
           limits:
             cpu: 100m
             memory: 64Mi
-        
+
         webhook:
           resources:
             requests:
@@ -32,7 +32,7 @@ spec:
             limits:
               cpu: 50m
               memory: 64Mi
-        
+
         cainjector:
           resources:
             requests:
@@ -41,16 +41,16 @@ spec:
             limits:
               cpu: 50m
               memory: 128Mi
-        
+
         prometheus:
           enabled: true
           servicemonitor:
             enabled: true
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager
-  
+
   syncPolicy:
     automated:
       prune: true

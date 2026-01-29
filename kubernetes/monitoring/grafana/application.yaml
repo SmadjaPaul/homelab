@@ -15,7 +15,7 @@ spec:
     helm:
       valuesObject:
         replicas: 1
-        
+
         resources:
           requests:
             cpu: 50m
@@ -23,24 +23,24 @@ spec:
           limits:
             cpu: 500m
             memory: 256Mi
-        
+
         persistence:
           enabled: true
           size: 1Gi
-        
+
         # Admin credentials (change after first login!)
         adminUser: admin
         adminPassword: admin  # CHANGE THIS!
-        
+
         # Grafana configuration
         grafana.ini:
           server:
             domain: grafana.smadja.dev
             root_url: https://grafana.smadja.dev
-          
+
           auth:
             disable_login_form: false
-          
+
           # Future: Enable Keycloak SSO
           # auth.generic_oauth:
           #   enabled: true
@@ -50,7 +50,7 @@ spec:
           #   auth_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/auth
           #   token_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/token
           #   api_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/userinfo
-        
+
         # Datasources
         datasources:
           datasources.yaml:
@@ -65,7 +65,7 @@ spec:
                 type: loki
                 url: http://loki.monitoring:3100
                 access: proxy
-        
+
         # Dashboard providers
         dashboardProviders:
           dashboardproviders.yaml:
@@ -79,7 +79,7 @@ spec:
                 editable: true
                 options:
                   path: /var/lib/grafana/dashboards/default
-        
+
         # Pre-configured dashboards
         dashboards:
           default:
@@ -95,11 +95,11 @@ spec:
               gnetId: 14584
               revision: 1
               datasource: Prometheus
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
-  
+
   syncPolicy:
     automated:
       prune: true

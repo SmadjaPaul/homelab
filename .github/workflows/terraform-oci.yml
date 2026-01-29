@@ -76,27 +76,27 @@ jobs:
         id: check
         run: |
           echo "Checking Oracle Cloud Always Free limits..."
-          
+
           # Read planned resources from variables.tf
           cd ${{ env.TF_WORKING_DIR }}
-          
+
           # Calculate total OCPUs and Memory from variables
           # Management VM: 1 OCPU, 6GB
-          # K8s Node 1: 2 OCPU, 12GB  
+          # K8s Node 1: 2 OCPU, 12GB
           # K8s Node 2: 1 OCPU, 6GB
           # Total: 4 OCPU, 24GB
-          
+
           TOTAL_OCPUS=4
           TOTAL_MEMORY=24
-          
+
           # Free Tier Limits
           MAX_OCPUS=4
           MAX_MEMORY=24
-          
+
           echo "📊 Resource Summary:"
           echo "   OCPUs: $TOTAL_OCPUS / $MAX_OCPUS"
           echo "   Memory: ${TOTAL_MEMORY}GB / ${MAX_MEMORY}GB"
-          
+
           if [ $TOTAL_OCPUS -le $MAX_OCPUS ] && [ $TOTAL_MEMORY -le $MAX_MEMORY ]; then
             echo "✅ Within Free Tier limits"
             echo "quota_ok=true" >> $GITHUB_OUTPUT
@@ -146,7 +146,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform plan -out=tfplan -no-color | tee plan_output.txt
-          
+
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -154,21 +154,21 @@ jobs:
           script: |
             const fs = require('fs');
             const planOutput = fs.readFileSync('${{ env.TF_WORKING_DIR }}/plan_output.txt', 'utf8');
-            
+
             const output = `## Terraform Plan 📋
-            
+
             <details>
             <summary>Show Plan</summary>
-            
+
             \`\`\`hcl
             ${planOutput.substring(0, 60000)}
             \`\`\`
-            
+
             </details>
-            
+
             *Plan generated for commit: ${{ github.sha }}*
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

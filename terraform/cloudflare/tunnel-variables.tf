@@ -6,14 +6,14 @@ variable "cloudflare_account_id" {
   description = "Cloudflare Account ID (found in dashboard URL or API)"
   type        = string
   sensitive   = true
-  default     = ""  # Required only when enable_tunnel = true
+  default     = "" # Required only when enable_tunnel = true
 }
 
 variable "tunnel_secret" {
   description = "Cloudflare Tunnel secret (base64 encoded, 32+ bytes)"
   type        = string
   sensitive   = true
-  default     = ""  # Generate with: openssl rand -base64 32
+  default     = "" # Generate with: openssl rand -base64 32
 }
 
 variable "allowed_emails" {

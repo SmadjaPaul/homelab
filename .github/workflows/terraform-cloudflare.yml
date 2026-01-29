@@ -94,21 +94,21 @@ jobs:
           script: |
             const fs = require('fs');
             const { execSync } = require('child_process');
-            
+
             const plan = execSync('terraform show -no-color tfplan', {
               cwd: '${{ env.TF_WORKING_DIR }}',
               encoding: 'utf8',
               maxBuffer: 1024 * 1024 * 10
             });
-            
+
             const output = `## Cloudflare Terraform Plan
-            
+
             \`\`\`hcl
             ${plan.substring(0, 60000)}
             \`\`\`
-            
+
             *Pushed by: @${{ github.actor }}*`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

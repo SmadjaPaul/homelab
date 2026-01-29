@@ -1,6 +1,6 @@
 # SOPS Configuration
 # Secrets are encrypted with age and can be safely committed to Git
-# 
+#
 # Usage:
 #   Encrypt: sops -e secrets.yaml > secrets.enc.yaml
 #   Decrypt: sops -d secrets.enc.yaml

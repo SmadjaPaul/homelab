@@ -7,7 +7,7 @@
 version: v1alpha1
 machine:
   type: worker
-  
+
   # Network configuration
   network:
     hostname: homelab-worker-1
@@ -23,7 +23,7 @@ machine:
       - 192.168.1.1  # Local DNS (Pi-hole will be configured later)
       - 1.1.1.1     # Cloudflare DNS fallback
       - 8.8.8.8     # Google DNS fallback
-  
+
   # Kernel configuration
   kernel:
     modules:
@@ -34,24 +34,24 @@ machine:
       - name: zfs_znode
       - name: zfs_zvol
       - name: spl
-  
+
   # System extensions (for ZFS support)
   systemExtensions:
     - image: ghcr.io/siderolabs/zfs:latest
-  
+
   # Install configuration
   install:
     disk: /dev/sda  # Adjust based on actual disk
     image: ghcr.io/siderolabs/installer:v1.12.1
     bootloader: true
     wipe: false
-  
+
   # Time synchronization
   time:
     servers:
       - time.cloudflare.com
       - pool.ntp.org
-  
+
   # Kubelet configuration
   kubelet:
     extraArgs:
@@ -62,11 +62,11 @@ cluster:
   # Cluster configuration
   id: homelab-cluster
   secret: <CLUSTER_SECRET>  # Must match control plane secret
-  
+
   # Control plane endpoint
   controlplane:
     endpoint: https://192.168.1.100:6443
-  
+
   # Cluster discovery
   discovery:
     enabled: true
@@ -75,7 +75,7 @@ cluster:
         disabled: false
       service:
         disabled: false
-  
+
   # Network configuration
   network:
     dnsDomain: cluster.local

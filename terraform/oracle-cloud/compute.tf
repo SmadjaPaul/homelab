@@ -31,18 +31,18 @@ resource "oci_core_instance" "management" {
       #!/bin/bash
       # Update system
       apt-get update && apt-get upgrade -y
-      
+
       # Install Docker
       curl -fsSL https://get.docker.com | sh
       usermod -aG docker ubuntu
-      
+
       # Install Docker Compose
       apt-get install -y docker-compose-plugin
-      
+
       # Create directories for services
       mkdir -p /opt/homelab/{omni,keycloak,cloudflared,nginx}
       chown -R ubuntu:ubuntu /opt/homelab
-      
+
       echo "Management VM setup complete" > /var/log/cloud-init-homelab.log
     EOF
     )

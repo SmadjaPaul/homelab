@@ -1,0 +1,22 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+title = "Homelab Gitleaks Config"
+
+[extend]
+# Use default rules as base
+useDefault = true
+
+# Global allowlist for known safe patterns
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''\.enc\.yaml$''',
+  '''\.enc\.yml$''',
+  '''\.sops\.yaml$''',
+  '''secrets/.*\.enc\.yaml$''',
+  '''terraform\.tfvars\.example$''',
+  '''_bmad.*''',
+  # Documentation contains example keys (not real)
+  '''docs/.*\.md$''',
+]

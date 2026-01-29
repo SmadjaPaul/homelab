@@ -13,7 +13,7 @@ resource "cloudflare_tunnel" "homelab" {
 
   account_id = var.cloudflare_account_id
   name       = "homelab-tunnel"
-  secret     = var.tunnel_secret  # Base64 encoded secret, generated once
+  secret     = var.tunnel_secret # Base64 encoded secret, generated once
 }
 
 # Tunnel configuration - routes traffic to internal services
@@ -29,7 +29,7 @@ resource "cloudflare_tunnel_config" "homelab" {
       hostname = "proxmox.${var.domain}"
       service  = "https://${var.proxmox_local_ip}:8006"
       origin_request {
-        no_tls_verify = true  # Self-signed cert on Proxmox
+        no_tls_verify = true # Self-signed cert on Proxmox
       }
     }
 

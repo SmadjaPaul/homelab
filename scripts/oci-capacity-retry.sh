@@ -28,7 +28,7 @@ check_instances() {
     local nodes
     mgmt=$(terraform state list 2>/dev/null | grep -c "oci_core_instance.management") || mgmt=0
     nodes=$(terraform state list 2>/dev/null | grep -c "oci_core_instance.k8s_node") || nodes=0
-    
+
     if [ "$mgmt" -ge 1 ] && [ "$nodes" -ge 2 ]; then
         return 0  # All instances exist
     fi
@@ -39,9 +39,9 @@ main() {
     log "${YELLOW}🚀 Starting Oracle Cloud ARM Capacity Retry Script${NC}"
     log "Terraform directory: $TF_DIR"
     log "Max retries: $MAX_RETRIES"
-    log "Retry interval: ${RETRY_INTERVAL}s ($(($RETRY_INTERVAL / 60)) minutes)"
+    log "Retry interval: ${RETRY_INTERVAL}s ($((RETRY_INTERVAL / 60)) minutes)"
     log ""
-    
+
     # Check if already complete
     if check_instances; then
         log "${GREEN}✅ All instances already exist! Nothing to do.${NC}"
@@ -49,12 +49,12 @@ main() {
         terraform output -json 2>/dev/null | jq -r '.ssh_connection_commands.value // empty'
         exit 0
     fi
-    
+
     for i in $(seq 1 $MAX_RETRIES); do
         log "${YELLOW}━━━ Attempt $i/$MAX_RETRIES ━━━${NC}"
-        
+
         cd "$TF_DIR"
-        
+
         # Run terraform apply
         if terraform apply -auto-approve 2>&1 | tee -a "$LOG_FILE"; then
             # Check if instances were created
@@ -66,20 +66,20 @@ main() {
                 exit 0
             fi
         fi
-        
+
         # Check for "Out of host capacity" error
         if grep -q "Out of host capacity" "$LOG_FILE" 2>/dev/null; then
             log "${RED}❌ Out of host capacity - will retry in ${RETRY_INTERVAL}s${NC}"
         else
             log "${RED}❌ Other error occurred - check logs${NC}"
         fi
-        
+
         # Wait before retrying
         log "⏳ Waiting ${RETRY_INTERVAL}s before next attempt..."
         log "   Press Ctrl+C to stop"
         sleep $RETRY_INTERVAL
     done
-    
+
     log "${RED}❌ Max retries reached. No capacity found.${NC}"
     exit 1
 }

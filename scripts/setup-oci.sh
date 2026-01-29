@@ -22,7 +22,7 @@ if [ -f ~/.oci/config ]; then
     echo "---------------------"
     grep -E "^(user|tenancy|region|fingerprint)=" ~/.oci/config | head -4
     echo ""
-    read -p "Do you want to reconfigure? (y/N): " reconfigure
+    read -rp "Do you want to reconfigure? (y/N): " reconfigure
     if [ "$reconfigure" != "y" ] && [ "$reconfigure" != "Y" ]; then
         echo "Keeping existing configuration."
     else
@@ -37,7 +37,7 @@ else
     echo "2. Tenancy OCID → Administration → Tenancy Details → Copy OCID"
     echo "3. Region       → eu-paris-1 (or your region)"
     echo ""
-    read -p "Press Enter to continue..."
+    read -rp "Press Enter to continue..."
     oci setup config
 fi
 
@@ -62,23 +62,23 @@ if [ -f ~/.oci/config ]; then
     REGION=$(grep "^region=" ~/.oci/config | cut -d'=' -f2)
     FINGERPRINT=$(grep "^fingerprint=" ~/.oci/config | cut -d'=' -f2)
     KEY_FILE=$(grep "^key_file=" ~/.oci/config | cut -d'=' -f2)
-    
+
     echo "OCI_CLI_USER:"
     echo "$USER_OCID"
     echo ""
-    
+
     echo "OCI_CLI_TENANCY:"
     echo "$TENANCY_OCID"
     echo ""
-    
+
     echo "OCI_CLI_REGION:"
     echo "$REGION"
     echo ""
-    
+
     echo "OCI_CLI_FINGERPRINT:"
     echo "$FINGERPRINT"
     echo ""
-    
+
     echo "OCI_CLI_KEY_CONTENT:"
     echo "(Copy the entire content below, including BEGIN/END lines)"
     echo "---"

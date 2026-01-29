@@ -15,16 +15,16 @@ resource "cloudflare_zone_settings_override" "security" {
     automatic_https_rewrites = "on"
 
     # Security
-    security_level    = "medium"
-    challenge_ttl     = 1800
-    browser_check     = "on"
-    privacy_pass      = "on"
+    security_level = "medium"
+    challenge_ttl  = 1800
+    browser_check  = "on"
+    privacy_pass   = "on"
 
     # Performance (minify not available on free tier via API)
     brotli = "on"
 
     # Caching
-    browser_cache_ttl = 14400  # 4 hours
+    browser_cache_ttl = 14400 # 4 hours
     cache_level       = "aggressive"
 
     # HTTP/3 and websockets (HTTP/2 is read-only on free tier)
@@ -36,7 +36,7 @@ resource "cloudflare_zone_settings_override" "security" {
     security_header {
       enabled            = true
       include_subdomains = true
-      max_age            = 31536000  # 1 year
+      max_age            = 31536000 # 1 year
       nosniff            = true
       preload            = true
     }

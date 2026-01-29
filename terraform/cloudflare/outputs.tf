@@ -28,18 +28,18 @@ output "dns_records" {
       fqdn    = "${v.name}.${var.domain}"
       type    = v.type
       proxied = v.proxied
-    }}
+    } }
   }
 }
 
 output "security_settings" {
   description = "Security settings applied"
   value = {
-    ssl_mode          = "strict"
-    min_tls_version   = "1.2"
-    always_use_https  = true
-    hsts_enabled      = true
-    waf_rules         = "Configure manually in dashboard (5 free rules)"
+    ssl_mode         = "strict"
+    min_tls_version  = "1.2"
+    always_use_https = true
+    hsts_enabled     = true
+    waf_rules        = "Configure manually in dashboard (5 free rules)"
   }
 }
 
@@ -50,7 +50,7 @@ output "tunnel_info" {
     tunnel_name = cloudflare_tunnel.homelab[0].name
     cname       = "${cloudflare_tunnel.homelab[0].id}.cfargotunnel.com"
     status      = "Created - install cloudflared to connect"
-  } : {
+    } : {
     status = "Tunnel disabled - set enable_tunnel = true when ready"
   }
 }
@@ -61,26 +61,26 @@ output "service_urls" {
     url         = "https://${v.subdomain}.${var.domain}"
     description = v.description
     internal    = v.internal
-  }}
+  } }
 }
 
 output "next_steps" {
   description = "Next steps for configuration"
-  value = <<-EOT
-    
+  value       = <<-EOT
+
     ✅ Cloudflare configuration applied!
-    
+
     Next steps:
     1. Security settings are active (SSL strict, HSTS, WAF rules)
     2. DNS records created for all services (placeholder IPs for now)
     3. Email protection (SPF/DMARC) configured
-    
+
     When infrastructure is ready:
     1. Set enable_tunnel = true in terraform.tfvars
     2. Add cloudflare_account_id and tunnel_secret
     3. Run: terraform apply
     4. Install cloudflared on Proxmox/VM
     5. Connect tunnel: cloudflared tunnel run homelab-tunnel
-    
+
   EOT
 }

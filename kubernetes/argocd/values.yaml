@@ -8,14 +8,14 @@ configs:
   params:
     # Run insecure (TLS terminated at Cloudflare)
     server.insecure: true
-  
+
   cm:
     # Enable status badges
     statusbadge.enabled: true
-    
+
     # Application resync period
     timeout.reconciliation: 180s
-    
+
     # Resource customizations for Talos
     resource.customizations: |
       argoproj.io/Application:
@@ -44,10 +44,10 @@ configs:
 
 server:
   replicas: 1
-  
+
   ingress:
     enabled: false  # Using Cloudflare Tunnel instead
-  
+
   resources:
     requests:
       cpu: 50m
