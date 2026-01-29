@@ -1,0 +1,106 @@
+# Homepage Dashboard - https://gethomepage.dev/
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homepage
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://jameswynn.github.io/helm-charts
+    chart: homepage
+    targetRevision: 2.0.1
+    helm:
+      valuesObject:
+        image:
+          repository: ghcr.io/gethomepage/homepage
+          tag: latest
+        
+        enableRbac: true
+        
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        config:
+          bookmarks:
+            - Developer:
+                - GitHub:
+                    - abbr: GH
+                      href: https://github.com/SmadjaPaul/homelab
+                - Cloudflare:
+                    - abbr: CF
+                      href: https://dash.cloudflare.com
+                - Oracle Cloud:
+                    - abbr: OCI
+                      href: https://cloud.oracle.com
+          
+          services:
+            - Infrastructure:
+                - Proxmox:
+                    icon: proxmox.svg
+                    href: https://proxmox.smadja.dev
+                    description: Hypervisor
+                - ArgoCD:
+                    icon: argocd.svg
+                    href: https://argocd.smadja.dev
+                    description: GitOps
+            - Monitoring:
+                - Grafana:
+                    icon: grafana.svg
+                    href: https://grafana.smadja.dev
+                    description: Dashboards
+                - Prometheus:
+                    icon: prometheus.svg
+                    href: https://prometheus.smadja.dev
+                    description: Metrics
+            - Security:
+                - Keycloak:
+                    icon: keycloak.svg
+                    href: https://auth.smadja.dev
+                    description: SSO
+          
+          widgets:
+            - resources:
+                cpu: true
+                memory: true
+                disk: /
+            - datetime:
+                text_size: xl
+                format:
+                  dateStyle: long
+                  timeStyle: short
+          
+          settings:
+            title: Homelab
+            favicon: https://smadja.dev/favicon.ico
+            theme: dark
+            color: slate
+            headerStyle: clean
+            layout:
+              Infrastructure:
+                style: row
+                columns: 2
+              Monitoring:
+                style: row
+                columns: 2
+              Security:
+                style: row
+                columns: 1
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homepage
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

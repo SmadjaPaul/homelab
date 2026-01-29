@@ -1,0 +1,27 @@
+# ArgoCD Installation
+# This file references the official ArgoCD manifests
+# Run: kubectl apply -k kubernetes/argocd/
+#
+# Or use Helm:
+# helm repo add argo https://argoproj.github.io/argo-helm
+# helm install argocd argo/argo-cd -n argocd --create-namespace -f values.yaml
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+  - namespace.yaml
+  # Use official ArgoCD HA manifests
+  - https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+patches:
+  # Patch ArgoCD server to use Ingress
+  - patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --insecure
+    target:
+      kind: Deployment
+      name: argocd-server

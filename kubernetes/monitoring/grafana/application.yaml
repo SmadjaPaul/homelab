@@ -1,0 +1,108 @@
+# Grafana - Dashboards and visualization
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: 7.3.7
+    helm:
+      valuesObject:
+        replicas: 1
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        
+        persistence:
+          enabled: true
+          size: 1Gi
+        
+        # Admin credentials (change after first login!)
+        adminUser: admin
+        adminPassword: admin  # CHANGE THIS!
+        
+        # Grafana configuration
+        grafana.ini:
+          server:
+            domain: grafana.smadja.dev
+            root_url: https://grafana.smadja.dev
+          
+          auth:
+            disable_login_form: false
+          
+          # Future: Enable Keycloak SSO
+          # auth.generic_oauth:
+          #   enabled: true
+          #   name: Keycloak
+          #   client_id: grafana
+          #   client_secret: ${KEYCLOAK_CLIENT_SECRET}
+          #   auth_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/auth
+          #   token_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/token
+          #   api_url: https://auth.smadja.dev/realms/homelab/protocol/openid-connect/userinfo
+        
+        # Datasources
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus
+                type: prometheus
+                url: http://prometheus-kube-prometheus-prometheus.monitoring:9090
+                access: proxy
+                isDefault: true
+              - name: Loki
+                type: loki
+                url: http://loki.monitoring:3100
+                access: proxy
+        
+        # Dashboard providers
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: default
+                orgId: 1
+                folder: ""
+                type: file
+                disableDeletion: false
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+        
+        # Pre-configured dashboards
+        dashboards:
+          default:
+            kubernetes-cluster:
+              gnetId: 7249
+              revision: 1
+              datasource: Prometheus
+            node-exporter:
+              gnetId: 1860
+              revision: 33
+              datasource: Prometheus
+            argocd:
+              gnetId: 14584
+              revision: 1
+              datasource: Prometheus
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
