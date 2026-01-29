@@ -1,5 +1,21 @@
-# Fider - Feedback Portal
+# Fider - Feedback Portal (User-facing)
 # Requires PostgreSQL database
+#
+# SETUP INSTRUCTIONS:
+# After first deployment:
+#
+# 1. Create tenant with user-friendly name:
+#    - Name: "Smadja.dev Feedback"
+#    - Subdomain: feedback
+#
+# 2. Create TAGS for categorization:
+#    - "Bug" (color: red)
+#    - "Feature" (color: blue)
+#    - "Question" (color: green)
+#
+# 3. DO NOT create tags for technical issues
+#    Technical bugs → GitHub Issues instead
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:

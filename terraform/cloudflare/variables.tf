@@ -26,60 +26,70 @@ variable "homelab_services" {
   type = map(object({
     subdomain   = string
     description = string
-    internal    = bool # true = only via Tunnel, false = public
+    internal    = bool # true = requires Cloudflare Access, false = public
+    user_facing = bool # true = visible to users, false = admin only
   }))
   default = {
-    # Monitoring
-    grafana = {
-      subdomain   = "grafana"
-      description = "Grafana dashboards"
-      internal    = false
-    }
-    prometheus = {
-      subdomain   = "prometheus"
-      description = "Prometheus metrics"
-      internal    = true
-    }
-    alertmanager = {
-      subdomain   = "alerts"
-      description = "Alertmanager"
-      internal    = true
-    }
-
-    # Infrastructure
-    proxmox = {
-      subdomain   = "proxmox"
-      description = "Proxmox VE management"
-      internal    = true
-    }
-    argocd = {
-      subdomain   = "argocd"
-      description = "ArgoCD GitOps"
-      internal    = false
-    }
-
-    # Identity
-    keycloak = {
-      subdomain   = "auth"
-      description = "Keycloak SSO"
-      internal    = false
-    }
-
-    # Apps
+    # ===========================================
+    # USER-FACING SERVICES (visible to users)
+    # ===========================================
     homepage = {
       subdomain   = "home"
       description = "Homepage dashboard"
       internal    = false
+      user_facing = true
+    }
+    keycloak = {
+      subdomain   = "auth"
+      description = "Keycloak SSO"
+      internal    = false
+      user_facing = true
     }
     status = {
       subdomain   = "status"
       description = "Uptime Kuma status page"
       internal    = false
+      user_facing = true
     }
     feedback = {
       subdomain   = "feedback"
       description = "Fider feedback portal"
       internal    = false
+      user_facing = true
+    }
+
+    # ===========================================
+    # TECHNICAL SERVICES (admin only)
+    # ===========================================
+    grafana = {
+      subdomain   = "grafana"
+      description = "Grafana dashboards"
+      internal    = true
+      user_facing = false
+    }
+    prometheus = {
+      subdomain   = "prometheus"
+      description = "Prometheus metrics"
+      internal    = true
+      user_facing = false
+    }
+    alertmanager = {
+      subdomain   = "alerts"
+      description = "Alertmanager"
+      internal    = true
+      user_facing = false
+    }
+    proxmox = {
+      subdomain   = "proxmox"
+      description = "Proxmox VE management"
+      internal    = true
+      user_facing = false
+    }
+    argocd = {
+      subdomain   = "argocd"
+      description = "ArgoCD GitOps"
+      internal    = true
+      user_facing = false
     }
   }
 }

@@ -29,51 +29,32 @@ spec:
             memory: 256Mi
 
         config:
+          # User-facing homepage - NO technical services visible
           bookmarks:
-            - Developer:
-                - GitHub:
-                    - abbr: GH
-                      href: https://github.com/SmadjaPaul/homelab
-                - Cloudflare:
-                    - abbr: CF
-                      href: https://dash.cloudflare.com
-                - Oracle Cloud:
-                    - abbr: OCI
-                      href: https://cloud.oracle.com
+            - Liens Utiles:
+                - Status:
+                    - abbr: ST
+                      href: https://status.smadja.dev
+                - Feedback:
+                    - abbr: FB
+                      href: https://feedback.smadja.dev
 
           services:
-            - Infrastructure:
-                - Proxmox:
-                    icon: proxmox.svg
-                    href: https://proxmox.smadja.dev
-                    description: Hypervisor
-                - ArgoCD:
-                    icon: argocd.svg
-                    href: https://argocd.smadja.dev
-                    description: GitOps
-            - Monitoring:
-                - Grafana:
-                    icon: grafana.svg
-                    href: https://grafana.smadja.dev
-                    description: Dashboards
-                - Prometheus:
-                    icon: prometheus.svg
-                    href: https://prometheus.smadja.dev
-                    description: Metrics
-                - Status Page:
-                    icon: uptime-kuma.svg
-                    href: https://status.smadja.dev
-                    description: Service Status
-            - Security:
-                - Keycloak:
+            # Only user-facing services
+            - Applications:
+                - Connexion:
                     icon: keycloak.svg
                     href: https://auth.smadja.dev
-                    description: SSO
-            - Community:
+                    description: Se connecter
+            - Support:
+                - État des services:
+                    icon: uptime-kuma.svg
+                    href: https://status.smadja.dev
+                    description: Vérifier la disponibilité
                 - Feedback:
                     icon: mdi-message-text
                     href: https://feedback.smadja.dev
-                    description: Bug Reports & Features
+                    description: Signaler un bug ou suggérer
 
           widgets:
             - resources:
@@ -87,24 +68,18 @@ spec:
                   timeStyle: short
 
           settings:
-            title: Homelab
+            title: Smadja.dev
             favicon: https://smadja.dev/favicon.ico
             theme: dark
             color: slate
             headerStyle: clean
             layout:
-              Infrastructure:
+              Applications:
+                style: row
+                columns: 1
+              Support:
                 style: row
                 columns: 2
-              Monitoring:
-                style: row
-                columns: 3
-              Security:
-                style: row
-                columns: 1
-              Community:
-                style: row
-                columns: 1
 
   destination:
     server: https://kubernetes.default.svc

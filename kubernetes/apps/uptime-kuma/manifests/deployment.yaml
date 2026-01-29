@@ -1,4 +1,20 @@
 # Uptime Kuma Deployment
+#
+# SETUP INSTRUCTIONS:
+# After first deployment, create TWO status pages:
+#
+# 1. PUBLIC STATUS PAGE (status.smadja.dev)
+#    Only include USER-FACING services:
+#    - Homepage (home.smadja.dev)
+#    - Auth (auth.smadja.dev)
+#    - Feedback (feedback.smadja.dev)
+#    - Future user apps
+#
+# 2. INTERNAL MONITORING (not exposed)
+#    Monitor all services including technical:
+#    - Grafana, Prometheus, ArgoCD, Proxmox, etc.
+#    - These send alerts to Discord but are NOT shown to users
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
