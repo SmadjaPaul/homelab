@@ -351,12 +351,31 @@ Then proceed to: `*sprint-planning`
 |------|-------|
 | Domain | `smadja.dev` |
 | Cloudflare Zone ID | `bda8e2196f6b4f1684c6c9c06d996109` |
-| Cloudflare API Token | (in password manager) |
+| Cloudflare API Token | (encrypted in `secrets/cloudflare.enc.yaml`) |
 | OCI Region | `eu-paris-1` (France Central) |
+| OCI Tenancy | `ocid1.tenancy.oc1..aaaaaaaamwy5a55i2ljjxildejy42z2zshzs3edjbevyl27q4iv52sqqaqna` |
+| OCI User | `ocid1.user.oc1..aaaaaaaagasxggzzz7dkzy5imx7amrswa42p57pwtlaeaclf2lba2eisdkxq` |
 | Proxmox IP | `192.168.68.51` |
 | GitHub Repo | `https://github.com/SmadjaPaul/homelab` |
-| Secrets Backend | TBD (Bitwarden or SOPS)
+| Secrets Backend | SOPS + Age |
+| Terraform State | TFstate.dev (HTTP backend) |
 
 ---
 
-*Story 0.0.1 Complete when all checkboxes are checked*
+## Implementation Progress
+
+See: `implementation-progress.md` for detailed tracking.
+
+| Component | Status |
+|-----------|--------|
+| Terraform OCI | ✅ Ready (blocked on ARM capacity) |
+| Terraform Cloudflare | ✅ Applied |
+| K8s Manifests | ✅ All ready |
+| CI/CD Workflows | ✅ GitHub Actions |
+| Security Tooling | ✅ Pre-commit + CI |
+| Documentation | ✅ Complete |
+
+---
+
+*Story 0.0.1 COMPLETE - All prerequisites fulfilled*
+*Next: Wait for OCI ARM capacity, then deploy K8s cluster*

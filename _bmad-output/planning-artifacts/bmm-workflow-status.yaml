@@ -114,8 +114,44 @@ workflow_status:
       required: true
       workflows:
         - id: "sprint-planning"
-          status: "required"
-          agent: "sm"
-          command: "/bmad:bmm:workflows:sprint-planning"
-          output: "Sprint status tracking file"
-          note: "Blocked: Requires completed Epics & Stories first"
+          status: "planning-artifacts/implementation-progress.md"
+          agent: "dev"
+          command: "Manual implementation"
+          output: "Implementation Progress Tracker"
+          note: "Phase 0-2 largely complete, Phase 3 blocked on OCI ARM capacity"
+          completed: "2026-01-29T23:30:00Z"
+          finalized: false
+
+# =============================================================================
+# IMPLEMENTATION STATUS SUMMARY
+# =============================================================================
+# 
+# Phase 0: Pre-Implementation ✅ COMPLETE
+#   - Domain: smadja.dev
+#   - Cloudflare: Configured
+#   - Oracle Cloud: Account ready (waiting for ARM capacity)
+#   - GitHub: Repository active
+#   - Proxmox: Installed
+#
+# Phase 1: Foundation 🟡 IN PROGRESS (40%)
+#   - Proxmox installed
+#   - ZFS waiting for HDD delivery
+#   - OCI VMs blocked on capacity
+#
+# Phase 2: Core Infrastructure 🟡 IN PROGRESS (60%)
+#   - Terraform: OCI + Cloudflare ready
+#   - SOPS: Configured
+#   - K8s Manifests: All ready (ArgoCD, Prometheus, Grafana, etc.)
+#   - CI/CD: GitHub Actions workflows ready
+#   - Security: Pre-commit, Gitleaks, Trivy, tfsec
+#
+# Phase 3: PROD + Oracle Cloud 🔴 BLOCKED (20%)
+#   - OCI ARM "Out of host capacity"
+#   - Retry script running: scripts/oci-capacity-retry.sh
+#
+# NEXT STEPS:
+#   1. Wait for OCI ARM capacity (script retrying every 5 min)
+#   2. Configure ZFS when HDDs arrive
+#   3. Deploy K8s cluster
+#   4. Bootstrap ArgoCD
+#   5. Sync all applications
