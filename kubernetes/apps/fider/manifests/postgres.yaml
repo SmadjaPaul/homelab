@@ -1,0 +1,84 @@
+# PostgreSQL for Fider
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fider-postgres
+  namespace: fider
+  labels:
+    app: fider-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fider-postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: fider-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: fider
+            - name: POSTGRES_USER
+              value: fider
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fider-secrets
+                  key: postgres-password
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - fider
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: fider-postgres-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fider-postgres
+  namespace: fider
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: fider-postgres
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fider-postgres-data
+  namespace: fider
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

@@ -60,11 +60,20 @@ spec:
                     icon: prometheus.svg
                     href: https://prometheus.smadja.dev
                     description: Metrics
+                - Status Page:
+                    icon: uptime-kuma.svg
+                    href: https://status.smadja.dev
+                    description: Service Status
             - Security:
                 - Keycloak:
                     icon: keycloak.svg
                     href: https://auth.smadja.dev
                     description: SSO
+            - Community:
+                - Feedback:
+                    icon: mdi-message-text
+                    href: https://feedback.smadja.dev
+                    description: Bug Reports & Features
 
           widgets:
             - resources:
@@ -89,8 +98,11 @@ spec:
                 columns: 2
               Monitoring:
                 style: row
-                columns: 2
+                columns: 3
               Security:
+                style: row
+                columns: 1
+              Community:
                 style: row
                 columns: 1
 

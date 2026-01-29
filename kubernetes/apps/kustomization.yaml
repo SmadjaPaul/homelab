@@ -4,5 +4,7 @@ kind: Kustomization
 resources:
   - homepage/application.yaml
   - keycloak/application.yaml
+  - uptime-kuma/application.yaml
+  - fider/application.yaml
   # Add more apps as needed:
   # - docuseal/application.yaml

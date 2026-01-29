@@ -1,0 +1,24 @@
+# Fider - Feedback & Feature Requests Portal
+# https://fider.io/
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fider
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/SmadjaPaul/homelab.git
+    targetRevision: main
+    path: kubernetes/apps/fider/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fider
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

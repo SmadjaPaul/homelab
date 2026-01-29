@@ -1,0 +1,24 @@
+# Uptime Kuma - Status Page & Monitoring
+# https://github.com/louislam/uptime-kuma
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uptime-kuma
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/SmadjaPaul/homelab.git
+    targetRevision: main
+    path: kubernetes/apps/uptime-kuma/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: uptime-kuma
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

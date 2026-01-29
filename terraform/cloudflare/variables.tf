@@ -71,6 +71,16 @@ variable "homelab_services" {
       description = "Homepage dashboard"
       internal    = false
     }
+    status = {
+      subdomain   = "status"
+      description = "Uptime Kuma status page"
+      internal    = false
+    }
+    feedback = {
+      subdomain   = "feedback"
+      description = "Fider feedback portal"
+      internal    = false
+    }
   }
 }
 

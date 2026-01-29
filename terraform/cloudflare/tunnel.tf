@@ -72,6 +72,18 @@ resource "cloudflare_tunnel_config" "homelab" {
       service  = "http://alertmanager.monitoring.svc.cluster.local:9093"
     }
 
+    # Uptime Kuma (status page)
+    ingress_rule {
+      hostname = "status.${var.domain}"
+      service  = "http://uptime-kuma.uptime-kuma.svc.cluster.local:3001"
+    }
+
+    # Fider (feedback portal)
+    ingress_rule {
+      hostname = "feedback.${var.domain}"
+      service  = "http://fider.fider.svc.cluster.local:3000"
+    }
+
     # Catch-all rule (required)
     ingress_rule {
       service = "http_status:404"
