@@ -1,0 +1,54 @@
+# Reloader - Auto-restart pods on ConfigMap/Secret changes
+# https://github.com/stakater/Reloader
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reloader
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://stakater.github.io/stakater-charts
+    chart: reloader
+    targetRevision: 1.0.72
+    helm:
+      values: |
+        reloader:
+          # Watch all namespaces
+          watchGlobally: true
+
+          # Reload strategy: env-vars (recommended) or annotations
+          reloadStrategy: default
+
+          # Log level
+          logFormat: json
+
+          # Resource limits
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+          # Enable Prometheus metrics
+          serviceMonitor:
+            enabled: true
+            namespace: monitoring
+
+          # Pod annotations for Prometheus scraping
+          podAnnotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9090"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: reloader
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

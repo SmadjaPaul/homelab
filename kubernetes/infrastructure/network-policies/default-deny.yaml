@@ -1,0 +1,51 @@
+# Default Deny Network Policies
+# These policies deny all traffic by default, then we allow specific flows
+#
+# Apply to each namespace that needs isolation
+---
+# Deny all ingress in monitoring namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Deny all ingress in argocd namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Deny all ingress in keycloak namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: keycloak
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Deny all ingress in apps namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: apps
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

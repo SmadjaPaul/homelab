@@ -5,36 +5,68 @@
     "docker:enableMajor",
     ":semanticCommits",
     ":automergeDigest",
-    ":automergeBranch"
+    ":automergeBranch",
+    "security:openssf-scorecard"
   ],
   "timezone": "Europe/Paris",
+  "schedule": ["after 9am and before 5pm every weekday"],
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Renovate Dashboard 🤖",
   "suppressNotifications": ["prEditedNotification"],
   "rebaseWhen": "conflicted",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": ["dependencies", "renovate"],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
   "kubernetes": {
     "fileMatch": ["kubernetes/.+\\.ya?ml$"]
   },
   "helm-values": {
     "fileMatch": ["kubernetes/.+\\.ya?ml$"]
   },
+  "argocd": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
   "terraform": {
     "fileMatch": ["terraform/.+\\.tf$"]
   },
+  "github-actions": {
+    "fileMatch": [".github/workflows/.+\\.ya?ml$"]
+  },
+  "pre-commit": {
+    "enabled": true
+  },
   "packageRules": [
     {
-      "description": "Auto-merge minor/patch for trusted container images",
+      "description": "Auto-merge minor/patch for infrastructure tools",
       "matchUpdateTypes": ["minor", "patch"],
-      "matchDatasources": ["docker"],
       "matchPackagePatterns": [
-        "ghcr.io/linuxserver/*",
-        "ghcr.io/onedr0p/*"
+        "stakater/reloader",
+        "bitnami/external-dns",
+        "jetstack/cert-manager"
       ],
       "automerge": true
     },
     {
+      "description": "Auto-merge patch for Helm charts",
+      "matchUpdateTypes": ["patch"],
+      "matchDatasources": ["helm"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Auto-merge GitHub Actions minor/patch",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
       "description": "Group Prometheus stack updates",
-      "matchPackagePatterns": ["prometheus", "grafana", "alertmanager", "loki"],
+      "matchPackagePatterns": ["prometheus", "grafana", "alertmanager", "loki", "promtail"],
       "groupName": "monitoring-stack"
     },
     {
@@ -44,14 +76,51 @@
     },
     {
       "description": "Group Cilium updates",
-      "matchPackagePatterns": ["cilium"],
+      "matchPackagePatterns": ["cilium", "hubble"],
       "groupName": "cilium"
+    },
+    {
+      "description": "Group Keycloak updates",
+      "matchPackagePatterns": ["keycloak"],
+      "groupName": "keycloak"
     },
     {
       "description": "Group Terraform providers",
       "matchManagers": ["terraform"],
       "matchPackagePatterns": ["*"],
       "groupName": "terraform-providers"
+    },
+    {
+      "description": "Group pre-commit hooks",
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit-hooks"
+    },
+    {
+      "description": "Security updates - high priority",
+      "matchPackagePatterns": ["*"],
+      "matchUpdateTypes": ["patch"],
+      "matchDatasources": ["docker"],
+      "vulnerabilityAlerts": true,
+      "labels": ["security", "urgent"],
+      "prPriority": 10
+    }
+  ],
+  "regexManagers": [
+    {
+      "description": "Update Helm chart versions in ArgoCD Applications",
+      "fileMatch": ["kubernetes/.+\\.ya?ml$"],
+      "matchStrings": [
+        "repoURL:\\s*(?<registryUrl>https://[^\\s]+)\\s+chart:\\s*(?<depName>[^\\s]+)\\s+targetRevision:\\s*(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "description": "Update container images in manifests",
+      "fileMatch": ["kubernetes/.+\\.ya?ml$"],
+      "matchStrings": [
+        "image:\\s*(?<depName>[^:]+):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }

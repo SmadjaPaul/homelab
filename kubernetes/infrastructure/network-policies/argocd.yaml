@@ -1,0 +1,124 @@
+# Network Policies for ArgoCD Namespace
+---
+# Allow ArgoCD Server to receive traffic from ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-server-ingress
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # From cloudflared tunnel
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+      ports:
+        - protocol: TCP
+          port: 8080
+    # From Twingate
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: twingate
+      ports:
+        - protocol: TCP
+          port: 8080
+    # ArgoCD CLI (via kubectl port-forward)
+    - ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# Allow ArgoCD components to communicate
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-internal
+  namespace: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from within namespace
+    - from:
+        - podSelector: {}
+  egress:
+    # Allow to within namespace
+    - to:
+        - podSelector: {}
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+
+---
+# Allow ArgoCD to reach GitHub
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-github
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  policyTypes:
+    - Egress
+  egress:
+    # HTTPS to GitHub
+    - ports:
+        - protocol: TCP
+          port: 443
+    # SSH to GitHub
+    - ports:
+        - protocol: TCP
+          port: 22
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+
+---
+# Allow ArgoCD to deploy to all namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-deploy
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  policyTypes:
+    - Egress
+  egress:
+    # To Kubernetes API
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
