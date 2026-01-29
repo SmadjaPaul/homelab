@@ -1,24 +1,26 @@
 # Terraform Backend Configuration
-# 
-# Option 1: Local state (current - simple for single user)
-# Option 2: OCI Object Storage (recommended for CI/CD)
+# Using TFstate.dev - Free Terraform State hosting with GitHub Auth
+# https://tfstate.dev/
 #
-# To switch to remote state, uncomment the backend block below
-# and run: terraform init -migrate-state
+# Features:
+# - Uses GitHub Token for authentication
+# - Encrypted state in AWS S3 with KMS
+# - State locking included
+# - No additional setup required
 
-# terraform {
-#   backend "s3" {
-#     bucket                      = "homelab-terraform-state"
-#     key                         = "oracle-cloud/terraform.tfstate"
-#     region                      = "eu-paris-1"
-#     endpoint                    = "https://<namespace>.compat.objectstorage.eu-paris-1.oraclecloud.com"
-#     skip_region_validation      = true
-#     skip_credentials_validation = true
-#     skip_metadata_api_check     = true
-#     force_path_style            = true
-#   }
-# }
+terraform {
+  backend "http" {
+    address        = "https://api.tfstate.dev/github/v1"
+    lock_address   = "https://api.tfstate.dev/github/v1/lock"
+    unlock_address = "https://api.tfstate.dev/github/v1/lock"
+    lock_method    = "PUT"
+    unlock_method  = "DELETE"
+    username       = "SmadjaPaul/homelab"
+  }
+}
 
-# For now, state is stored locally
-# In CI/CD, we'll use GitHub Actions artifacts to persist state
-# or migrate to OCI Object Storage backend
+# To initialize with GitHub token:
+# export TF_HTTP_PASSWORD="ghp_your_github_token"
+# terraform init
+#
+# In GitHub Actions, the token is automatically available via secrets.GITHUB_TOKEN

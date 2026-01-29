@@ -2,6 +2,17 @@
 
 This guide explains how to configure GitHub Actions to automatically deploy Oracle Cloud infrastructure.
 
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   GitHub    │────▶│  TFstate.dev│────▶│Oracle Cloud │
+│   Actions   │     │  (State)    │     │  (Infra)    │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+**State Management**: [TFstate.dev](https://tfstate.dev/) - Free Terraform state backend using GitHub token
+
 ## Prerequisites
 
 - Oracle Cloud account (Always Free tier)
@@ -129,9 +140,27 @@ Oracle's free tier ARM instances are popular and may not be available. Solutions
 
 ### State file issues
 
-The current setup uses local state. For production, consider:
-- OCI Object Storage backend (S3-compatible)
-- Terraform Cloud (free for small teams)
+State is managed by [TFstate.dev](https://tfstate.dev/):
+- Uses `GITHUB_TOKEN` automatically in Actions
+- Encrypted storage with AWS S3 + KMS
+- State locking included
+- No additional setup required
+
+For local development:
+```bash
+export TF_HTTP_PASSWORD="ghp_your_personal_access_token"
+terraform init
+```
+
+## Alternative: Spacelift
+
+[Spacelift](https://spacelift.io/pricing) offers a free tier that includes:
+- 1 private worker
+- Unlimited public repos
+- State management
+- Policy as code
+
+Consider Spacelift if you need more advanced CI/CD features.
 
 ## Security Notes
 
