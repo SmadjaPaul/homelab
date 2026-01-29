@@ -30,6 +30,18 @@ Source: https://www.oracle.com/cloud/free/
 | Object Storage | 20 GB (Standard + Infrequent + Archive) |
 | Archive Storage | Included in 20 GB Object Storage |
 
+### Our Object Storage Usage (Velero Backups)
+
+| Bucket | Max Size | Purpose |
+|--------|----------|---------|
+| homelab-velero-backups | 10 GB | Kubernetes backups |
+| **Reserved** | 10 GB | Future use |
+| **Total** | **20 GB** | ✅ Within limits |
+
+**Lifecycle Policy:**
+- Backups archived after 7 days (cheaper storage)
+- Backups deleted after 14 days (stay within quota)
+
 ## Networking
 
 | Resource | Always Free Limit |

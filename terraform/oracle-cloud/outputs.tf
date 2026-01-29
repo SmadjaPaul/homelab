@@ -42,3 +42,24 @@ output "ssh_connection_commands" {
     ]
   }
 }
+
+# Object Storage outputs for Velero
+output "velero_bucket" {
+  description = "Velero backup bucket details"
+  value = {
+    name      = oci_objectstorage_bucket.velero_backups.name
+    namespace = data.oci_objectstorage_namespace.ns.namespace
+    region    = var.region
+    # S3 compatible endpoint
+    s3_endpoint = "https://${data.oci_objectstorage_namespace.ns.namespace}.compat.objectstorage.${var.region}.oraclecloud.com"
+  }
+}
+
+output "velero_s3_credentials" {
+  description = "S3 credentials for Velero (sensitive)"
+  sensitive   = true
+  value = {
+    access_key = oci_identity_customer_secret_key.velero_s3_key.id
+    secret_key = oci_identity_customer_secret_key.velero_s3_key.key
+  }
+}

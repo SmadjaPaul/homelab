@@ -7,4 +7,5 @@ resources:
   - twingate/application.yaml
   - reloader/application.yaml
   - network-policies/application.yaml
+  - velero/application.yaml
   # - external-secrets/application.yaml

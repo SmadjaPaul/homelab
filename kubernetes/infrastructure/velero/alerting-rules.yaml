@@ -1,0 +1,52 @@
+# Prometheus Alert Rules for Velero Backups
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: velero-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus
+spec:
+  groups:
+    - name: velero
+      rules:
+        # Backup failed
+        - alert: VeleroBackupFailed
+          expr: increase(velero_backup_failure_total[1h]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Velero backup failed"
+            description: "A Velero backup has failed in the last hour."
+
+        # Backup partially failed
+        - alert: VeleroBackupPartialFailure
+          expr: increase(velero_backup_partial_failure_total[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero backup partially failed"
+            description: "A Velero backup has partially failed in the last hour."
+
+        # No successful backup in 25 hours
+        - alert: VeleroNoRecentBackup
+          expr: time() - velero_backup_last_successful_timestamp > 90000
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "No recent Velero backup"
+            description: "No successful Velero backup in the last 25 hours."
+
+        # Backup storage location not available
+        - alert: VeleroBackupStorageUnavailable
+          expr: velero_backup_storage_location_available == 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Velero backup storage unavailable"
+            description: "Backup storage location {{ $labels.name }} is not available."

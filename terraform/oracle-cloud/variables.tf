@@ -76,6 +76,12 @@ variable "budget_alert_email" {
   type        = string
 }
 
+# User OCID (for S3 compatible access keys)
+variable "user_ocid" {
+  description = "OCI User OCID for creating S3 access keys"
+  type        = string
+}
+
 # Tags
 variable "tags" {
   description = "Tags to apply to resources"
