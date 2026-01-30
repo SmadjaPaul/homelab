@@ -51,6 +51,7 @@ repos:
         exclude: (realm-homelab|_bmad)
       - id: check-json
         name: ✅ Check JSON syntax
+        exclude: docs-site/tsconfig\.json$  # TSconfig with comments
       - id: check-merge-conflict
         name: 🔀 Check merge conflicts
       - id: check-added-large-files

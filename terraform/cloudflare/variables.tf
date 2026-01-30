@@ -57,6 +57,12 @@ variable "homelab_services" {
       internal    = false
       user_facing = true
     }
+    docs = {
+      subdomain   = "docs"
+      description = "Docusaurus documentation"
+      internal    = false
+      user_facing = true
+    }
 
     # ===========================================
     # TECHNICAL SERVICES (admin only)

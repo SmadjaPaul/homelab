@@ -84,6 +84,12 @@ resource "cloudflare_tunnel_config" "homelab" {
       service  = "http://fider.fider.svc.cluster.local:3000"
     }
 
+    # Docusaurus (documentation)
+    ingress_rule {
+      hostname = "docs.${var.domain}"
+      service  = "http://docs.docs.svc.cluster.local:80"
+    }
+
     # Catch-all rule (required)
     ingress_rule {
       service = "http_status:404"

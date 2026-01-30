@@ -6,5 +6,6 @@ resources:
   - keycloak/application.yaml
   - uptime-kuma/application.yaml
   - fider/application.yaml
+  - docusaurus/application.yaml
   # Add more apps as needed:
   # - docuseal/application.yaml

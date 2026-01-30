@@ -56,3 +56,8 @@ terraform/cloudflare/terraform.tfvars
 terraform/cloudflare/.terraform/
 terraform/cloudflare/terraform.tfstate*
 terraform/cloudflare/backend_override.tf
+
+# Docusaurus
+docs-site/node_modules/
+docs-site/build/
+docs-site/.docusaurus/
