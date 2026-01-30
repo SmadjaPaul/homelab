@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Getting Started
+# Installation
 
 ## Prérequis
 

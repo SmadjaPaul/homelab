@@ -43,9 +43,9 @@ Ce homelab est une infrastructure hybride combinant :
 
 | Ressource | Description |
 |-----------|-------------|
-| [Architecture](/architecture/overview) | Vue détaillée de l'architecture |
-| [Services](/services/overview) | Liste des services déployés |
-| [Runbooks](/runbooks) | Procédures d'intervention |
+| [Architecture](/advanced/architecture) | Vue détaillée de l'architecture |
+| [Infrastructure](/infrastructure/kubernetes) | Infrastructure déployée |
+| [Runbooks](/runbooks/overview) | Procédures d'intervention |
 | [Status Page](https://status.smadja.dev) | État des services |
 
 ## Stack technique

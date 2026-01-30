@@ -25,6 +25,12 @@ const config: Config = {
     locales: ['fr'],
   },
 
+  markdown: {
+    mermaid: true,
+  },
+
+  themes: ['@docusaurus/theme-mermaid'],
+
   presets: [
     [
       'classic',
@@ -32,25 +38,13 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/SmadjaPaul/homelab/tree/main/docs-site/',
-          routeBasePath: '/', // Docs at root
+          routeBasePath: '/',
         },
-        blog: false, // Disable blog
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
-    ],
-  ],
-
-  plugins: [
-    [
-      '@docusaurus/plugin-content-docs',
-      {
-        id: 'runbooks',
-        path: 'runbooks',
-        routeBasePath: 'runbooks',
-        sidebarPath: './sidebarsRunbooks.ts',
-      },
     ],
   ],
 
@@ -74,11 +68,6 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          to: '/runbooks',
-          label: 'Runbooks',
-          position: 'left',
-        },
-        {
           href: 'https://status.smadja.dev',
           label: 'Status',
           position: 'right',
@@ -97,16 +86,16 @@ const config: Config = {
           title: 'Documentation',
           items: [
             {
-              label: 'Architecture',
-              to: '/architecture',
+              label: 'Introduction',
+              to: '/',
             },
             {
-              label: 'Services',
-              to: '/services',
+              label: 'Démarrage',
+              to: '/getting-started/installation',
             },
             {
               label: 'Runbooks',
-              to: '/runbooks',
+              to: '/runbooks/overview',
             },
           ],
         },
@@ -145,14 +134,13 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Paul Smadja. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Paul Smadja`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'yaml', 'hcl', 'json'],
+      additionalLanguages: ['bash', 'yaml', 'hcl', 'json', 'ini'],
     },
-    algolia: undefined, // Disable Algolia for now
   } satisfies Preset.ThemeConfig,
 };
 

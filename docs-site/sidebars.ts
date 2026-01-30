@@ -9,13 +9,31 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Architecture',
+      label: 'Démarrage',
       collapsed: false,
       items: [
-        'architecture/overview',
-        'architecture/diagrams',
-        'architecture/network',
-        'architecture/security',
+        'getting-started/installation',
+        'getting-started/configuration',
+        'getting-started/first-deploy',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Guides',
+      items: [
+        'guides/add-service',
+        'guides/secrets-management',
+        'guides/backup-restore',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Guides avancés',
+      items: [
+        'advanced/architecture',
+        'advanced/network',
+        'advanced/security',
+        'advanced/disaster-recovery',
       ],
     },
     {
@@ -30,22 +48,27 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Services',
+      label: 'Runbooks',
       items: [
-        'services/overview',
-        'services/monitoring',
-        'services/identity',
-        'services/backup',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Guides',
-      items: [
-        'guides/getting-started',
-        'guides/add-service',
-        'guides/secrets-management',
-        'guides/disaster-recovery',
+        'runbooks/overview',
+        {
+          type: 'category',
+          label: 'Incidents',
+          items: [
+            'runbooks/service-down',
+            'runbooks/disk-full',
+            'runbooks/high-cpu',
+            'runbooks/certificate-expired',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Maintenance',
+          items: [
+            'runbooks/upgrade-cluster',
+            'runbooks/rotate-secrets',
+          ],
+        },
       ],
     },
   ],
