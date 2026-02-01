@@ -19,8 +19,14 @@ terraform {
   }
 }
 
-# To initialize with GitHub token:
-# export TF_HTTP_PASSWORD="ghp_your_github_token"
-# terraform init
+# To initialize with GitHub token (CI backend):
+#   export TF_HTTP_PASSWORD="ghp_your_github_token"   # or TFSTATE_DEV_TOKEN
+#   terraform init -reconfigure
+#
+# To force-unlock the CI state when a run left a stale lock (use same backend as CI):
+#   1. Rename backend override so Terraform uses HTTP:  mv backend_override.tf backend_override.tf.bak
+#   2. terraform init -reconfigure
+#   3. terraform force-unlock <LOCK_ID>
+#   4. Restore override:  mv backend_override.tf.bak backend_override.tf
 #
 # In GitHub Actions, the token is automatically available via secrets.GITHUB_TOKEN

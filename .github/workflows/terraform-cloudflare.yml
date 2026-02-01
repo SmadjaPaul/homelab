@@ -33,6 +33,10 @@ on:
           - development
           - production
 
+concurrency:
+  group: terraform-cloudflare
+  cancel-in-progress: false
+
 env:
   TF_WORKING_DIR: terraform/cloudflare
   TF_VERSION: '1.7.0'

@@ -25,6 +25,7 @@ on:
           - plan
           - apply
           - destroy
+          - force-unlock
       environment:
         description: 'Target environment'
         required: true
@@ -33,6 +34,15 @@ on:
         options:
           - development
           - production
+      lock_id:
+        description: 'Lock ID (for action: force-unlock). Copy from the CI error message.'
+        required: false
+        type: string
+
+# Une seule exécution à la fois pour éviter deux runs qui verrouillent le même state (lock conflict)
+concurrency:
+  group: terraform-oci
+  cancel-in-progress: false
 
 env:
   TF_WORKING_DIR: terraform/oracle-cloud
@@ -250,6 +260,37 @@ jobs:
         with:
           name: terraform-outputs
           path: ${{ env.TF_WORKING_DIR }}/outputs.json
+
+  # ==================== Force-unlock state (Manual, CI backend) ====================
+  force-unlock:
+    name: Terraform Force-Unlock State
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'force-unlock'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (HTTP backend = same as plan/apply)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+        env:
+          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Force-Unlock State
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          LOCK_ID="${{ github.event.inputs.lock_id }}"
+          if [ -z "$LOCK_ID" ]; then
+            echo "::error::lock_id input is required for force-unlock. Copy the ID from the CI error (e.g. ID=e880b4cb-...)."
+            exit 1
+          fi
+          terraform force-unlock -force "$LOCK_ID"
+          echo "State unlocked: $LOCK_ID"
 
   # ==================== Destroy (Manual Only) ====================
   destroy:
