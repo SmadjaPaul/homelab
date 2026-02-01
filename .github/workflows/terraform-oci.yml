@@ -44,6 +44,8 @@ concurrency:
   group: terraform-oci
   cancel-in-progress: false
 
+# Temporaire: -lock=false sur plan/apply (évite lock + invalid auth tfstate.dev). Retirer quand TFSTATE_DEV_TOKEN sera OK ou usage concurrent.
+
 env:
   TF_WORKING_DIR: terraform/oracle-cloud
   TF_VERSION: '1.10.0'
@@ -172,7 +174,7 @@ jobs:
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform plan -out=tfplan -no-color | tee plan_output.txt
+          terraform plan -lock=false -out=tfplan -no-color | tee plan_output.txt
 
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request'
@@ -249,7 +251,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve
+        run: terraform apply -lock=false -auto-approve
 
       - name: Output Results
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -332,4 +334,4 @@ jobs:
 
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform destroy -auto-approve
+        run: terraform destroy -lock=false -auto-approve
