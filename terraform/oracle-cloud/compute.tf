@@ -3,7 +3,7 @@
 # Management VM (Omni, Keycloak, Cloudflare Tunnel)
 resource "oci_core_instance" "management" {
   compartment_id      = var.compartment_id
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[var.availability_domain_index % length(data.oci_identity_availability_domains.ads.availability_domains)].name
   display_name        = var.management_vm.name
   shape               = "VM.Standard.A1.Flex"
 
@@ -20,7 +20,7 @@ resource "oci_core_instance" "management" {
 
   create_vnic_details {
     subnet_id        = oci_core_subnet.public.id
-    assign_public_ip = true
+    assign_public_ip = false # Reserved public IP attached separately; do not change or Terraform will try to add an ephemeral IP and conflict with existing
     display_name     = "${var.management_vm.name}-vnic"
     hostname_label   = var.management_vm.name
   }
@@ -53,9 +53,15 @@ resource "oci_core_instance" "management" {
   })
 }
 
-# Note: The management VM will get an ephemeral public IP automatically
-# Reserved IPs can be added later if needed for static IP requirements
-# The public IP is accessible via: oci_core_instance.management.public_ip
+# Management VM public IP (from VNIC; instance has no direct public_ip attribute)
+data "oci_core_vnic_attachments" "management" {
+  compartment_id = var.compartment_id
+  instance_id    = oci_core_instance.management.id
+}
+
+data "oci_core_vnic" "management" {
+  vnic_id = data.oci_core_vnic_attachments.management.vnic_attachments[0].vnic_id
+}
 
 # Kubernetes Nodes
 resource "oci_core_instance" "k8s_node" {

@@ -54,9 +54,9 @@ locals {
   }
 
   k8s_resources = {
-    ocpus  = sum([for node in var.k8s_nodes : node.ocpus])
-    memory = sum([for node in var.k8s_nodes : node.memory])
-    disk   = sum([for node in var.k8s_nodes : node.disk])
+    ocpus  = length(var.k8s_nodes) > 0 ? sum([for node in var.k8s_nodes : node.ocpus]) : 0
+    memory = length(var.k8s_nodes) > 0 ? sum([for node in var.k8s_nodes : node.memory]) : 0
+    disk   = length(var.k8s_nodes) > 0 ? sum([for node in var.k8s_nodes : node.disk]) : 0
   }
 
   total_resources = {

@@ -1,0 +1,90 @@
+# Deploy OCI Management Stack (Omni + PostgreSQL) — IaC via CI
+# Déploie docker/oci-mgmt sur la VM management OCI (IP depuis Terraform state).
+name: Deploy OCI Management Stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/oci-mgmt/**'
+      - '.github/workflows/deploy-oci-mgmt.yml'
+  workflow_dispatch:
+
+env:
+  TF_WORKING_DIR: terraform/oracle-cloud
+  TF_VERSION: '1.10.0'
+
+jobs:
+  get-mgmt-ip:
+    name: Get management VM IP
+    runs-on: ubuntu-latest
+    outputs:
+      mgmt_ip: ${{ steps.output.outputs.public_ip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+        env:
+          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Terraform Output (management VM IP)
+        id: output
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+          if [ -z "$IP" ]; then
+            echo "::error::Terraform output 'management_vm.public_ip' not found. Run Terraform OCI apply first."
+            exit 1
+          fi
+          echo "public_ip=$IP" >> $GITHUB_OUTPUT
+          echo "Management VM IP: $IP"
+
+  deploy:
+    name: Deploy Omni stack on VM
+    runs-on: ubuntu-latest
+    needs: get-mgmt-ip
+    if: needs.get-mgmt-ip.outputs.mgmt_ip != ''
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.OCI_MGMT_SSH_PRIVATE_KEY }}" > ~/.ssh/oci_mgmt.pem
+          chmod 600 ~/.ssh/oci_mgmt.pem
+          ssh-keyscan -H ${{ needs.get-mgmt-ip.outputs.mgmt_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copy docker/oci-mgmt to VM
+        run: |
+          scp -i ~/.ssh/oci_mgmt.pem -o StrictHostKeyChecking=accept-new -r docker/oci-mgmt ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }}:~/homelab/
+
+      - name: Create .env on VM
+        env:
+          OMNI_DB_USER: ${{ secrets.OMNI_DB_USER }}
+          OMNI_DB_PASSWORD: ${{ secrets.OMNI_DB_PASSWORD }}
+          OMNI_DB_NAME: ${{ secrets.OMNI_DB_NAME }}
+        run: |
+          printf 'OMNI_DB_USER=%s\nOMNI_DB_PASSWORD=%s\nOMNI_DB_NAME=%s\n' \
+            "$OMNI_DB_USER" "$OMNI_DB_PASSWORD" "$OMNI_DB_NAME" > /tmp/oci-mgmt.env
+          scp -i ~/.ssh/oci_mgmt.pem /tmp/oci-mgmt.env ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }}:~/homelab/oci-mgmt/.env
+          rm -f /tmp/oci-mgmt.env
+
+      - name: Docker Compose up
+        run: |
+          ssh -i ~/.ssh/oci_mgmt.pem ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }} \
+            'cd ~/homelab/oci-mgmt && docker compose pull && docker compose up -d'
+
+      - name: Verify
+        run: |
+          ssh -i ~/.ssh/oci_mgmt.pem ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }} \
+            'cd ~/homelab/oci-mgmt && docker compose ps'

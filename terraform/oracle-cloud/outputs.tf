@@ -11,11 +11,11 @@ output "subnet_id" {
 }
 
 output "management_vm" {
-  description = "Management VM details"
+  description = "Management VM details (public IP from VNIC)"
   value = {
     id         = oci_core_instance.management.id
     name       = oci_core_instance.management.display_name
-    public_ip  = oci_core_instance.management.public_ip
+    public_ip  = data.oci_core_vnic.management.public_ip_address
     private_ip = oci_core_instance.management.private_ip
   }
 }
@@ -35,7 +35,7 @@ output "k8s_nodes" {
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances"
   value = {
-    management = "ssh -i ~/.ssh/oci-homelab ubuntu@${oci_core_instance.management.public_ip}"
+    management = "ssh -i ~/.ssh/oci-homelab ubuntu@${data.oci_core_vnic.management.public_ip_address}"
     k8s_nodes = [
       for node in oci_core_instance.k8s_node :
       "ssh -i ~/.ssh/oci-homelab ubuntu@${node.public_ip}"

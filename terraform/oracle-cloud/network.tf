@@ -87,6 +87,19 @@ resource "oci_core_security_list" "public" {
     }
   }
 
+  # Ingress - Omni UI (Story 1.3.2; put behind HTTPS reverse proxy in production)
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = "0.0.0.0/0"
+    stateless   = false
+    description = "Omni API/UI"
+
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
+  }
+
   # Ingress - Kubernetes API
   ingress_security_rules {
     protocol    = "6" # TCP

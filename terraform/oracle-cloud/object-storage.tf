@@ -1,6 +1,20 @@
 # Oracle Cloud Object Storage for Velero Backups
 # Free tier: 20 GB total (Standard + Infrequent + Archive)
 
+# -----------------------------------------------------------------------------
+# IAM: autoriser le service Object Storage à gérer le lifecycle (archive/delete)
+# Sans cette politique, PutObjectLifecyclePolicy renvoie InsufficientServicePermissions
+# https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usinglifecyclepolicies.htm
+# -----------------------------------------------------------------------------
+resource "oci_identity_policy" "object_storage_lifecycle" {
+  compartment_id = var.compartment_id
+  name           = "homelab-object-storage-lifecycle-service"
+  description    = "Allow Object Storage service to manage lifecycle (archive/delete) on buckets"
+  statements = [
+    "Allow service objectstorage-${replace(var.region, ".", "-")} to manage object-family in tenancy"
+  ]
+}
+
 # Get Object Storage namespace (required for bucket operations)
 data "oci_objectstorage_namespace" "ns" {
   compartment_id = var.compartment_id
@@ -32,10 +46,11 @@ resource "oci_objectstorage_bucket" "velero_backups" {
   }
 }
 
-# Lifecycle policy to auto-delete old backups
+# Lifecycle policy to auto-delete old backups (nécessite la policy IAM ci-dessus)
 resource "oci_objectstorage_object_lifecycle_policy" "velero_lifecycle" {
-  namespace = data.oci_objectstorage_namespace.ns.namespace
-  bucket    = oci_objectstorage_bucket.velero_backups.name
+  namespace  = data.oci_objectstorage_namespace.ns.namespace
+  bucket     = oci_objectstorage_bucket.velero_backups.name
+  depends_on = [oci_identity_policy.object_storage_lifecycle]
 
   rules {
     name        = "delete-old-backups"

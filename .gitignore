@@ -27,6 +27,7 @@ backend_override.tf
 .terraform/
 .terraform.lock.hcl
 terraform.tfplan
+tfplan
 *.log
 
 # Ansible

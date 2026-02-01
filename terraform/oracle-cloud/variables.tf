@@ -16,6 +16,13 @@ variable "ssh_public_key" {
   type        = string
 }
 
+# Availability domain index (0, 1, 2...) — useful if one AD has no capacity
+variable "availability_domain_index" {
+  description = "Index of availability domain for management VM (0 = first AD)"
+  type        = number
+  default     = 0
+}
+
 # VCN Configuration
 variable "vcn_cidr" {
   description = "CIDR block for VCN"
