@@ -1,9 +1,10 @@
 ---
 sidebar_position: 1
-slug: /
 ---
 
-# Homelab Documentation
+# Documentation technique
+
+Cette section s’adresse à **l’administrateur** de la plateforme. Elle décrit l’infrastructure, le déploiement et les procédures d’exploitation.
 
 Bienvenue dans la documentation technique du homelab Smadja.
 

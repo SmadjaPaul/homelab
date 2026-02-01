@@ -1,0 +1,21 @@
+# Proxmox Terraform Variables
+# Copier vers terraform.tfvars et remplir. Ne pas commiter terraform.tfvars.
+
+# URL de l’API Proxmox (IP ou hostname du nœud)
+pm_api_url = "https://192.168.68.51:8006/"
+
+# API Token (créer : voir docs/proxmox-api-token.md)
+# Format token_id : user@realm!nomdu token (ex. terraform-prov@pve!terraform)
+pm_api_token_id     = "terraform-prov@pve!terraform"
+pm_api_token_secret = "your-token-secret-here"
+
+# Certificat auto-signé (true en homelab)
+pm_insecure = true
+
+# Nœud et storages (après setup ZFS + NVMe)
+pm_node_name   = "tatouine"
+pm_storage_vm  = "tank-vm"
+pm_storage_iso = "tank-iso"
+# ISO Talos pour premier boot (nom exact sur le storage, ex. v1.12.2-metal-amd64.iso). Vide = pas de CD-ROM.
+# talos_iso_file = "v1.12.2-metal-amd64.iso"
+# Pour VMs rapides sur NVMe : utiliser "nvme-vm" dans la ressource VM

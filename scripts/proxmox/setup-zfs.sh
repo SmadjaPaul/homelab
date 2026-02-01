@@ -1,8 +1,12 @@
 #!/bin/bash
-# ZFS Storage Pool Setup for Proxmox
+# ZFS Storage Pool Setup for Proxmox (interactif)
 # Run this after adding your storage disks
 #
 # Usage: ./setup-zfs.sh
+#
+# Recommandation homelab : 2×14 To uniquement en miroir.
+#   - Script dédié (non interactif) : ./setup-zfs-14tb-only.sh sda sdb
+#   - Voir docs/proxmox-setup-guide.md pour le guide complet (SSH puis ZFS).
 #
 set -e
 

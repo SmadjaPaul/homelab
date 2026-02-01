@@ -5,10 +5,11 @@ project: homelab
 version: 2.0
 status: draft
 lastUpdated: 2026-01-29
-updateNotes: Major update to align with Architecture v4.0 (Proxmox + Omni + Talos + ArgoCD, 3-cluster topology)
+updateNotes: Align with Architecture v6.0 (Authentik as IdP ; validation manuelle ; design Authentik formalisé 2026-02-01 — session-travail-authentik.md §6)
 inputDocuments:
   - product-brief-homelab-2026-01-21.md
-  - architecture-proxmox-omni.md (v4.0)
+  - architecture-proxmox-omni.md (v6.0)
+  - session-travail-authentik.md (design Authentik à affiner avec agent PM)
 previousVersion: prd-homelab-2026-01-22.md (v1.1)
 ---
 
@@ -21,7 +22,7 @@ previousVersion: prd-homelab-2026-01-22.md (v1.1)
 - **Date**: 2026-01-29
 - **Status**: Draft
 - **Author**: PM Agent
-- **Architecture Version**: v4.0 (Proxmox + Omni + Talos + ArgoCD)
+- **Architecture Version**: v6.0 (Proxmox + Omni + Talos + ArgoCD + **Authentik**)
 
 ## Executive Summary
 
@@ -57,7 +58,7 @@ This PRD defines the functional and non-functional requirements for a self-hoste
 | **CNI** | Cilium | eBPF networking, Gateway API |
 | **Storage** | ZFS + Longhorn | Data integrity + distributed K8s storage |
 | **IaC** | Terraform + Ansible | VM provisioning + configuration |
-| **Identity** | Keycloak | SSO/OIDC for private services |
+| **Identity** | Authentik | SSO/OIDC/SAML for private services ; validation manuelle ; service accounts ; voir session-travail-authentik.md |
 | **Ingress** | Cloudflare Tunnel | Zero-trust, no open ports |
 
 ### Architecture Overview
@@ -66,7 +67,7 @@ This PRD defines the functional and non-functional requirements for a self-hoste
                     ┌─────────────────────────────────────┐
                     │      OMNI (Self-Hosted on OCI)      │
                     │  Single pane of glass for clusters  │
-                    │  + Keycloak SSO + Cloudflare Tunnel │
+                    │  + Authentik SSO + Cloudflare Tunnel │
                     └─────────────────────────────────────┘
                                         │
            ┌────────────────────────────┼────────────────────────────┐
@@ -149,7 +150,7 @@ The system MUST deploy self-hosted Omni on Oracle Cloud for unified cluster mana
 **Requirements**:
 - Omni server deployed on oci-mgmt VM (Docker)
 - PostgreSQL database for Omni state
-- Keycloak integration for SSO authentication
+- Authentik integration for SSO authentication (SAML for Omni)
 - Cloudflare Tunnel for secure external access
 - MachineClass definitions for node profiles
 - ClusterTemplate definitions for declarative clusters
@@ -157,7 +158,7 @@ The system MUST deploy self-hosted Omni on Oracle Cloud for unified cluster mana
 **Acceptance Criteria**:
 - Omni UI accessible via Cloudflare Tunnel
 - All three clusters visible and manageable
-- SSO login working via Keycloak
+- SSO login working via Authentik
 - Kubeconfig distribution functional
 - Cluster upgrades manageable through Omni
 
@@ -175,7 +176,7 @@ The system MUST implement ArgoCD for GitOps continuous deployment.
 - Sync waves for ordered deployments (Wave 0-4)
 - Multi-cluster deployment capability
 - Self-management (ArgoCD manages its own config)
-- SSO integration with Keycloak
+- SSO integration with Authentik
 
 **Acceptance Criteria**:
 - ArgoCD UI accessible and authenticated
@@ -259,12 +260,13 @@ The system MUST expose services via Cloudflare Tunnel (zero open ports).
 **Priority**: P0 (Critical)  
 **Phase**: Phase 3 - PROD + Oracle Cloud
 
-The system MUST implement 2-tier authentication as defined in architecture.
+The system MUST implement 2-tier authentication as defined in architecture and in the Authentik design (session-travail-authentik.md §6).
 
-**Tier 1 - Private Data (Keycloak SSO)**:
+**Tier 1 - Private Data (Authentik SSO)**:
 - Nextcloud, Immich, Vaultwarden, Baïkal, n8n
 - oauth2-proxy for SSO enforcement
 - Centralized identity management
+- **User flow**: self-registration enabled ; no access to apps until admin validates (manual validation in Authentik) ; after validation, user is added to groups and gains access ; optional webhook triggers CI to provision accounts in apps (Nextcloud, Navidrome, etc.).
 
 **Tier 2 - Media/Public (App-Native Auth)**:
 - Navidrome, Komga, Romm, Audiobookshelf, Mealie, Invidious
@@ -272,11 +274,12 @@ The system MUST implement 2-tier authentication as defined in architecture.
 - Cloudflare access layer
 
 **Acceptance Criteria**:
-- Tier 1 services require Keycloak login
+- Tier 1 services require Authentik login (validation manuelle avant accès ; design formalisé session-travail-authentik.md §6)
 - Tier 2 services use native auth
 - oauth2-proxy functional
 - SSO session management working
 - User roles properly enforced
+- Admin apps (Authentik Admin, Omni, ArgoCD, Grafana, Prometheus, ntfy) not exposed to family users ; only group `admin` has access
 
 ---
 
@@ -334,7 +337,7 @@ The system MUST implement Twingate for Zero Trust VPN access.
 The system MUST provide Nextcloud as the primary storage solution.
 
 **Requirements**:
-- Nextcloud instance with Keycloak SSO (Tier 1)
+- Nextcloud instance with Authentik SSO (Tier 1)
 - Storage via NFS to Homelab (Twingate)
 - User accounts for developer, graphic designer, family
 - Mobile app support (iOS/Android)
@@ -357,7 +360,7 @@ The system MUST provide Nextcloud as the primary storage solution.
 The system MUST provide Vaultwarden for family password management.
 
 **Requirements**:
-- Vaultwarden deployed with Keycloak SSO (Tier 1)
+- Vaultwarden deployed with Authentik SSO (Tier 1)
 - Family sharing capabilities
 - Mobile and browser extensions
 - Encrypted vault storage
@@ -380,7 +383,7 @@ The system MUST provide Vaultwarden for family password management.
 The system MUST provide Baïkal for calendar and contact sync.
 
 **Requirements**:
-- Baïkal deployed with Keycloak SSO (Tier 1)
+- Baïkal deployed with Authentik SSO (Tier 1)
 - CalDAV for calendar sync
 - CardDAV for contact sync
 - Mobile device integration
@@ -722,7 +725,7 @@ The system SHOULD support on-demand gaming via KubeVirt.
 **Location**: Oracle Cloud cluster
 
 **Requirements**:
-- Immich deployed with Keycloak SSO
+- Immich deployed with Authentik SSO
 - Storage via NFS to Homelab
 - Photo upload and organization
 - Face recognition
@@ -736,7 +739,7 @@ The system SHOULD support on-demand gaming via KubeVirt.
 **Location**: Oracle Cloud cluster
 
 **Requirements**:
-- n8n deployed with Keycloak SSO
+- n8n deployed with Authentik SSO
 - Workflow automation capabilities
 - Integration with services
 - Webhook support
@@ -906,7 +909,7 @@ The system SHOULD support on-demand gaming via KubeVirt.
 
 | Component | RAM | OCPUs |
 |-----------|-----|-------|
-| Management VM (Omni, Keycloak) | ~5GB | 1 |
+| Management VM (Omni, Authentik) | ~5GB | 1 |
 | K8s Cluster MVP | ~12GB | 3 |
 | Phase 2 additions | ~4GB | - |
 | **Total** | ~19GB | 4 |
@@ -979,7 +982,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 ### 4.1 By Location
 
 **Oracle Cloud - Management VM (Docker)**:
-- Omni, Keycloak, PostgreSQL, Cloudflare Tunnel, Nginx
+- Omni, Authentik, PostgreSQL, Cloudflare Tunnel, Nginx
 
 **Oracle Cloud - Kubernetes Cluster**:
 - Media: Comet, Navidrome, Lidarr
@@ -1000,7 +1003,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 
 ### 4.2 By Authentication Tier
 
-**Tier 1 - Keycloak SSO** (Private Data):
+**Tier 1 - Authentik SSO** (Private Data):
 - Nextcloud, Immich, Vaultwarden, Baïkal, n8n
 
 **Tier 2 - App-Native** (Media/Public):
@@ -1027,7 +1030,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 | Criterion | Target |
 |-----------|--------|
 | Critical services running | Nextcloud, Vaultwarden, Baïkal, Comet |
-| SSO functional | Keycloak + oauth2-proxy |
+| SSO functional | Authentik + oauth2-proxy |
 | Family adoption | Active usage > 20 days/month |
 | Uptime | > 95% (Comet > 99%) |
 | Security | Zero critical vulnerabilities |
@@ -1053,7 +1056,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 |-------|------|------------------|
 | 1 | Foundation | Proxmox VMs, Omni, DEV cluster, ArgoCD, Cilium |
 | 2 | Core Infrastructure | Storage, cert-manager, external-dns, ESO, Monitoring, AdGuard |
-| 3 | PROD + Oracle Cloud | PROD cluster, OCI infra, Keycloak, Cloudflare Tunnel, Twingate, CI/CD |
+| 3 | PROD + Oracle Cloud | PROD cluster, OCI infra, Authentik, Cloudflare Tunnel, Twingate, CI/CD |
 | 4 | Services MVP | Critical + Collaborative + Media + Home + Dashboard |
 | 5 | Optional Services | Immich, n8n, Mealie, Invidious |
 | 6 | Gaming & Advanced | GPU passthrough, Windows VM, KubeVirt, Backup automation |
@@ -1115,10 +1118,24 @@ The following are explicitly out of scope for MVP:
 | Talos Linux | Immutable, API-only Kubernetes OS |
 | Twingate | Zero Trust network access solution |
 
-### 10.2 References
+### 10.2 Identity Design (Authentik) — Summary
+
+Design formalisé le 2026-02-01 ; mises à jour 2026-02-01 (invitation-only, trafic Cloudflare). Détail dans `session-travail-authentik.md` §6 et `decision-invitation-only-et-acces-cloudflare.md`.
+
+| Thème | Décision |
+|-------|----------|
+| **Flux utilisateur** | **Invitation uniquement** : self-registration désactivée ; onboarding par lien d’invitation (UI ou API Authentik). Pas d’accès aux apps tant que l’utilisateur n’est pas dans les groupes autorisés ; provisionnement optionnel via webhook → CI. |
+| **Trafic utilisateur** | **Toutes les connexions utilisateurs** (auth, portail Authentik, apps protégées) **passent par Cloudflare** (Tunnel) ; pas d’accès direct à l’origine pour les utilisateurs finaux. |
+| **Apps famille** | Nextcloud, Vaultwarden, Baïkal, Navidrome, Mealie, Glance, Immich, n8n — exposées via Cloudflare ; portail « My applications » pour utilisateurs validés (groupes). |
+| **Apps admin** | Authentik Admin, Omni, ArgoCD, Grafana, Prometheus, Alertmanager, ntfy (admin) — non exposées aux utilisateurs famille ; accès réservé au groupe `admin`. |
+| **CI** | Invitations créées en UI ou via API ; provisionnement par webhook Authentik (recommandé) ou job manuel ; job CI « valider user » optionnel (API Authentik). |
+| **Service accounts** | ci-github, argocd, backup, n8n ; définis en Terraform (provider goauthentik/authentik) ; secrets dans Bitwarden/ESO. |
+
+### 10.3 References
 
 - Product Brief: `product-brief-homelab-2026-01-21.md`
-- Architecture: `architecture-proxmox-omni.md` (v4.0)
+- Architecture: `architecture-proxmox-omni.md` (v6.0)
+- Identity design: `session-travail-authentik.md` (§6 Décisions prises), `decision-invitation-only-et-acces-cloudflare.md`
 - Inspired repos: qjoly/GitOps, ravilushqa/homelab, mitchross/talos-argocd-proxmox, Mafyuh/iac, ahinko/home-ops
 
 ---

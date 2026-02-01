@@ -15,8 +15,10 @@ sidebar_position: 4
 | Copie | Localisation | Type |
 |-------|--------------|------|
 | 1 | Proxmox ZFS | Local |
-| 2 | Oracle Object Storage | Cloud |
-| 3 | (Future) NAS distant | Off-site |
+| 2 | Oracle Object Storage (Velero) | Cloud — backups K8s, rétention 30j |
+| 3 | OVH Object Storage (archive long terme) | Cloud — données utilisateur « à ne pas perdre » (ZFS, Nextcloud) |
+
+La copie hors-site inclut **OVH Object Storage** (3 Tio offerts, promo 3-AZ) pour Velero et l’archive long terme (ZFS, Nextcloud). Pour mettre en place la connexion OVH (Terraform + Velero), voir le guide **Setup OVH Cloud** : `docs/setup-ovh-cloud.md` à la racine du repo. Détails archive long terme : [LONG_TERM_BACKUP.md](https://github.com/SmadjaPaul/homelab/blob/main/terraform/ovhcloud/LONG_TERM_BACKUP.md).
 
 ## Velero
 
@@ -94,6 +96,16 @@ zfs rollback tank/vm-disks@backup-20260129
 | Hourly | 24 dernières |
 | Daily | 7 derniers jours |
 | Weekly | 4 dernières semaines |
+
+### Archive long terme (OVH) — données « à ne pas perdre »
+
+Certaines données ZFS ou Nextcloud peuvent être marquées (tag, propriété ZFS ou dossier dédié) pour signaler qu’elles ne doivent pas être perdues. Une copie est envoyée sur **OVH Object Storage** (bucket archive long terme) :
+
+- **Préfixes** : `zfs/`, `nextcloud/` dans le bucket `homelab-user-data-archive`
+- **Rétention** : pas d’expiration par défaut (configuration Terraform `long_term_expiration_days = null`)
+- **Sync** : rclone, restic ou script (détails et exemples dans [LONG_TERM_BACKUP.md](https://github.com/SmadjaPaul/homelab/blob/main/terraform/ovhcloud/LONG_TERM_BACKUP.md))
+
+La convention de tagging et la fréquence des syncs restent à finaliser.
 
 ## Disaster Recovery
 

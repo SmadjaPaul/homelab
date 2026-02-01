@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars and fill (do not commit terraform.tfvars if it contains secrets)
+# Prefer environment variables: AUTHENTIK_URL, AUTHENTIK_TOKEN
+
+# authentik_url   = "https://authentik.apps.example.com/"
+# authentik_token = "your-api-token"

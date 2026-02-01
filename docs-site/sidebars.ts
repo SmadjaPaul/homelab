@@ -2,71 +2,86 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   docsSidebar: [
-    {
-      type: 'doc',
-      id: 'intro',
-      label: 'Introduction',
-    },
+    // ========== Guide utilisateur (utilisateurs finaux)
     {
       type: 'category',
-      label: 'Démarrage',
+      label: 'Guide utilisateur',
       collapsed: false,
       items: [
-        'getting-started/installation',
-        'getting-started/configuration',
-        'getting-started/first-deploy',
+        'user-guide/welcome',
+        'user-guide/services',
+        'user-guide/recommendations',
+        'user-guide/limits',
       ],
     },
+    // ========== Documentation technique (admin / opération)
     {
       type: 'category',
-      label: 'Guides',
+      label: 'Documentation technique',
+      collapsed: false,
       items: [
-        'guides/add-service',
-        'guides/secrets-management',
-        'guides/backup-restore',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Guides avancés',
-      items: [
-        'advanced/architecture',
-        'advanced/network',
-        'advanced/security',
-        'advanced/disaster-recovery',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Infrastructure',
-      items: [
-        'infrastructure/proxmox',
-        'infrastructure/oracle-cloud',
-        'infrastructure/cloudflare',
-        'infrastructure/kubernetes',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Runbooks',
-      items: [
-        'runbooks/overview',
+        'intro',
         {
           type: 'category',
-          label: 'Incidents',
+          label: 'Démarrage',
           items: [
-            'runbooks/service-down',
-            'runbooks/disk-full',
-            'runbooks/high-cpu',
-            'runbooks/certificate-expired',
+            'getting-started/installation',
+            'getting-started/configuration',
+            'getting-started/first-deploy',
           ],
         },
         {
           type: 'category',
-          label: 'Maintenance',
+          label: 'Guides',
           items: [
-            'runbooks/upgrade-cluster',
-            'runbooks/rotate-secrets',
+            'guides/add-service',
+            'guides/secrets-management',
+            'guides/backup-restore',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Guides avancés',
+          items: [
+            'advanced/architecture',
+            'advanced/network',
+            'advanced/security',
+            'advanced/disaster-recovery',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Infrastructure',
+          items: [
+            'infrastructure/proxmox',
+            'infrastructure/oracle-cloud',
+            'infrastructure/cloudflare',
+            'infrastructure/kubernetes',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Runbooks',
+          items: [
+            'runbooks/overview',
+            {
+              type: 'category',
+              label: 'Incidents',
+              items: [
+                'runbooks/service-down',
+                'runbooks/disk-full',
+                'runbooks/high-cpu',
+                'runbooks/certificate-expired',
+              ],
+            },
+            {
+              type: 'category',
+              label: 'Maintenance',
+              items: [
+                'runbooks/upgrade-cluster',
+                'runbooks/rotate-secrets',
+              ],
+            },
           ],
         },
       ],

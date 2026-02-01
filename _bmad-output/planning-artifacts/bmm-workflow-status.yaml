@@ -1,7 +1,7 @@
 # Workflow Status Template
 
 # This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
-# Implementation phase is tracked separately in sprint-status.yaml
+# Implementation phase is tracked in implementation-artifacts/sprint-status.yaml
 
 # STATUS DEFINITIONS:
 # ==================
@@ -76,11 +76,12 @@ workflow_status:
           status: "planning-artifacts/architecture-proxmox-omni.md"
           agent: "architect"
           command: "/bmad:bmm:workflows:create-architecture"
-          output: "System architecture document - Proxmox + Omni with Dev/Prod environments"
-          note: "Updated architecture: Proxmox hypervisor, Talos Linux, Omni management, ArgoCD GitOps, hybrid cloud"
-          completed: "2026-01-28T12:00:00Z"
+          output: "System architecture document v6.0 - Authentik as IdP, validation manuelle, apps admin non exposées, service accounts"
+          note: "v6.0: Authentik (remplace Keycloak); validation manuelle avant accès apps; session-travail-authentik.md pour affiner avec PM"
+          completed: "2026-01-31T12:00:00Z"
           finalized: true
           previous_versions:
+            - "planning-artifacts/architecture-proxmox-omni.md (v4.0)"
             - "planning-artifacts/architecture-homelab.md"
             - "planning-artifacts/architecture-cozystack.md"
         
@@ -88,9 +89,9 @@ workflow_status:
           status: "planning-artifacts/epics-and-stories-homelab.md"
           agent: "pm"
           command: "/bmad:bmm:workflows:create-epics-and-stories"
-          output: "20 Epics, 70 Stories across 6 phases (Foundation → Gaming)"
-          note: "Aligned with PRD v2.0 and Architecture v4.0"
-          completed: "2026-01-29T14:00:00Z"
+          output: "23 Epics, 70 Stories across 6 phases (Foundation → Gaming)"
+          note: "Aligned with PRD v2.0 and Architecture v4.0; v1.1 adds User Story mapping, corrected phase counts"
+          completed: "2026-01-30T12:00:00Z"
           finalized: false
         
         - id: "test-design"
@@ -114,12 +115,12 @@ workflow_status:
       required: true
       workflows:
         - id: "sprint-planning"
-          status: "planning-artifacts/implementation-progress.md"
-          agent: "dev"
-          command: "Manual implementation"
-          output: "Implementation Progress Tracker"
-          note: "Phase 0-2 largely complete, Phase 3 blocked on OCI ARM capacity"
-          completed: "2026-01-29T23:30:00Z"
+          status: "implementation-artifacts/sprint-status.yaml"
+          agent: "sm"
+          command: "/bmad:bmm:workflows:sprint-planning"
+          output: "Sprint Status Tracker (23 epics, 70 stories)"
+          note: "Initialized from epics-and-stories-homelab.md; human progress in planning-artifacts/implementation-progress.md"
+          completed: "2026-01-30T12:00:00Z"
           finalized: false
 
 # =============================================================================

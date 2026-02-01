@@ -1,10 +1,10 @@
 ---
-date: 2026-01-29
+date: 2026-01-31
 project: homelab
-version: 4.0
+version: 6.0
 status: current
-lastUpdated: 2026-01-29
-note: Architecture validated - simplified services catalog, 2-tier auth strategy, AdGuard Home, KubeVirt gaming roadmap
+lastUpdated: 2026-01-31
+note: v6.0 - Authentik as IdP; validation manuelle avant accès apps; apps admin non exposées; service accounts; session travail _bmad-output/planning-artifacts/session-travail-authentik.md
 ---
 
 # Architecture Document: Homelab Infrastructure with Proxmox + Omni
@@ -44,37 +44,38 @@ note: Architecture validated - simplified services catalog, 2-tier auth strategy
                     ┌─────────────────────────────────────┐
                     │      OMNI (Self-Hosted on OCI)      │
                     │  Single pane of glass for clusters  │
-                    │  + Keycloak SSO + Cloudflare Tunnel │
+                    │  + Authentik SSO + Cloudflare Tunnel │
+                    │  + Workload Proxy (auth services)  │
                     └─────────────────────────────────────┘
                                         │
            ┌────────────────────────────┼────────────────────────────┐
            │                            │                            │
            ▼                            ▼                            ▼
 ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│   Proxmox (Home)    │    │   Proxmox (Home)    │    │   Oracle Cloud      │
-│   DEV Cluster       │    │   PROD Cluster      │    │   CLOUD Cluster     │
-│   ────────────────  │    │   ────────────────  │    │   ────────────────  │
-│   • Minimal testing │    │   • Stable services │    │   • Family services │
-│   • CI validation   │    │   • Gaming VMs      │    │   • External access │
-│   • 2GB RAM total   │    │   • Local storage   │    │   • Omni management │
+│   Proxmox (Home)    │    │   Oracle Cloud      │    │   CI / GitOps       │
+│   PROD Cluster      │    │   CLOUD Cluster     │    │   ────────────────  │
+│   ────────────────  │    │   ────────────────  │    │   • Ephemeral DEV   │
+│   • Stable services │    │   • Family services │    │     (KubeVirt in     │
+│   • Gaming VMs      │    │   • External access │    │     CLOUD)          │
+│   • Local storage   │    │   • KubeVirt host   │    │   • create → test   │
+│   • 16GB RAM        │    │     for ephemeral   │    │     → destroy        │
+│   • No DEV VM 24/7  │    │     DEV (CI)        │    │   • No DEV on Proxmox│
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
            │                            │                            │
            │                            │◄────Twingate/WireGuard────►│
-           │                            │      (Zero Trust VPN)      │
            └────────────────────────────┼────────────────────────────┘
                                         │
                                ┌────────┴────────┐
                                │   GitOps Repo   │
-                               │   (This Repo)   │
                                └─────────────────┘
 ```
 
 ### Requirements Summary
 
 **Environments**:
-- **DEV**: Testing environment, receives CI deployments first
-- **PROD**: Production environment, receives stable deployments after DEV validation
-- **CLOUD**: Oracle Cloud cluster for family-shared services
+- **DEV (éphémère)**: Cluster créé à la volée par la CI via KubeVirt + Omni, test des changements, destruction après MEP si pas d’erreur (pas de cluster DEV permanent sur Proxmox).
+- **PROD**: Environnement de production sur Proxmox, reçoit les déploiements après validation sur DEV éphémère.
+- **CLOUD**: Cluster Oracle Cloud pour services famille et hébergement d’Omni.
 
 **Target Users**: Developer administrator (Paul), graphic designer, family members (5 people)
 
@@ -124,7 +125,7 @@ note: Architecture validated - simplified services catalog, 2-tier auth strategy
 **Rationale**:
 - ✅ Single pane of glass for all clusters (Dev, Prod, Cloud)
 - ✅ Declarative cluster configuration
-- ✅ SSO authentication (integrated with Keycloak)
+- ✅ SSO authentication (integrated with Authentik)
 - ✅ Secure kubeconfig distribution
 - ✅ Cluster lifecycle management (upgrades, scaling)
 - ✅ Multi-cluster visibility
@@ -137,7 +138,7 @@ note: Architecture validated - simplified services catalog, 2-tier auth strategy
 - **Omni Server**: Main management interface
 - **PostgreSQL**: Database for Omni state
 - **Nginx**: HTTPS reverse proxy with Let's Encrypt
-- **Keycloak Integration**: SSO for all users
+- **Authentik Integration**: SSO for all users (SAML ; [Integrate with Omni](https://integrations.goauthentik.io/infrastructure/omni/))
 
 **Key Features**:
 - **MachineClass**: Define node profiles (control-plane, worker, GPU worker)
@@ -146,7 +147,28 @@ note: Architecture validated - simplified services catalog, 2-tier auth strategy
 
 **References**:
 - [Deploy Omni On-Prem](https://omni.siderolabs.com/how-to-guides/self_hosted/)
-- [Configure Keycloak for Omni](https://docs.siderolabs.com/omni/)
+- [Integrate Authentik with Omni](https://integrations.goauthentik.io/infrastructure/omni/)
+
+---
+
+### 2.3.1 Placement d’Omni : VPC (OCI) vs local (Homelab)
+
+**Contexte** : Omni peut être hébergé sur Oracle Cloud (VPC) ou en local sur le serveur Homelab. Les deux options ont des implications fortes sur la disponibilité et la surface d’attaque.
+
+| Critère | Omni sur VPC (OCI) | Omni en local (Homelab) |
+|--------|---------------------|--------------------------|
+| **Disponibilité** | Omni toujours joignable (serveur OCI 24/7) | Omni down dès que le serveur est éteint |
+| **Administration des clusters** | Possible même quand le serveur est éteint (vacances, absence, économie d’énergie) | Impossible d’administrer les clusters si le serveur est off |
+| **Surface d’attaque** | Omni exposé via Cloudflare Tunnel → plus de risque qu’en local | Omni uniquement sur réseau local → moins exposé |
+| **Risque opérationnel** | Faible : pas de perte de capacité d’administration | Élevé : serveur off = perte totale de contrôle (talosctl, kubeconfig, upgrades) |
+
+**Recommandation : Omni sur VPC (Oracle Cloud)**.
+
+- **Raison principale** : Si Omni est down (serveur local éteint), on perd la capacité d’administration de *tous* les clusters (PROD Proxmox, CLOUD OCI). Impossible de faire des upgrades Talos, de récupérer un kubeconfig, ou de diagnostiquer à distance. C’est un risque opérationnel majeur pour un homelab où le serveur est régulièrement éteint.
+- **Mitigation du risque VPC** : Omni en VPC reste derrière Cloudflare Tunnel (pas de port ouvert direct), avec authentification Authentik (SAML/OIDC). On peut durcir davantage : firewall OCI, IP allowlist Cloudflare, 2FA sur Authentik, audit logs. La surface d’attaque est maîtrisée par la stack Zero Trust.
+- **Synthèse** : Héberger Omni en local réduit un peu le risque théorique, mais crée un risque opérationnel réel (perte de contrôle quand le serveur est off). Héberger Omni sur OCI avec Tunnel + SSO offre un bon compromis : disponibilité permanente pour l’administration, risque limité par les contrôles d’accès.
+
+**Référence** : approche similaire à [Omni et KubeVirt (a cup of coffee)](https://a-cup-of.coffee/blog/omni/) — Omni comme point central d’administration, avec possibilité de clusters éphémères via KubeVirt.
 
 ---
 
@@ -171,27 +193,41 @@ note: Architecture validated - simplified services catalog, 2-tier auth strategy
 
 ---
 
-### 2.5 Dev/Prod Workflow
+### 2.5 Dev/Prod Workflow (DEV éphémère via KubeVirt + Omni)
 
-**Decision**: Separate clusters with promotion pipeline
+**Decision**: Pas de cluster DEV permanent sur Proxmox. Cluster DEV éphémère créé à la volée par la CI via KubeVirt + Omni, puis détruit après les tests (ou après MEP si pas d’erreur).
+
+**Rationale** (inspiré de [Omni et KubeVirt - a cup of coffee](https://a-cup-of.coffee/blog/omni/)) :
+- Pas besoin d’une VM DEV qui tourne en permanence sur Proxmox (économie de RAM/CPU).
+- La CI crée un cluster DEV dans le cluster CLOUD (KubeVirt), déploie les manifests, lance les tests, puis détruit le cluster.
+- Si les tests passent et qu’on merge (MEP), le cluster éphémère est détruit ; la promotion vers PROD se fait via ArgoCD comme aujourd’hui.
 
 **Architecture**:
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Git Push    │────▶│  CI Pipeline │────▶│  DEV Deploy  │
-└──────────────┘     └──────────────┘     └──────────────┘
+┌──────────────┐     ┌──────────────┐     ┌──────────────────────────┐
+│  Git Push    │────▶│  CI Pipeline │────▶│  Omni: create DEV        │
+└──────────────┘     └──────────────┘     │  cluster (KubeVirt)      │
+                                                  └──────────────────────────┘
                                                   │
                                                   ▼
                                           ┌──────────────┐
-                                          │  Stability   │
-                                          │  Validation  │
-                                          │  (24-48h)    │
+                                          │  Deploy +    │
+                                          │  Test on DEV │
                                           └──────────────┘
+                                                  │
+                          ┌───────────────────────┼───────────────────────┐
+                          │                       │                       │
+                          ▼                       ▼                       ▼
+                  ┌──────────────┐         ┌──────────────┐       ┌──────────────┐
+                  │  Tests fail  │         │  MEP (merge) │       │  No MEP yet  │
+                  │  → Destroy   │         │  → Destroy   │       │  → Keep or   │
+                  │  DEV cluster │         │  DEV cluster │       │  destroy     │
+                  └──────────────┘         └──────────────┘       └──────────────┘
                                                   │
                                                   ▼
                                           ┌──────────────┐
                                           │ PROD Deploy  │
-                                          │ (Manual/Auto)│
+                                          │ (ArgoCD)     │
                                           └──────────────┘
 ```
 
@@ -276,17 +312,49 @@ Storage Tiers:
 
 | Tier | Services | Authentication | Rationale |
 |------|----------|----------------|-----------|
-| **Tier 1 - Private Data** | Nextcloud, Immich, Vaultwarden, Baïkal, n8n | Keycloak SSO + oauth2-proxy | Sensitive data requires centralized identity |
+| **Tier 1 - Private Data** | Nextcloud, Immich, Vaultwarden, Baïkal, n8n | Authentik SSO + oauth2-proxy | Sensitive data requires centralized identity |
 | **Tier 2 - Media/Public** | Navidrome, Komga, Romm, Audiobookshelf, Mealie, Invidious | App-native auth + Cloudflare | Multi-user apps with built-in user management |
 
+**Workload Proxy (Omni)** — option pour l’authentification des services :
+
+Omni propose un **Workload Proxy** qui expose des services Kubernetes via l’interface web Omni, avec authentification gérée par Omni (OIDC). Intérêt pour le homelab :
+
+- **Un seul point d’auth** : pas besoin d’un LoadBalancer par service ni d’un Ingress + certificat SSL dédié pour chaque app.
+- **Révocation immédiate** : comme Omni agit en proxy devant l’API et les services, révoquer un utilisateur dans Omni coupe l’accès tout de suite (vs token OIDC qui reste valide jusqu’à expiration).
+- **Exposition contrôlée** : les services sont accessibles uniquement via le réseau Wireguard d’Omni, pas directement sur Internet.
+
+Pour activer le Workload Proxy sur un cluster Omni : `features.enableWorkloadProxy: true` dans la config du cluster. Les services à exposer reçoivent une annotation (ex. `omni-kube-service-exposer.sidero.dev/port`, `.../label`). Idéal pour des outils internes (Grafana, ArgoCD, dashboards) qu’on veut protéger par l’identité Omni/Authentik sans déployer oauth2-proxy devant chaque service.
+
+**Choix d’usage** : Workload Proxy peut compléter ou remplacer oauth2-proxy pour certains services (dashboards, outils admin). Pour les apps « métier » (Nextcloud, Vaultwarden, etc.), on garde Authentik SSO + oauth2-proxy ; pour des UIs légères ou internes, le Workload Proxy est une option intéressante. Voir [Omni Workload Proxy (a cup of coffee)](https://a-cup-of.coffee/blog/omni/#workload-proxy).
+
+**IdP retenu : Authentik**.  
+Omni sert de proxy (UI, kubeconfig, talosctl) ; Authentik s’y connecte en **SAML** ([Integrate Authentik with Omni](https://integrations.goauthentik.io/infrastructure/omni/)). SSO pour les apps (Nextcloud, Vaultwarden, etc.) via OIDC + oauth2-proxy ou proxy Authentik.
+
+**Flux utilisateur (invitation-only, trafic via Cloudflare)** :  
+- **Onboarding par invitation uniquement** : self-registration **désactivée**. L’admin crée une invitation (UI Authentik ou API) et envoie le lien à l’utilisateur ; le flow d’enrollment n’est accessible qu’avec un token d’invitation. Voir `decision-invitation-only-et-acces-cloudflare.md`.  
+- **Pas d’accès sans groupes** : tant qu’il n’est pas dans les groupes autorisés, l’utilisateur n’a accès à aucune application ; les policies Authentik refusent l’accès.  
+- **Validation / groupes** : après enrollment, l’admin ajoute l’utilisateur aux groupes autorisés (ex. `family-validated`, `family-app-nextcloud`) ; optionnellement un job CI manuel peut appeler l’API Authentik pour ajouter aux groupes ou déclencher le provisionnement.  
+- **Après validation** : accès aux apps (Nextcloud, Navidrome, etc.) selon les groupes ; la CI peut créer les comptes dans chaque app (webhook Authentik ou job manuel).  
+- **Trafic utilisateur via Cloudflare** : toutes les connexions utilisateurs (auth, portail Authentik, apps protégées) **passent par Cloudflare** (Tunnel) ; pas d’accès direct à l’origine pour les utilisateurs finaux. Règles WAF/config possibles pour renforcer.  
+- **Design formalisé** : flux, listes apps, CI, service accounts → `session-travail-authentik.md` §6 ; invitation-only et Cloudflare → `decision-invitation-only-et-acces-cloudflare.md`.
+
+**Applications d’administration non exposées** :  
+Les apps d’administration (Authentik Admin, Omni UI, ArgoCD, Grafana admin, Prometheus, etc.) **ne sont pas** exposées aux utilisateurs finaux : pas de lien dans le portail Authentik pour les groupes « famille » ; accès réservé aux admins (groupe dédié) ou par URL/accès restreint (IP, VPN). Les policies Authentik et bindings d’applications distinguent « apps famille » (visibles) et « apps admin » (cachées / réservées).
+
+**Service accounts** :  
+Authentik fournit des **service accounts** (utilisateurs de type `service_account`) pour les connexions machine-to-machine (CI, ArgoCD, scripts, n8n, etc.). Droits granulaires par compte ; gestion en **Terraform** (provider goauthentik/authentik) pour `terraform apply`. Secrets stockés dans un secret manager (Bitwarden / Vault), pas en clair dans le repo.
+
+**RBAC & onboarding** : Détail et options (catalogue d’apps, webhook CI) : voir `session-travail-authentik.md` §6 (décisions prises).
+
 **Security Layers**:
-1. **Identity**: Keycloak SSO (OIDC) for private services
+1. **Identity**: Authentik SSO (OIDC/SAML) for private services ; validation manuelle avant accès ; apps admin non exposées ; service accounts pour M2M
 2. **Access**: oauth2-proxy for Tier 1, app-native auth for Tier 2
-3. **Network**: Cilium network policies, Cloudflare Tunnel (no open ports)
-4. **DDoS/WAF**: Cloudflare protection for all public services
-5. **Secrets**: External Secrets Operator + Bitwarden (→ Vault later)
-6. **Images**: Trivy + Grype scanning in CI/CD
-7. **OS**: Talos immutable OS (no SSH)
+3. **RBAC / onboarding**: invitation-only (pas de self-registration) + catalogue apps (hors admin) + CI provisionnement (voir recherche RBAC)
+4. **Network**: Cilium network policies, Cloudflare Tunnel (no open ports)
+5. **DDoS/WAF**: Cloudflare protection for all public services
+6. **Secrets**: External Secrets Operator + Bitwarden (→ Vault later)
+7. **Images**: Trivy + Grype scanning in CI/CD
+8. **OS**: Talos immutable OS (no SSH)
 
 **Secrets Management**:
 - **Phase 1**: Bitwarden Secrets (simple, existing infra)
@@ -302,7 +370,7 @@ Storage Tiers:
          │                    │                    │
          ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ Cloudflare      │  │ Twingate        │  │ Keycloak SSO    │
+│ Cloudflare      │  │ Twingate        │  │ Authentik SSO   │
 │ Tunnel + WAF    │  │ (Zero Trust)    │  │ + oauth2-proxy  │
 │ (All Apps)      │  │ (NFS Access)    │  │ (Tier 1 only)   │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
@@ -320,7 +388,7 @@ Storage Tiers:
 - No port forwarding on home router
 - Per-service access control (not VPN = full network)
 - Cloudflare WAF + DDoS protection for all services
-- Keycloak SSO for sensitive data only (reduced complexity)
+- Authentik SSO for sensitive data only (reduced complexity)
 - Individual user accounts in media apps (playlists, progress tracking)
 
 ---
@@ -374,27 +442,37 @@ Backup Targets:
 
 ## 3. Cluster Topology
 
-### 3.1 DEV Cluster (Proxmox) - MINIMAL
+### 3.1 DEV Cluster (éphémère, KubeVirt sur CLOUD)
 
-**Purpose**: Testing, CI validation only (NOT for continuous running)
+**Purpose**: Validation CI uniquement. Pas de cluster DEV permanent sur Proxmox.
 
-**Design Philosophy**: 
-- Minimal resources - just enough to validate deployments
-- Can be shut down when not testing
-- Single-node cluster to save resources
+**Design Philosophy** (inspiré de [Omni et KubeVirt - a cup of coffee](https://a-cup-of.coffee/blog/omni/)) :
+- Le cluster CLOUD (Oracle Cloud) héberge KubeVirt.
+- Omni dispose d’un **Infrastructure Provider KubeVirt** : à la demande, Omni crée des VMs Talos dans ce cluster Kubernetes.
+- La CI déclenche la création d’un cluster DEV via un template Omni (MachineClass KubeVirt), déploie les manifests (ArgoCD ou kubectl), lance les tests, puis détruit le cluster (ou le garde jusqu’à MEP puis destruction).
 
-**Resources**:
-| Node | Role | vCPU | RAM | Storage |
-|------|------|------|-----|---------|
-| talos-dev | Control Plane + Worker (combined) | 2 | 4GB | 50GB |
+**Ressources (éphémères)** :
+| Rôle | Taille | Notes |
+|------|--------|-------|
+| Control Plane | 1 node | Créé par Omni KubeVirt provider |
+| Workers | 1 node | Idem, selon template |
 
-**Total**: 2 vCPU, 4GB RAM (can be shut down when not in use)
+**Flux typique** :
+1. CI (GitHub Actions) : `omnictl cluster template sync -f omni/clusters/dev-ephemeral.yaml` (ou API Omni).
+2. Attente que le cluster soit Ready.
+3. Récupération du kubeconfig : `omnictl kubeconfig --cluster dev-ephemeral-<run-id>`.
+4. Déploiement des manifests + tests (e.g. e2e, smoke).
+5. Si MEP ou fin de run : destruction du cluster via Omni (ou TTL automatique si implémenté).
 
-**Deployed Services**: 
-- Same as Prod manifests (validates compatibility)
-- Reduced replicas (1 instead of 2+)
-- Reduced resource limits via Kustomize overlay
-- No persistent data (ephemeral testing only)
+**Prérequis techniques** :
+- Cluster CLOUD avec KubeVirt + CDI + storage (ex. LocalPathProvisioner ou autre CSI).
+- Omni configuré avec un ServiceAccount « InfraProvider » et le provider KubeVirt (`omni-infra-provider-kubevirt`) pointant vers le kubeconfig du cluster CLOUD.
+- MachineClass Omni pour KubeVirt (ex. `hetzner` dans l’article, ici par ex. `oci-kubevirt`).
+- Patch Talos pour éviter le chevauchement de CIDR (pod/service) entre l’hôte KubeVirt et les VMs Talos (voir article).
+
+**Deployed Services (sur le cluster éphémère)** :
+- Même base que Prod (validates compatibility), overlays dev (replicas=1, ressources réduites).
+- Pas de données persistantes critiques ; tests non destructifs ou fixtures.
 
 ---
 
@@ -427,22 +505,28 @@ Backup Targets:
 
 ### 3.3 CLOUD Cluster (Oracle Cloud)
 
-**Purpose**: Family-shared services, external access, Omni management
+**Purpose**: Family-shared services, external access, Omni management, **et hôte KubeVirt pour clusters DEV éphémères** (Omni Infrastructure Provider KubeVirt).
 
 **Resources** (Always Free Tier - 24GB RAM, 4 OCPUs, 200GB storage):
 | Node | Role | OCPU | RAM | Storage |
 |------|------|------|-----|---------|
-| oci-mgmt | Omni + Keycloak + Infra | 1 | 6GB | 50GB |
+| oci-mgmt | Omni + Authentik + Infra | 1 | 6GB | 50GB |
 | oci-node-1 | Control Plane + Worker | 2 | 12GB | 64GB |
 | oci-node-2 | Worker | 1 | 6GB | 75GB |
 
 **Total**: 4 OCPUs, 24GB RAM, 189GB storage
 
 **Management Node (oci-mgmt) - NOT in Kubernetes**:
-- **Omni** (self-hosted): Talos cluster management
-- **Keycloak**: SSO/Identity provider for all services
+- **Omni** (self-hosted): Talos cluster management (recommandation : hébergé sur OCI pour disponibilité même quand le serveur Homelab est éteint — voir § 2.3.1).
+- **Authentik**: SSO/Identity provider for all services
 - **Cloudflare Tunnel**: Zero-trust exposure (no open ports)
-- **PostgreSQL**: Database for Omni + Keycloak
+- **PostgreSQL**: Database for Omni + Authentik
+
+**KubeVirt sur le cluster CLOUD** (pour DEV éphémère) :
+- KubeVirt + CDI installés sur le cluster CLOUD (oci-node-1, oci-node-2).
+- Omni Infrastructure Provider KubeVirt : ServiceAccount Omni « InfraProvider », kubeconfig pointant vers le cluster CLOUD, provider `omni-infra-provider-kubevirt` (ex. `ghcr.io/siderolabs/omni-infra-provider-kubevirt`) qui crée les VMs Talos à la demande.
+- MachineClass Omni (ex. `oci-kubevirt`) pour les clusters éphémères.
+- Storage : LocalPathProvisioner ou autre CSI pour les disques des VMs (voir [article a cup of coffee](https://a-cup-of.coffee/blog/omni/) pour LocalPathProvisioner + patch Talos).
 
 **Deployed Services on Kubernetes Cluster**:
 
@@ -457,21 +541,21 @@ Backup Targets:
 > - **Oracle Cloud Fit**: Static public IP + enterprise uptime + Always Free
 > - Stremio is a desktop/mobile client - users install locally and connect to Comet
 
-**Namespace: critical** (Keycloak SSO)
+**Namespace: critical** (Authentik SSO)
 - Vaultwarden (passwords)
 - Baïkal (CalDAV/CardDAV)
 - Twingate Connector (Zero Trust VPN to homelab for NFS)
 - oauth2-proxy (SSO enforcement)
 
-**Namespace: collaborative** (Keycloak SSO)
+**Namespace: collaborative** (Authentik SSO)
 - Nextcloud (cloud storage) - storage via NFS to Homelab
 
 **Namespace: dashboard**
 - Glance (family dashboard/homepage)
 
 **Namespace: optional** (Phase 2 - deploy as resources allow)
-- Immich (photos) - Keycloak SSO, storage via NFS to Homelab
-- n8n (automation workflows) - Keycloak SSO
+- Immich (photos) - Authentik SSO, storage via NFS to Homelab
+- n8n (automation workflows) - Authentik SSO
 - Mealie (recipes) - app-native auth
 - Invidious (YouTube frontend) - app-native auth
 
@@ -506,11 +590,11 @@ homelab/
 │
 ├── docker/                            # Docker Compose for management VM
 │   └── oci-mgmt/
-│       ├── docker-compose.yml        # Omni + Keycloak + Cloudflare
+│       ├── docker-compose.yml        # Omni + Authentik + Cloudflare
 │       ├── omni/
 │       │   └── config.yaml           # Omni configuration
-│       ├── keycloak/
-│       │   └── realm-export.json     # Keycloak realm config
+│       ├── authentik/
+│       │   └── config/               # Flows, providers, policies (ou Terraform)
 │       ├── cloudflared/
 │       │   └── config.yml            # Tunnel configuration
 │       └── nginx/
@@ -518,7 +602,7 @@ homelab/
 │
 ├── omni/
 │   ├── clusters/
-│   │   ├── dev.yaml                  # DEV cluster template
+│   │   ├── dev-ephemeral.yaml        # DEV éphémère (KubeVirt, CI)
 │   │   ├── prod.yaml                 # PROD cluster template
 │   │   └── cloud.yaml                # CLOUD cluster template
 │   ├── machine-classes/
@@ -856,19 +940,19 @@ spec:
 | Service | RAM | Description | Priority | Source |
 |---------|-----|-------------|----------|--------|
 | **Omni** | 1GB | Talos cluster management | 🔴 Critical | Sidero Labs |
-| **Keycloak** | 1GB | SSO/Identity provider (OIDC) | 🔴 Critical | [Various repos] |
-| **PostgreSQL** | 512MB | Database for Omni + Keycloak | 🔴 Critical | - |
+| **Authentik** | 1GB | SSO/Identity provider (OIDC) | 🔴 Critical | [Various repos] |
+| **PostgreSQL** | 512MB | Database for Omni + Authentik | 🔴 Critical | - |
 | **Cloudflare Tunnel** | 128MB | Zero-trust ingress (no open ports) | 🔴 Critical | [qjoly, Mafyuh] |
 | **Nginx** | 128MB | Reverse proxy + TLS termination | 🔴 Critical | - |
 
 **Total**: ~3GB RAM (runs on oci-mgmt VM, separate from K8s cluster)
 
-**Why Keycloak?** (inspired by multiple homelab repos):
-- Single Sign-On for all services (Grafana, ArgoCD, Nextcloud, etc.)
-- OIDC/SAML support
-- User federation and role management
-- Family member access control
-- Integrates with Omni for cluster access
+**Why Authentik?** (inspired by multiple homelab repos):
+- Single Sign-On for all services (Nextcloud, Grafana, ArgoCD, etc.) ; intégration Omni ([Integrate with Omni](https://integrations.goauthentik.io/infrastructure/omni/))
+- OIDC/SAML, groupes, policies ; **validation manuelle** avant accès aux apps (pas d’accès direct après inscription)
+- **Apps d’administration non exposées** aux utilisateurs finaux (policies / bindings)
+- **Service accounts** pour CI, ArgoCD, scripts ; Terraform (goauthentik/authentik) pour IaC
+- Webhooks (Notification Transports) pour déclencher la CI (provisionnement)
 
 ---
 
@@ -891,8 +975,8 @@ spec:
 
 | Service | RAM | Description | Priority | Auth |
 |---------|-----|-------------|----------|------|
-| **Vaultwarden** | 256MB | Password manager | 🔴 Critical | Keycloak SSO |
-| **Baïkal** | 256MB | CalDAV/CardDAV | 🔴 Critical | Keycloak SSO |
+| **Vaultwarden** | 256MB | Password manager | 🔴 Critical | Authentik SSO |
+| **Baïkal** | 256MB | CalDAV/CardDAV | 🔴 Critical | Authentik SSO |
 | **Twingate Connector** | 128MB | Zero Trust VPN to homelab (NFS) | 🔴 Critical | - |
 | **oauth2-proxy** | 128MB | SSO enforcement for Tier 1 services | 🔴 Critical | - |
 
@@ -911,7 +995,7 @@ spec:
 
 | Service | RAM | Description | Priority | Auth | Storage |
 |---------|-----|-------------|----------|------|---------|
-| **Nextcloud** | 2GB | Cloud storage + collaboration | 🔴 Critical | Keycloak SSO | NFS → Homelab |
+| **Nextcloud** | 2GB | Cloud storage + collaboration | 🔴 Critical | Authentik SSO | NFS → Homelab |
 
 **Total**: ~2GB RAM
 
@@ -924,8 +1008,8 @@ spec:
 | Service | RAM | Description | Priority | Auth | Storage |
 |---------|-----|-------------|----------|------|---------|
 | **Glance** | 256MB | Family dashboard/homepage | 🟡 Important | App-native | - |
-| **Immich** | 2GB | Photo management | 🟢 Phase 2 | Keycloak SSO | NFS → Homelab |
-| **n8n** | 512MB | Workflow automation | 🟢 Phase 2 | Keycloak SSO | - |
+| **Immich** | 2GB | Photo management | 🟢 Phase 2 | Authentik SSO | NFS → Homelab |
+| **n8n** | 512MB | Workflow automation | 🟢 Phase 2 | Authentik SSO | - |
 | **Mealie** | 512MB | Recipe management | 🟢 Phase 2 | App-native | - |
 | **Invidious** | 1GB | YouTube frontend (privacy) | 🟢 Phase 2 | App-native | - |
 
@@ -973,7 +1057,7 @@ spec:
 - **ntfy**: Mobile push notifications (self-hosted)
 - **Telegram**: Bot for critical alerts
 
-> **Removed**: Wazuh SIEM (overkill for homelab - Talos immutable OS + Cloudflare + Keycloak provide sufficient security)
+> **Removed**: Wazuh SIEM (overkill for homelab - Talos immutable OS + Cloudflare + Authentik provide sufficient security)
 
 ---
 
@@ -1029,75 +1113,35 @@ spec:
 
 ### 6.2 GitHub Actions Workflows
 
-**CI Pipeline** (`.github/workflows/ci.yml`):
-```yaml
-name: CI
-on: [push, pull_request]
+**CI Pipeline** (`.github/workflows/ci.yml`) — inchangé : validation manifests, lint, Trivy.
 
+**Ephemeral DEV (create → test → destroy)** (`.github/workflows/deploy-dev-ephemeral.yml` ou extension de `deploy-dev.yml`):
+```yaml
+# Idée : créer cluster DEV via Omni (KubeVirt), déployer, tester, détruire
 jobs:
-  validate:
+  ephemeral-dev:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Validate Kubernetes manifests
-        uses: instrumenta/kubeval-action@master
-        
-      - name: Lint YAML
-        uses: ibiqlik/action-yamllint@v3
-        
-      - name: Security scan with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'kubernetes/'
+      - name: Create ephemeral DEV cluster (Omni + KubeVirt)
+        run: |
+          omnictl cluster template sync -f omni/clusters/dev-ephemeral.yaml
+          # ou appel API Omni pour créer cluster avec ID unique (e.g. $GITHUB_RUN_ID)
+      - name: Wait for cluster Ready
+        run: |
+          omnictl get cluster dev-ephemeral-${{ github.run_id }} --wait
+      - name: Get kubeconfig
+        run: omnictl kubeconfig --cluster dev-ephemeral-${{ github.run_id }} > kubeconfig
+      - name: Deploy and test
+        run: |
+          kubectl apply -f kubernetes/...  # ou ArgoCD sync
+          # run e2e / smoke tests
+      - name: Destroy ephemeral cluster (on success or failure)
+        if: always()
+        run: omnictl cluster delete dev-ephemeral-${{ github.run_id }}
 ```
 
-**Deploy to DEV** (`.github/workflows/deploy-dev.yml`):
-```yaml
-name: Deploy to DEV
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'kubernetes/**'
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure kubectl
-        run: |
-          echo "${{ secrets.DEV_KUBECONFIG }}" | base64 -d > kubeconfig
-          
-      - name: Sync ArgoCD Applications
-        run: |
-          argocd app sync --prune --server $ARGOCD_SERVER
-```
-
-**Promote to PROD** (`.github/workflows/promote-prod.yml`):
-```yaml
-name: Promote to PROD
-on:
-  workflow_dispatch:  # Manual trigger
-  schedule:
-    - cron: '0 6 * * 1'  # Weekly Monday 6 AM (optional auto)
-
-jobs:
-  promote:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check DEV stability
-        run: |
-          # Query Prometheus for error rates, alerts, etc.
-          
-      - name: Deploy to PROD
-        if: success()
-        run: |
-          argocd app sync --prune --server $ARGOCD_SERVER
-```
+**Promote to PROD** (`.github/workflows/promote-prod.yml`) : après validation sur DEV éphémère (MEP sans erreur), promotion vers PROD via ArgoCD (inchangé).
 
 ---
 
@@ -1148,7 +1192,7 @@ jobs:
 |-----------|-----|-------|
 | **Proxmox Host** | 4GB | OS overhead |
 | **ZFS ARC Cache** | 8GB | Performance |
-| **DEV Cluster** | 4GB | Minimal testing (can be stopped) |
+| **DEV Cluster** | 0GB | Éphémère sur CLOUD (KubeVirt), pas de VM Proxmox dédiée |
 | **PROD Cluster** | 16GB | Production services |
 | **Gaming VM** | 32GB | When active (OFF most of the time) |
 | **Reserve** | 4GB | Buffer |
@@ -1170,9 +1214,9 @@ jobs:
 | ntfy | 128MB |
 | Reserve | ~5GB |
 
-**Normal Operation**: ~28GB used (PROD active, DEV stopped, Gaming OFF)
-**Testing Mode**: ~32GB used (DEV + PROD, Gaming OFF)
-**Gaming Mode**: ~48GB used (Gaming VM + PROD, DEV stopped)
+**Normal Operation**: ~24GB used (PROD active, pas de cluster DEV permanent, Gaming OFF)
+**Testing Mode (CI)** : cluster DEV éphémère créé sur CLOUD (KubeVirt), pas de RAM Proxmox dédiée.
+**Gaming Mode**: ~48GB used (Gaming VM + PROD)
 
 ---
 
@@ -1182,7 +1226,7 @@ jobs:
 | Component | RAM | Notes |
 |-----------|-----|-------|
 | **Omni** | 1GB | Cluster management |
-| **Keycloak** | 1GB | SSO/Identity |
+| **Authentik** | 1GB | SSO/Identity |
 | **PostgreSQL** | 512MB | Database |
 | **Cloudflare Tunnel** | 128MB | Zero-trust ingress |
 | **Nginx** | 128MB | Reverse proxy |
@@ -1216,9 +1260,9 @@ jobs:
 ## 9. Implementation Roadmap
 
 ### Phase 1: Foundation
-- [ ] Terraform Proxmox VMs (DEV + PROD nodes)
-- [ ] Omni setup on Oracle Cloud (self-hosted)
-- [ ] DEV cluster bootstrap (Talos + Kubernetes)
+- [ ] Terraform Proxmox VMs (PROD nodes only ; pas de VM DEV dédiée)
+- [ ] Omni setup on Oracle Cloud (self-hosted, recommandation § 2.3.1)
+- [ ] PROD cluster bootstrap (Talos + Kubernetes)
 - [ ] ArgoCD installation
 - [ ] Cilium CNI deployment
 
@@ -1229,13 +1273,15 @@ jobs:
 - [ ] Monitoring stack (Prometheus, Grafana, Loki, ntfy)
 - [ ] AdGuard Home (DNS)
 
-### Phase 3: PROD Cluster + Oracle Cloud
+### Phase 3: PROD Cluster + Oracle Cloud + DEV éphémère
 - [ ] PROD cluster bootstrap
 - [ ] Terraform OCI instances
-- [ ] Oracle Cloud K8s cluster
-- [ ] Keycloak SSO + Cloudflare Tunnel
+- [ ] Oracle Cloud K8s cluster (CLOUD)
+- [ ] KubeVirt + CDI + storage (LocalPathProvisioner ou CSI) sur CLOUD
+- [ ] Omni Infrastructure Provider KubeVirt (MachineClass, ServiceAccount, provider container)
+- [ ] Authentik SSO + Cloudflare Tunnel
 - [ ] Twingate connector for NFS access
-- [ ] CI/CD pipeline setup
+- [ ] CI/CD pipeline : workflow ephemeral DEV (create → test → destroy)
 
 ### Phase 4: Services MVP
 - [ ] Critical: Vaultwarden, Baïkal
@@ -1277,20 +1323,15 @@ jobs:
 
 **Document Status**: ✅ **VALIDATED & READY FOR IMPLEMENTATION**
 
-Architecture v4.0 validated on 2026-01-29. Key changes from v3.1:
-- Simplified service catalog (removed 12 services)
-- 2-tier authentication strategy (Keycloak SSO for private, app-native for media)
-- AdGuard Home replaces Pi-hole
-- Audiobookshelf moved to Homelab
-- ntfy + Telegram for alerting (removed Wazuh, Uptime Kuma)
-- KubeVirt gaming roadmap (Phase 6)
+Architecture v6.0 validated on 2026-01-31. Key changes from v5.0:
+- **IdP : Authentik** (remplace Keycloak). Intégration Omni SAML, webhooks, service accounts, Terraform.
+- **Flux utilisateur** : **invitation-only** (pas de self-registration) ; trafic utilisateur **via Cloudflare** ; **apps admin non exposées** aux utilisateurs finaux.
+- **Design Authentik** : flux, listes apps, CI, service accounts → `session-travail-authentik.md` §6 ; invitation-only et Cloudflare → `decision-invitation-only-et-acces-cloudflare.md`.
 
 This design provides:
-- Clear separation of Dev/Prod environments
-- GitOps-native CI/CD workflow
-- Hybrid cloud architecture (Homelab + Oracle Cloud)
-- Optimized service catalog with clear priorities
-- Scalable, maintainable structure
-- Reduced complexity and resource usage
+- Pas de VM DEV 24/7 sur Proxmox (économie de ressources).
+- CI-driven ephemeral DEV (create → test → destroy) inspiré de [Omni et KubeVirt - a cup of coffee](https://a-cup-of.coffee/blog/omni/).
+- Workload Proxy comme option d’auth pour services internes.
+- Omni sur OCI pour disponibilité et administration à distance.
 
-Begin with Phase 1: Terraform Proxmox VMs and Omni setup.
+Begin with Phase 1: Terraform Proxmox VMs and Omni setup ; puis KubeVirt + Omni provider sur CLOUD pour DEV éphémère.

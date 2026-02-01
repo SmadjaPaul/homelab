@@ -1,0 +1,42 @@
+# OVHcloud Terraform Variables
+# Copy to terraform.tfvars and fill in. Do not commit terraform.tfvars.
+#
+# First apply: leave ovh_s3_access_key and ovh_s3_secret_key empty (or omit).
+# After first apply, run: terraform output -json velero_s3_credentials
+# Then set ovh_s3_access_key and ovh_s3_secret_key and apply again to create the bucket.
+
+# --- API OVH (obligatoire) ---
+# Créer une application: https://eu.api.ovh.com/createToken/
+# Droits: GET, PUT, POST, DELETE sur /cloud/* et /me
+ovh_application_key    = "your_application_key"
+ovh_application_secret = "your_application_secret"
+ovh_consumer_key       = "your_consumer_key"
+
+# Endpoint API (default: ovh-eu)
+# ovh_endpoint = "ovh-eu"
+
+# --- Projet Public Cloud ---
+# ID du projet: OVH Control Panel → Public Cloud → Project → Copy the ID (service_name)
+ovh_cloud_project_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# --- Alerte budget (1 €) ---
+# Email pour recevoir l’alerte quand le projet atteint 1 € de dépense
+budget_alert_email = "your-email@example.com"
+
+# --- Object Storage S3 (3-AZ) ---
+# Région 3-AZ pour la promo 3 To offerts (gra, sbg, bhs, etc.)
+s3_region = "gra"
+
+# Nom du bucket Velero (backups K8s, rétention 30j)
+# velero_bucket_name = "homelab-velero-backups"
+
+# Bucket archive long terme (données utilisateur ZFS/Nextcloud « à ne pas perdre »)
+# long_term_bucket_name = "homelab-user-data-archive"
+# Expiration optionnelle (null = pas d'expiration, données conservées indéfiniment)
+# long_term_expiration_days = null   # ou ex. 2555 pour ~7 ans
+
+# --- Après 1er apply (optionnel au démarrage) ---
+# Récupérer après: terraform output -json velero_s3_credentials
+# Puis ré-appliquer pour créer le bucket.
+# ovh_s3_access_key = ""
+# ovh_s3_secret_key = ""

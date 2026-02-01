@@ -1,13 +1,16 @@
 ---
-date: 2026-01-29
+date: 2026-01-30
 author: PM Agent
 project: homelab
-version: 1.0
+version: 1.3
 status: draft
-lastUpdated: 2026-01-29
+lastUpdated: 2026-02-01
+stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
 inputDocuments:
   - prd-homelab-2026-01-29.md (v2.0)
-  - architecture-proxmox-omni.md (v4.0)
+  - architecture-proxmox-omni.md (v6.0)
+  - session-travail-authentik.md (§6 décisions prises)
+  - decision-invitation-only-et-acces-cloudflare.md
 ---
 
 # Epics and Stories: Homelab Infrastructure
@@ -15,10 +18,11 @@ inputDocuments:
 ## Document Information
 
 - **Project**: Homelab Infrastructure
-- **Version**: 1.0
-- **Date**: 2026-01-29
+- **Version**: 1.3
+- **Date**: 2026-02-01
 - **PRD Version**: 2.0
-- **Architecture Version**: 4.0 (Proxmox + Omni + ArgoCD)
+- **Architecture Version**: v6.0 (Proxmox + Omni + ArgoCD + Authentik)
+- **Implementation tracking**: [implementation-progress.md](implementation-progress.md)
 
 ## Overview
 
@@ -28,13 +32,149 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 | Phase | Name | Epics | Stories | Priority |
 |-------|------|-------|---------|----------|
-| 1 | Foundation | 4 | 16 | P0 - Critical |
-| 2 | Core Infrastructure | 4 | 14 | P0 - Critical |
-| 3 | PROD + Oracle Cloud | 4 | 12 | P0 - Critical |
-| 4 | Services MVP | 5 | 18 | P0/P1 - Critical/High |
+| 1 | Foundation | 5 | 18 | P0 - Critical |
+| 2 | Core Infrastructure | 5 | 15 | P0 - Critical |
+| 3 | PROD + Oracle Cloud | 5 | 15 | P0 - Critical |
+| 4 | Services MVP | 5 | 14 | P0/P1 - Critical/High |
 | 5 | Optional Services | 1 | 4 | P2/P3 - Medium/Low |
 | 6 | Gaming & Advanced | 2 | 6 | P2/P3 - Medium/Low |
-| **Total** | | **20** | **70** | |
+| **Total** | | **23** | **72** | |
+
+### Implementation Status
+
+Le suivi détaillé (état par story, blocages, next steps) est dans **[implementation-progress.md](implementation-progress.md)**.
+
+| Phase | Impl. Status | Note |
+|-------|--------------|------|
+| 0 | ✅ Complete | Pre-implémentation (domaine, Cloudflare, OCI, Proxmox, outils) |
+| 1 | 🟡 In Progress (~50%) | Proxmox ✅, Terraform Proxmox ✅, Talos VMs ✅, ArgoCD manifests ✅ — ZFS ready, OCI VM 🔴 |
+| 2 | 🟡 In Progress (~60%) | cert-manager, monitoring, SOPS, CI/CD ✅ — ESO, Cilium, ntfy à faire |
+| 3 | 🔴 Blocked (~25%) | OCI ARM "Out of host capacity" — reste Terraform/manifests prêts |
+| 4–6 | ⬜ Not Started | Dépendent de Phase 3 (CLOUD cluster) et Phase 1–2 (DEV/PROD) |
+
+---
+
+## Requirements Inventory (Step 1 – Create Epics & Stories)
+
+*Extracted from PRD v2.0 and Architecture v6.0 for epic/story alignment and coverage validation.*
+
+### Functional Requirements (FRs)
+
+FR-001: Proxmox hypervisor setup (Terraform, ZFS, GPU passthrough, vmbr0).  
+FR-002: Talos Linux Kubernetes clusters (DEV, PROD, CLOUD; Talos v1.9.x, K8s v1.32.x).  
+FR-003: Omni cluster management (OCI VM, PostgreSQL, Authentik SSO, Cloudflare Tunnel).  
+FR-004: ArgoCD GitOps (ApplicationSets, sync waves, multi-cluster, SSO).  
+FR-005: Storage (ZFS, Longhorn, local-path, NFS, storage classes).  
+FR-006: Cilium CNI (kube-proxy replacement, Gateway API, Hubble, WireGuard).  
+FR-007: Cloudflare Tunnel (zero open ports, WAF, DNS).  
+FR-008: 2-tier authentication (Tier 1 Authentik SSO, Tier 2 app-native; invitation-only; admin apps restricted to group `admin`).  
+FR-009: Secrets management (ESO, Bitwarden Phase 1, no secrets in Git).  
+FR-010: Zero Trust (Twingate for NFS access Oracle Cloud ↔ Homelab).  
+FR-011: Nextcloud (Authentik SSO, NFS, Cloudflare Tunnel).  
+FR-012: Vaultwarden (Authentik SSO, family sharing).  
+FR-013: Baïkal CalDAV/CardDAV (Authentik SSO).  
+FR-014: Comet Real-Debrid (static IP, high availability).  
+FR-015: Navidrome (app-native auth, NFS).  
+FR-016: AdGuard Home DNS (PROD, DoH/DoT).  
+FR-017: Home Assistant (PROD, local).  
+FR-018: Media library (Komga, Romm, Audiobookshelf, app-native auth).  
+FR-019: Glance dashboard (family links, behind Cloudflare).  
+FR-020: Prometheus stack (Prometheus, Grafana, Loki, Alloy).  
+FR-021: Alerting (Alertmanager, ntfy, Telegram).  
+FR-022: GitHub Actions CI (kubeval, yamllint, Trivy, GitGuardian).  
+FR-023: Dev/Prod promotion (DEV on push, stability period, manual/auto PROD).  
+FR-024: 3-2-1 backup (Velero, Restic/Volsync, ZFS snapshots, OVH offsite).  
+FR-025: Critical data classification (tagging, retention, bandwidth).  
+FR-026: Windows gaming VM (Proxmox, GPU passthrough, Parsec/Moonlight).  
+FR-027: KubeVirt (future, on-demand gaming).  
+FR-028: Immich (Authentik SSO, NFS).  
+FR-029: n8n (Authentik SSO).  
+FR-030: Mealie (app-native auth).  
+FR-031: Invidious (app-native auth).
+
+### Non-Functional Requirements (NFRs)
+
+NFR-001: File transfer (local >100 MB/s, remote >10 MB/s, streaming >10 Mbps, 5 users).  
+NFR-002: Response time (web <3s, API p95 <500ms, ArgoCD sync <5 min).  
+NFR-003: Gaming (60 FPS, latency <50ms).  
+NFR-004: Uptime (monthly <4h downtime, Comet >99%).  
+NFR-005: Data integrity (ZFS scrub, backup verification).  
+NFR-006: Security (zero critical unpatched, medium <5, scanning 100%).  
+NFR-007: Access control (services behind auth, SSO Tier 1, 2FA critical, zero open ports).  
+NFR-008: Operational efficiency (<2h/week maintenance, add service <15 min, IaC in Git).  
+NFR-009: Complexity (growth <20%/quarter, modular).  
+NFR-010: Homelab RAM (normal ~28GB, max 64GB).  
+NFR-011: Oracle Cloud (≤24GB RAM, 4 OCPUs, Always Free).  
+NFR-012: Cost (<$1000/year, Oracle Free only).
+
+### Additional Requirements (from Architecture & Identity Design)
+
+- Omni hosted on Oracle Cloud (VPC), not on Homelab (availability when server off).
+- Authentik: invitation-only onboarding; self-registration disabled; enrollment via invitation token (Stage Invitation).
+- All user traffic (auth, apps) via Cloudflare Tunnel; no direct origin access for end users.
+- Admin apps (Authentik Admin, Omni, ArgoCD, Grafana, Prometheus, ntfy) restricted to group `admin`; not exposed to family.
+- Family apps (Nextcloud, Vaultwarden, Baïkal, etc.) bound to family groups; visible in « My applications ».
+- Service accounts (ci-github, argocd, backup, n8n) defined in Terraform (goauthentik/authentik); tokens in Bitwarden/ESO.
+- Omni SSO: SAML integration with Authentik ([Integrate Authentik with Omni](https://integrations.goauthentik.io/infrastructure/omni/)).
+- Architecture v6.0 option: DEV ephemeral via KubeVirt + Omni (CI creates/destroys); current epics assume DEV on Proxmox per PRD — to align if adopting ephemeral DEV.
+
+### Epic List (Step 2 – Approved Structure)
+
+| # | Epic | User outcome | FRs covered |
+|---|------|--------------|-------------|
+| 1.1 | Proxmox Hypervisor Setup | Admin can manage VMs via Proxmox and Terraform | FR-001 |
+| 1.2 | Talos Linux DEV Cluster | DEV Kubernetes cluster for CI validation | FR-002 |
+| 1.3 | Omni Cluster Management | Single pane of glass for all clusters (Omni on OCI) | FR-003 |
+| 1.4 | ArgoCD GitOps Setup | GitOps auto-deploy, sync waves, ApplicationSets | FR-004 |
+| 1.5 | Cilium CNI Deployment | CNI, Gateway API, Hubble on clusters | FR-006 |
+| 2.1 | Storage Infrastructure | local-path, NFS, Longhorn storage classes | FR-005 |
+| 2.2 | Certificate Management | cert-manager, ClusterIssuers (TLS) | FR-007 (part) |
+| 2.3 | External DNS & Secrets | external-dns, ESO, Bitwarden SecretStore | FR-009 |
+| 2.4 | Monitoring Stack | Prometheus, Grafana, Loki, Alloy, Alertmanager, ntfy | FR-020, FR-021 |
+| 2.5 | AdGuard Home DNS | Network-wide DNS and ad blocking (PROD) | FR-016 |
+| 3.1 | PROD Cluster Deployment | PROD Talos cluster on Proxmox, Longhorn | FR-002 |
+| 3.2 | Oracle Cloud Kubernetes Cluster | CLOUD cluster on OCI, Omni-managed | FR-002, FR-003 |
+| 3.3 | Identity & Access (Authentik) | SSO, invitation-only, oauth2-proxy, apps admin/famille, service accounts | FR-008 |
+| 3.4 | Cloudflare Tunnel & Zero Trust | Tunnel (zero open ports), Twingate (NFS) | FR-007, FR-010 |
+| 3.5 | CI/CD Pipeline | GitHub Actions CI, DEV deploy, PROD promotion | FR-022, FR-023 |
+| 4.1 | Critical Services | Nextcloud, Vaultwarden, Baïkal (Tier 1 SSO) | FR-011, FR-012, FR-013 |
+| 4.2 | Media Services | Comet, Navidrome, Lidarr | FR-014, FR-015 |
+| 4.3 | Home Services | Home Assistant, Audiobookshelf, Komga, Romm | FR-017, FR-018 |
+| 4.4 | Dashboard | Glance family dashboard | FR-019 |
+| 4.5 | Backup Implementation | Velero, Volsync/Restic, ZFS snapshots (3-2-1) | FR-024, FR-025 |
+| 5.1 | Optional Services | Immich, n8n, Mealie, Invidious | FR-028, FR-029, FR-030, FR-031 |
+| 6.1 | Windows Gaming VM | GPU passthrough, Parsec/Moonlight, on-demand | FR-026 |
+| 6.2 | KubeVirt Integration (Future) | KubeVirt, VM templates, web UI | FR-027 |
+
+**Total: 23 epics**, organized by phases (Foundation → Core → PROD/OCI → Services MVP → Optional → Gaming). Each epic delivers standalone user/value outcome; later epics build on earlier ones.
+
+### FR Coverage Map
+
+| FR | Epic(s) | Description |
+|----|---------|-------------|
+| FR-001 | 1.1 | Proxmox hypervisor setup |
+| FR-002 | 1.2, 3.1, 3.2 | Talos clusters (DEV, PROD, CLOUD) |
+| FR-003 | 1.3, 3.2 | Omni management, OCI cluster |
+| FR-004 | 1.4 | ArgoCD GitOps |
+| FR-005 | 2.1 | Storage (ZFS, Longhorn, NFS) |
+| FR-006 | 1.5 | Cilium CNI |
+| FR-007 | 2.2, 3.4 | cert-manager; Cloudflare Tunnel |
+| FR-008 | 3.3 | Authentik 2-tier auth |
+| FR-009 | 2.3 | ESO, Bitwarden |
+| FR-010 | 3.4 | Twingate Zero Trust |
+| FR-011 to FR-013 | 4.1 | Nextcloud, Vaultwarden, Baïkal |
+| FR-014, FR-015 | 4.2 | Comet, Navidrome (Lidarr) |
+| FR-016 | 2.5 | AdGuard Home |
+| FR-017, FR-018 | 4.3 | Home Assistant, media library |
+| FR-019 | 4.4 | Glance dashboard |
+| FR-020, FR-021 | 2.4 | Monitoring, alerting |
+| FR-022, FR-023 | 3.5 | CI/CD pipeline |
+| FR-024, FR-025 | 4.5 | Backup 3-2-1 |
+| FR-026 | 6.1 | Windows gaming VM |
+| FR-027 | 6.2 | KubeVirt (future) |
+| FR-028 to FR-031 | 5.1 | Immich, n8n, Mealie, Invidious |
+
+*All 31 FRs are covered by at least one epic.*
 
 ---
 
@@ -774,26 +914,35 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 ---
 
-### Epic 3.3: Identity & Access
+### Epic 3.3: Identity & Access (Authentik)
 **Priority**: P0 (Critical)  
 **FR Reference**: FR-008  
-**Description**: Deploy Keycloak SSO and configure 2-tier authentication.
+**Description**: Deploy Authentik SSO and configure 2-tier authentication (**invitation-only** onboarding, apps admin non exposées, service accounts). Toutes les connexions utilisateurs passent par **Cloudflare** (Tunnel). Design : session-travail-authentik.md §6, decision-invitation-only-et-acces-cloudflare.md.
 
-#### Story 3.3.1: Deploy Keycloak
+**Epic-level Technical Notes**:
+- **Invitation-only** : self-registration désactivée ; onboarding uniquement par lien d’invitation (UI ou API Authentik). Flow d’enrollment avec Stage Invitation. Voir decision-invitation-only-et-acces-cloudflare.md.
+- **Trafic utilisateur via Cloudflare** : Authentik et apps protégées exposés uniquement via Cloudflare Tunnel ; pas d’accès direct à l’origine pour les utilisateurs finaux.
+- **Terraform vs UI** : Terraform (provider goauthentik/authentik) gère la **structure** : groupes, applications, providers, policies, **service accounts** uniquement. Les **utilisateurs humains**, **invitations** et **qui est dans quel groupe** se gèrent dans l’UI Authentik (Directory → Users, Groups, Invitations) ou via API. Détail : `_bmad-output/implementation-artifacts/authentik-terraform-implementation.md` §3.
+- **Inspiration setup** : [GoAuthentik de A à Y](https://une-tasse-de.cafe/blog/goauthentik/) (une-tasse-de.cafe) pour flows/stages, invitations, accès par groupe, notifications, reverse proxy. Résumé : session-travail-authentik.md §7.1, implementation doc §2.
+
+#### Story 3.3.1: Deploy Authentik
 **As a** developer administrator  
-**I want** Keycloak deployed on the management VM  
-**So that** I have centralized identity management
+**I want** Authentik deployed on the management VM  
+**So that** I have centralized identity management (SSO OIDC/SAML)
 
 **Acceptance Criteria**:
-- [ ] Keycloak container running
-- [ ] PostgreSQL database configured
-- [ ] Admin console accessible
-- [ ] Realm created for homelab
-- [ ] Users created (developer, designer, family)
+- [ ] Authentik container running (Docker Compose on oci-mgmt)
+- [ ] PostgreSQL database configured (shared with Omni or dedicated)
+- [ ] Admin UI accessible
+- [ ] **Invitation-only** : self-registration **désactivée** ; enrollment accessible uniquement avec un token d’invitation (flow d’enrollment avec Stage Invitation)
+- [ ] Groups created : `admin`, `family-validated` (and app-specific groups if used)
+- [ ] SAML integration with Omni configured ([Integrate Authentik with Omni](https://integrations.goauthentik.io/infrastructure/omni/))
+- [ ] **Trafic via Cloudflare** : Authentik exposé uniquement via Cloudflare Tunnel (pas d’accès direct à l’origine pour les utilisateurs) ; documenté dans le runbook / architecture
 
 **Technical Notes**:
 - Deploy via Docker Compose on oci-mgmt
-- Integrate with Omni for cluster access
+- Invitation-only : admin crée des invitations (Directory → Invitations ou API `POST /api/v3/stages/invitation/invitations/`) et envoie le lien ; pas de page d’inscription publique. Voir decision-invitation-only-et-acces-cloudflare.md.
+- Règle Cloudflare : s’assurer qu’aucune route utilisateur ne contourne Cloudflare (Tunnel comme seul point d’entrée pour auth et apps)
 
 ---
 
@@ -804,33 +953,65 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] oauth2-proxy deployed on CLOUD cluster
-- [ ] Keycloak OIDC configured
+- [ ] Authentik OIDC configured (provider URL, client id/secret)
 - [ ] Cookie and session management working
-- [ ] Upstream services protected
-- [ ] Login flow tested
+- [ ] Upstream services protected ; trafic utilisateur transitant par Cloudflare (Tunnel) uniquement
+- [ ] Login flow tested ; only users in allowed groups can access
 
 **Technical Notes**:
 - Single instance protecting multiple services
-- Configure allowed groups/users
+- Configure allowed groups (e.g. `family-validated`) ; admin apps not behind this proxy for family
+- Cohérent avec decision-invitation-only-et-acces-cloudflare.md : toutes les connexions utilisateurs passent par Cloudflare
 
 ---
 
-#### Story 3.3.3: Configure Keycloak Clients
+#### Story 3.3.3: Configure Authentik Applications (Family vs Admin)
 **As a** developer administrator  
-**I want** OIDC clients configured for each Tier 1 service  
-**So that** SSO works across all private services
+**I want** Authentik applications and policies configured for Tier 1 services and admin apps  
+**So that** family users see only family apps in the portail ; admin apps are restricted to group `admin`
 
 **Acceptance Criteria**:
-- [ ] Client for Nextcloud
-- [ ] Client for Vaultwarden
-- [ ] Client for Immich (Phase 5)
-- [ ] Client for n8n (Phase 5)
-- [ ] Client for Grafana
-- [ ] Client for ArgoCD
+- [ ] OIDC providers/applications for Tier 1 : Nextcloud, Vaultwarden, Baïkal, Immich (Phase 5), n8n (Phase 5)
+- [ ] Applications « famille » bound to groups famille (e.g. `family-validated`) ; visible in « My applications » for those users ; accessibles uniquement via Cloudflare (Tunnel)
+- [ ] Applications « admin » (Authentik Admin, Omni, ArgoCD, Grafana, Prometheus, ntfy) bound to group `admin` only ; not visible in portail for family groups
+- [ ] Client secrets stored in ESO (Bitwarden)
 
 **Technical Notes**:
-- Export realm config for GitOps
-- Store client secrets in ESO
+- Bindings : family apps → family groups ; admin apps → `admin` only
+- See session-travail-authentik.md §6.2 (listes apps famille vs admin) ; exposition via Cloudflare : decision-invitation-only-et-acces-cloudflare.md §3
+
+---
+
+#### Story 3.3.4: Configure Authentik Webhook and Optional CI Provisioning
+**As a** developer administrator  
+**I want** Authentik webhook (Notification Transport) configured to trigger provisioning  
+**So that** when an user is validated (added to groups), the CI can create accounts in Nextcloud, Navidrome, etc.
+
+**Acceptance Criteria**:
+- [ ] Authentik Event Transport (webhook) configured for event `user_write` or group change
+- [ ] Webhook URL points to CI endpoint (e.g. GitHub Actions or internal service) ; URL sécurisée (secret, signature si possible)
+- [ ] (Optional) CI job creates user accounts in Nextcloud, Navidrome, Mealie via APIs
+- [ ] Documentation or runbook for **onboarding par invitation** : admin crée une invitation (UI ou API), envoie le lien à l’utilisateur ; après enrollment, admin ajoute aux groupes si besoin ; webhook déclenche le provisionnement
+
+**Technical Notes**:
+- Invitation-only : pas de « validation » post-inscription ; l’admin envoie un lien d’invitation, l’utilisateur complète l’enrollment, l’admin ajoute aux groupes si besoin ; webhook triggers provisionnement. See session-travail-authentik.md §6.1, §6.3.
+
+---
+
+#### Story 3.3.5: Create Service Accounts in Terraform
+**As a** developer administrator  
+**I want** Authentik service accounts defined in Terraform  
+**So that** CI, ArgoCD, backup scripts, n8n have machine identities with minimal rights (IaC, auditable)
+
+**Acceptance Criteria**:
+- [ ] Terraform (provider goauthentik/authentik) defines service accounts : `ci-github`, `argocd`, `backup`, `n8n`
+- [ ] Each service account has minimal required permissions/groups
+- [ ] Tokens (API Token or App password) stored in secret manager (Bitwarden/ESO), not in Git
+- [ ] Documentation for rotating tokens
+
+**Technical Notes**:
+- `authentik_user` with `type = "service_account"`
+- See session-travail-authentik.md §6.4
 
 ---
 
@@ -951,7 +1132,7 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] Nextcloud deployed on CLOUD cluster
-- [ ] Keycloak SSO configured
+- [ ] Authentik SSO configured
 - [ ] NFS storage mounted via Twingate
 - [ ] Accessible via Cloudflare Tunnel
 - [ ] Mobile apps tested
@@ -970,7 +1151,7 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] Vaultwarden deployed on CLOUD cluster
-- [ ] Keycloak SSO configured
+- [ ] Authentik SSO configured
 - [ ] Admin panel accessible
 - [ ] Browser extensions working
 - [ ] Mobile apps working
@@ -989,7 +1170,7 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] Baïkal deployed on CLOUD cluster
-- [ ] Keycloak SSO configured
+- [ ] Authentik SSO configured
 - [ ] CalDAV working (calendars)
 - [ ] CardDAV working (contacts)
 - [ ] Mobile devices syncing
@@ -1239,7 +1420,7 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] Immich deployed on CLOUD cluster
-- [ ] Keycloak SSO configured
+- [ ] Authentik SSO configured
 - [ ] Photo storage via NFS
 - [ ] Mobile apps uploading
 - [ ] Face recognition working (optional)
@@ -1258,7 +1439,7 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 **Acceptance Criteria**:
 - [ ] n8n deployed on CLOUD cluster
-- [ ] Keycloak SSO configured
+- [ ] Authentik SSO configured
 - [ ] Webhook endpoints working
 - [ ] Integration with ntfy
 - [ ] Sample workflows created
@@ -1455,6 +1636,35 @@ This document breaks down the PRD into implementable epics and user stories, org
 | Developer Administrator | 52 |
 | Family Members | 18 |
 
+### PRD User Story to Epic/Story Mapping
+
+Maps PRD §3 User Stories (US-001 to US-022) to implementing epics and stories.
+
+| PRD ID | User Story | Epic / Story |
+|--------|------------|--------------|
+| US-001 | Single Omni dashboard for all clusters | Epic 1.3 (Omni), Story 1.3.3 |
+| US-002 | ArgoCD auto-deploy from Git | Epic 1.4 (ArgoCD), Stories 1.4.2–1.4.5 |
+| US-003 | Mobile push for critical alerts | Epic 2.4, Story 2.4.6 (ntfy) |
+| US-004 | Add new service in &lt;15 min | Epic 1.4 (ApplicationSets), Epic 4.x patterns |
+| US-005 | Container image scanning | Epic 3.5, Story 3.5.1 (CI Trivy) |
+| US-006 | Cloudflare Tunnel (no open ports) | Epic 3.4, Story 3.4.1 |
+| US-007 | DEV validates before PROD | Epic 3.5, Stories 3.5.2–3.5.3 |
+| US-008 | Comprehensive monitoring | Epic 2.4 (Prometheus, Grafana, Loki) |
+| US-009 | Nextcloud from any device | Epic 4.1, Story 4.1.1 |
+| US-010 | Share files via Nextcloud links | Story 4.1.1 |
+| US-011 | Fast file transfer (&gt;10 MB/s) | Story 4.1.1 (NFS + Twingate) |
+| US-012 | Automatic backup of work | Epic 4.5 (Backup) |
+| US-013 | Intuitive interface | All Tier 1 service stories |
+| US-014 | SSO once for all services | Epic 3.3 (Authentik, oauth2-proxy) |
+| US-015 | Version history (Nextcloud) | Story 4.1.1 |
+| US-016 | Stremio/Comet always available | Epic 4.2, Story 4.2.1 |
+| US-017 | Navidrome with playlists | Epic 4.2, Story 4.2.2 |
+| US-018 | Nextcloud for photo backup | Story 4.1.1 |
+| US-019 | Vaultwarden password sharing | Epic 4.1, Story 4.1.2 |
+| US-020 | Glance dashboard for services | Epic 4.4, Story 4.4.1 |
+| US-021 | Privacy (separate data) | Epic 3.3 (Authentik), per-service accounts |
+| US-022 | Mobile access for all services | Stories 4.1.1, 4.1.2, 4.1.3, 4.2.x, 4.3.x |
+
 ---
 
 ## Dependencies Graph
@@ -1515,10 +1725,12 @@ Phase 6: Gaming (depends on Phase 3)
 ## Document Approval
 
 - **Status**: Draft
-- **Next Steps**: Review and prioritize, then Implementation Readiness check
-- **Total Epics**: 20
+- **Version**: 1.2
+- **Total Epics**: 23
 - **Total Stories**: 70
+- **Implementation status**: voir [implementation-progress.md](implementation-progress.md)
+- **Next Steps**: Prioriser les stories selon le blocage OCI ; avancer Phase 1 (ZFS, bootstrap DEV) et Phase 2 en parallèle.
 
 ---
 
-*End of Epics and Stories Document*
+*End of Epics and Stories Document v1.2*
