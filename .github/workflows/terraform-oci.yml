@@ -44,14 +44,10 @@ concurrency:
   group: terraform-oci
   cancel-in-progress: false
 
-# Temporaire: -lock=false sur plan/apply (évite lock + invalid auth tfstate.dev). Retirer quand TFSTATE_DEV_TOKEN sera OK ou usage concurrent.
-
 env:
   TF_WORKING_DIR: terraform/oracle-cloud
   TF_VERSION: '1.10.0'
-  # TFstate.dev - Use PAT (TFSTATE_DEV_TOKEN) for state lock/auth
-  # https://tfstate.dev/
-  TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+  # Backend OCI Object Storage (bucket homelab-tfstate) — namespace via OCI_OBJECT_STORAGE_NAMESPACE
   # OCI Authentication (set in GitHub Secrets)
   OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
   OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
@@ -167,14 +163,12 @@ jobs:
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform plan -lock=false -out=tfplan -no-color | tee plan_output.txt
+          terraform plan -out=tfplan -no-color | tee plan_output.txt
 
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request'
@@ -245,13 +239,11 @@ jobs:
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -lock=false -auto-approve
+        run: terraform apply -auto-approve
 
       - name: Output Results
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -277,11 +269,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init (HTTP backend = same as plan/apply)
+      - name: Configure OCI Credentials
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+
+      - name: Terraform Init (OCI backend)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -input=false
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
       - name: Force-Unlock State
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -328,10 +332,8 @@ jobs:
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform destroy -lock=false -auto-approve
+        run: terraform destroy -auto-approve

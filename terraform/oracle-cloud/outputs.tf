@@ -43,6 +43,16 @@ output "ssh_connection_commands" {
   }
 }
 
+# Object Storage output for Terraform state backend (namespace requis pour init)
+output "tfstate_bucket" {
+  description = "Terraform state bucket (backend OCI)"
+  value = {
+    name      = oci_objectstorage_bucket.tfstate.name
+    namespace = data.oci_objectstorage_namespace.ns.namespace
+    region    = var.region
+  }
+}
+
 # Object Storage outputs for Velero
 output "velero_bucket" {
   description = "Velero backup bucket details"

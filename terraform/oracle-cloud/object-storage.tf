@@ -20,6 +20,28 @@ data "oci_objectstorage_namespace" "ns" {
   compartment_id = var.compartment_id
 }
 
+# Bucket for Terraform state (backend OCI — même auth que le provider, pas de clé S3)
+# Versioning = Enabled : backups / rollback du state (bonne pratique Remote State Management)
+resource "oci_objectstorage_bucket" "tfstate" {
+  compartment_id = var.compartment_id
+  namespace      = data.oci_objectstorage_namespace.ns.namespace
+  name           = "homelab-tfstate"
+  access_type    = "NoPublicAccess"
+  storage_tier   = "Standard"
+  versioning     = "Enabled"
+
+  metadata = {
+    project = "homelab"
+    purpose = "terraform-state"
+  }
+
+  freeform_tags = {
+    Project     = "homelab"
+    Environment = "production"
+    ManagedBy   = "terraform"
+  }
+}
+
 # Create bucket for Velero backups
 resource "oci_objectstorage_bucket" "velero_backups" {
   compartment_id = var.compartment_id

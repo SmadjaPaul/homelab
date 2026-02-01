@@ -33,11 +33,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
+      - name: Configure OCI Credentials
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+
+      - name: Terraform Init (OCI backend)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -input=false
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
       - name: Terraform Output (management VM IP)
         id: output

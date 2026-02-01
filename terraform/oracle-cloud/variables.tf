@@ -14,6 +14,7 @@ variable "compartment_id" {
 variable "ssh_public_key" {
   description = "SSH public key for instance access"
   type        = string
+  sensitive   = true
 }
 
 # Availability domain index (0, 1, 2...) — useful if one AD has no capacity
@@ -81,6 +82,7 @@ variable "k8s_nodes" {
 variable "budget_alert_email" {
   description = "Email address for budget alerts"
   type        = string
+  sensitive   = true
 }
 
 # User OCID (for S3 compatible access keys)

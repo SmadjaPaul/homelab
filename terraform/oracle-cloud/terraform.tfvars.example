@@ -1,5 +1,9 @@
 # Oracle Cloud Terraform Variables
-# Copy this file to terraform.tfvars and fill in the values
+# Copy this file to terraform.tfvars and fill in the values.
+#
+# Ne jamais commiter terraform.tfvars contenant des secrets réels.
+# Préférer : variables d'environnement (TF_VAR_compartment_id, TF_VAR_ssh_public_key, etc.)
+# ou un gestionnaire de secrets (GitHub Secrets en CI, Vault, etc.).
 
 # Your OCI compartment OCID
 # Find it: OCI Console → Identity → Compartments → Copy OCID
