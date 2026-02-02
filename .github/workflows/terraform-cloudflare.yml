@@ -99,20 +99,16 @@ jobs:
       - name: Configure OCI for Terraform backend
         env:
           OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          OCI_CLI_USER_VAL: ${{ secrets.OCI_CLI_USER }}
-          OCI_CLI_FINGERPRINT_VAL: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          OCI_CLI_TENANCY_VAL: ${{ secrets.OCI_CLI_TENANCY }}
-          OCI_CLI_REGION_VAL: ${{ secrets.OCI_CLI_REGION }}
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           {
             echo "[DEFAULT]"
-            echo "user=${OCI_CLI_USER_VAL}"
-            echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
-            echo "tenancy=${OCI_CLI_TENANCY_VAL}"
-            echo "region=${OCI_CLI_REGION_VAL}"
+            echo "user=${{ secrets.OCI_CLI_USER }}"
+            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+            echo "region=${{ secrets.OCI_CLI_REGION }}"
             echo "key_file=${HOME}/.oci/oci_api_key.pem"
           } > ~/.oci/config
 
@@ -194,20 +190,16 @@ jobs:
       - name: Configure OCI for Terraform backend
         env:
           OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          OCI_CLI_USER_VAL: ${{ secrets.OCI_CLI_USER }}
-          OCI_CLI_FINGERPRINT_VAL: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          OCI_CLI_TENANCY_VAL: ${{ secrets.OCI_CLI_TENANCY }}
-          OCI_CLI_REGION_VAL: ${{ secrets.OCI_CLI_REGION }}
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           {
             echo "[DEFAULT]"
-            echo "user=${OCI_CLI_USER_VAL}"
-            echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
-            echo "tenancy=${OCI_CLI_TENANCY_VAL}"
-            echo "region=${OCI_CLI_REGION_VAL}"
+            echo "user=${{ secrets.OCI_CLI_USER }}"
+            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+            echo "region=${{ secrets.OCI_CLI_REGION }}"
             echo "key_file=${HOME}/.oci/oci_api_key.pem"
           } > ~/.oci/config
 
