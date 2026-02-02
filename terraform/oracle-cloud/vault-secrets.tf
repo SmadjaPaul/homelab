@@ -13,7 +13,7 @@ locals {
 
 # Cloudflare
 resource "oci_vault_secret" "cloudflare_api_token" {
-  count          = (length(coalesce(var.vault_secret_cloudflare_api_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_cloudflare_api_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -21,7 +21,7 @@ resource "oci_vault_secret" "cloudflare_api_token" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_cloudflare_api_token, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_cloudflare_api_token, "managed-externally"))
   }
 
   lifecycle {
@@ -32,7 +32,7 @@ resource "oci_vault_secret" "cloudflare_api_token" {
 # GitHub PAT (TFstate.dev lock) — DEPRECATED: backends now use OCI Object Storage
 # Kept for backwards compatibility, can be removed in future
 resource "oci_vault_secret" "tfstate_dev_token" {
-  count          = (length(coalesce(var.vault_secret_tfstate_dev_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_tfstate_dev_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -40,7 +40,7 @@ resource "oci_vault_secret" "tfstate_dev_token" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_tfstate_dev_token, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_tfstate_dev_token, "managed-externally"))
   }
 
   lifecycle {
@@ -50,7 +50,7 @@ resource "oci_vault_secret" "tfstate_dev_token" {
 
 # Omni (OCI Management Stack)
 resource "oci_vault_secret" "omni_db_user" {
-  count          = (length(coalesce(var.vault_secret_omni_db_user, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_omni_db_user, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -58,7 +58,7 @@ resource "oci_vault_secret" "omni_db_user" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_omni_db_user, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_omni_db_user, "managed-externally"))
   }
 
   lifecycle {
@@ -67,7 +67,7 @@ resource "oci_vault_secret" "omni_db_user" {
 }
 
 resource "oci_vault_secret" "omni_db_password" {
-  count          = (length(coalesce(var.vault_secret_omni_db_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_omni_db_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -75,7 +75,7 @@ resource "oci_vault_secret" "omni_db_password" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_omni_db_password, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_omni_db_password, "managed-externally"))
   }
 
   lifecycle {
@@ -84,7 +84,7 @@ resource "oci_vault_secret" "omni_db_password" {
 }
 
 resource "oci_vault_secret" "omni_db_name" {
-  count          = (length(coalesce(var.vault_secret_omni_db_name, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_omni_db_name, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -92,7 +92,7 @@ resource "oci_vault_secret" "omni_db_name" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_omni_db_name, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_omni_db_name, "managed-externally"))
   }
 
   lifecycle {
@@ -102,7 +102,7 @@ resource "oci_vault_secret" "omni_db_name" {
 
 # SSH private key for OCI management VM (same pair as ssh_public_key)
 resource "oci_vault_secret" "oci_mgmt_ssh_private_key" {
-  count          = (length(coalesce(var.vault_secret_oci_mgmt_ssh_private_key, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = (length(try(var.vault_secret_oci_mgmt_ssh_private_key, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -110,7 +110,7 @@ resource "oci_vault_secret" "oci_mgmt_ssh_private_key" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(coalesce(var.vault_secret_oci_mgmt_ssh_private_key, "managed-externally"))
+    content      = base64encode(try(var.vault_secret_oci_mgmt_ssh_private_key, "managed-externally"))
   }
 
   lifecycle {
