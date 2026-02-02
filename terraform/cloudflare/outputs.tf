@@ -46,9 +46,9 @@ output "security_settings" {
 output "tunnel_info" {
   description = "Cloudflare Tunnel information (when enabled)"
   value = var.enable_tunnel ? {
-    tunnel_id   = cloudflare_tunnel.homelab[0].id
-    tunnel_name = cloudflare_tunnel.homelab[0].name
-    cname       = "${cloudflare_tunnel.homelab[0].id}.cfargotunnel.com"
+    tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
+    tunnel_name = cloudflare_zero_trust_tunnel_cloudflared.homelab[0].name
+    cname       = "${cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id}.cfargotunnel.com"
     status      = "Created - install cloudflared to connect"
     } : {
     status = "Tunnel disabled - set enable_tunnel = true when ready"

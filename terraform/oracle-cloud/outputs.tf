@@ -35,10 +35,10 @@ output "k8s_nodes" {
 output "ssh_connection_commands" {
   description = "SSH commands to connect to instances"
   value = {
-    management = "ssh -i ~/.ssh/oci-homelab ubuntu@${data.oci_core_vnic.management.public_ip_address}"
+    management = data.oci_core_vnic.management.public_ip_address != null ? "ssh -i ~/.ssh/oci-homelab ubuntu@${data.oci_core_vnic.management.public_ip_address}" : "Management VM not yet created"
     k8s_nodes = [
       for node in oci_core_instance.k8s_node :
-      "ssh -i ~/.ssh/oci-homelab ubuntu@${node.public_ip}"
+      node.public_ip != null ? "ssh -i ~/.ssh/oci-homelab ubuntu@${node.public_ip}" : "Node ${node.display_name} not yet created"
     ]
   }
 }
@@ -68,10 +68,10 @@ output "velero_bucket" {
 output "velero_s3_credentials" {
   description = "S3 credentials for Velero (sensitive)"
   sensitive   = true
-  value = {
-    access_key = oci_identity_customer_secret_key.velero_s3_key.id
-    secret_key = oci_identity_customer_secret_key.velero_s3_key.key
-  }
+  value = var.user_ocid != "" ? {
+    access_key = oci_identity_customer_secret_key.velero_s3_key[0].id
+    secret_key = oci_identity_customer_secret_key.velero_s3_key[0].key
+  } : null
 }
 
 # -----------------------------------------------------------------------------

@@ -13,6 +13,10 @@ resource "oci_identity_policy" "object_storage_lifecycle" {
   statements = [
     "Allow service objectstorage-${replace(var.region, ".", "-")} to manage object-family in tenancy"
   ]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Get Object Storage namespace (required for bucket operations)
@@ -40,6 +44,10 @@ resource "oci_objectstorage_bucket" "tfstate" {
     Environment = "production"
     ManagedBy   = "terraform"
   }
+
+  lifecycle {
+    ignore_changes = [metadata, freeform_tags] # Allow manual changes
+  }
 }
 
 # Create bucket for Velero backups
@@ -65,6 +73,10 @@ resource "oci_objectstorage_bucket" "velero_backups" {
     Project     = "homelab"
     Environment = "production"
     ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [metadata, freeform_tags] # Allow manual changes
   }
 }
 
@@ -104,8 +116,9 @@ resource "oci_objectstorage_object_lifecycle_policy" "velero_lifecycle" {
   }
 }
 
-# Create a customer secret key for S3 compatibility
+# Create a customer secret key for S3 compatibility (only if user_ocid is provided)
 resource "oci_identity_customer_secret_key" "velero_s3_key" {
+  count        = var.user_ocid != "" ? 1 : 0
   display_name = "velero-s3-access"
   user_id      = var.user_ocid
 }

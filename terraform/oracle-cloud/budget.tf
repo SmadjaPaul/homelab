@@ -4,6 +4,8 @@
 # =============================================================================
 
 # Budget for the entire tenancy
+# Note: OCI free tier allows only 1 budget per compartment
+# If budget already exists, import it: terraform import oci_budget_budget.homelab <budget_ocid>
 resource "oci_budget_budget" "homelab" {
   compartment_id = var.compartment_id
   amount         = 1 # 1 EUR budget
@@ -16,11 +18,14 @@ resource "oci_budget_budget" "homelab" {
   targets     = [var.compartment_id]
 
   freeform_tags = var.tags
+
+  lifecycle {
+    ignore_changes = [display_name, description] # Allow manual changes
+  }
 }
 
 # Alert at 50% (0.50 EUR) - Early warning
 resource "oci_budget_alert_rule" "warning_50_percent" {
-  count          = var.budget_alert_email != "" ? 1 : 0
   budget_id      = oci_budget_budget.homelab.id
   display_name   = "50-percent-warning"
   type           = "ACTUAL"
@@ -35,7 +40,6 @@ resource "oci_budget_alert_rule" "warning_50_percent" {
 
 # Alert at 80% (0.80 EUR) - Getting close
 resource "oci_budget_alert_rule" "warning_80_percent" {
-  count          = var.budget_alert_email != "" ? 1 : 0
   budget_id      = oci_budget_budget.homelab.id
   display_name   = "80-percent-warning"
   type           = "ACTUAL"
@@ -50,7 +54,6 @@ resource "oci_budget_alert_rule" "warning_80_percent" {
 
 # Alert at 100% (1 EUR) - Budget reached
 resource "oci_budget_alert_rule" "critical_100_percent" {
-  count          = var.budget_alert_email != "" ? 1 : 0
   budget_id      = oci_budget_budget.homelab.id
   display_name   = "100-percent-critical"
   type           = "ACTUAL"
@@ -65,7 +68,6 @@ resource "oci_budget_alert_rule" "critical_100_percent" {
 
 # Forecast alert - warns if projected to exceed budget
 resource "oci_budget_alert_rule" "forecast_warning" {
-  count          = var.budget_alert_email != "" ? 1 : 0
   budget_id      = oci_budget_budget.homelab.id
   display_name   = "forecast-exceed-warning"
   type           = "FORECAST"

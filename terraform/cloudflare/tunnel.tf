@@ -8,7 +8,8 @@
 # You'll need to install cloudflared on Proxmox or a VM
 
 # Create the tunnel (only when enabled)
-resource "cloudflare_tunnel" "homelab" {
+# Using cloudflare_zero_trust_tunnel_cloudflared (replaces deprecated cloudflare_tunnel)
+resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
   count = var.enable_tunnel ? 1 : 0
 
   account_id = var.cloudflare_account_id
@@ -17,11 +18,12 @@ resource "cloudflare_tunnel" "homelab" {
 }
 
 # Tunnel configuration - routes traffic to internal services
-resource "cloudflare_tunnel_config" "homelab" {
+# Using cloudflare_zero_trust_tunnel_cloudflared_config (replaces deprecated cloudflare_tunnel_config)
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
   count = var.enable_tunnel ? 1 : 0
 
   account_id = var.cloudflare_account_id
-  tunnel_id  = cloudflare_tunnel.homelab[0].id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
 
   config {
     # Proxmox (internal only via Tunnel)
@@ -48,10 +50,10 @@ resource "cloudflare_tunnel_config" "homelab" {
       }
     }
 
-    # Keycloak (auth)
+    # Authentik (auth)
     ingress_rule {
       hostname = "auth.${var.domain}"
-      service  = "http://keycloak.identity.svc.cluster.local:8080"
+      service  = "http://authentik-server.identity.svc.cluster.local:9000"
     }
 
     # Homepage dashboard
@@ -103,7 +105,7 @@ resource "cloudflare_record" "tunnel_cname" {
 
   zone_id = var.zone_id
   name    = each.value.subdomain
-  content = "${cloudflare_tunnel.homelab[0].id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
   ttl     = 1
