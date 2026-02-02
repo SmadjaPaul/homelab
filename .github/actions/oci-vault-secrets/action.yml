@@ -161,6 +161,21 @@ runs:
           else
             # Single-line secret: trim whitespace and use simple format
             DECODED_TRIMMED=$(echo "$DECODED" | tr -d '\n\r' | xargs)
+
+            # Special validation for Cloudflare API token (must be exactly 40 chars)
+            if [[ "$secret_key" == "cloudflare_api_token" ]]; then
+              if [[ ${#DECODED_TRIMMED} -ne 40 ]]; then
+                echo "::error::Cloudflare API token must be exactly 40 characters, got ${#DECODED_TRIMMED}"
+                echo "::error::Token value (first 10 chars): ${DECODED_TRIMMED:0:10}..."
+                exit 1
+              fi
+              # Validate format (only alphanumeric, hyphens, underscores)
+              if ! echo "$DECODED_TRIMMED" | grep -qE '^[a-zA-Z0-9_-]{40}$'; then
+                echo "::error::Cloudflare API token contains invalid characters"
+                exit 1
+              fi
+            fi
+
             echo "${secret_key}=$DECODED_TRIMMED" >> "$GITHUB_OUTPUT"
           fi
 
