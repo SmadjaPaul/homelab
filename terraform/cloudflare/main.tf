@@ -13,16 +13,13 @@ terraform {
     }
   }
 
-  # TFstate.dev for remote state (same as OCI)
-  # Uses GITHUB_TOKEN for authentication - no additional secrets needed
-  backend "http" {
-    address        = "https://api.tfstate.dev/github/v1"
-    lock_address   = "https://api.tfstate.dev/github/v1/lock"
-    lock_method    = "PUT"
-    unlock_address = "https://api.tfstate.dev/github/v1/lock"
-    unlock_method  = "DELETE"
-    username       = "SmadjaPaul/homelab"
-    # TF_HTTP_PASSWORD is set to GITHUB_TOKEN in CI/CD
+  # OCI Object Storage backend (same as oracle-cloud module)
+  # No additional secrets needed - uses OCI session token from GitHub Secrets
+  backend "oci" {
+    bucket    = "homelab-tfstate"
+    namespace = "YOUR_TENANCY_NAMESPACE" # CI: injected by workflow; Local: replace manually
+    key       = "cloudflare/terraform.tfstate"
+    region    = "eu-paris-1"
   }
 }
 

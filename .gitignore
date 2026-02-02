@@ -44,6 +44,10 @@ talos-secrets.yaml
 .envrc
 .env
 
+# act (local CI runner) - secrets files
+.secrets.act
+.env.act
+
 # IDE
 .vscode/
 .idea/

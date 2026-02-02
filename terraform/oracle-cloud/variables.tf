@@ -39,7 +39,7 @@ variable "public_subnet_cidr" {
 
 # Instance Configuration
 variable "management_vm" {
-  description = "Management VM configuration (Omni, Keycloak)"
+  description = "Management VM configuration (Omni, Authentik)"
   type = object({
     name   = string
     ocpus  = number
@@ -100,4 +100,59 @@ variable "tags" {
     ManagedBy   = "terraform"
     Environment = "production"
   }
+}
+
+# -----------------------------------------------------------------------------
+# Vault secrets (OCI Vault — stored in homelab-secrets-vault)
+# Local: set via .env (TF_VAR_vault_secret_*) or terraform.tfvars (never commit).
+# CI: set vault_secrets_managed_in_ci = true so Terraform keeps existing secrets
+#     without overwriting/destroying when vars are null (ignore_changes on content).
+# -----------------------------------------------------------------------------
+
+variable "vault_secrets_managed_in_ci" {
+  description = "When true (e.g. in CI), keep secret resources but do not overwrite content. Prevents destroy when vars are empty."
+  type        = bool
+  default     = false
+}
+
+variable "vault_secret_cloudflare_api_token" {
+  description = "Cloudflare API token (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_tfstate_dev_token" {
+  description = "GitHub PAT for TFstate.dev lock (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_omni_db_user" {
+  description = "Omni PostgreSQL user (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_omni_db_password" {
+  description = "Omni PostgreSQL password (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_omni_db_name" {
+  description = "Omni PostgreSQL database name (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_oci_mgmt_ssh_private_key" {
+  description = "SSH private key for OCI management VM (same pair as ssh_public_key)"
+  type        = string
+  default     = ""
+  sensitive   = true
 }

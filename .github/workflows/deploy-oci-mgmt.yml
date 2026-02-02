@@ -1,5 +1,6 @@
 # Deploy OCI Management Stack (Omni + PostgreSQL) — IaC via CI
 # Déploie docker/oci-mgmt sur la VM management OCI (IP depuis Terraform state).
+# Secrets are fetched from OCI Vault (not GitHub Secrets)
 name: Deploy OCI Management Stack
 
 on:
@@ -33,19 +34,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI Credentials
+      - name: Configure OCI Session Token
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
+          auth=security_token
           user=${{ secrets.OCI_CLI_USER }}
           fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_CLI_TENANCY }}
           region=${{ secrets.OCI_CLI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
           EOF
+          echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -76,10 +81,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fetch secrets from OCI Vault
+        id: secrets
+        uses: ./.github/actions/oci-vault-secrets
+        with:
+          secrets: 'oci_mgmt_ssh_private_key,omni_db_user,omni_db_password,omni_db_name'
+          oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
+          oci_session_private_key: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.OCI_MGMT_SSH_PRIVATE_KEY }}" > ~/.ssh/oci_mgmt.pem
+          echo "${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}" > ~/.ssh/oci_mgmt.pem
           chmod 600 ~/.ssh/oci_mgmt.pem
           ssh-keyscan -H ${{ needs.get-mgmt-ip.outputs.mgmt_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
@@ -89,9 +106,9 @@ jobs:
 
       - name: Create .env on VM
         env:
-          OMNI_DB_USER: ${{ secrets.OMNI_DB_USER }}
-          OMNI_DB_PASSWORD: ${{ secrets.OMNI_DB_PASSWORD }}
-          OMNI_DB_NAME: ${{ secrets.OMNI_DB_NAME }}
+          OMNI_DB_USER: ${{ steps.secrets.outputs.omni_db_user }}
+          OMNI_DB_PASSWORD: ${{ steps.secrets.outputs.omni_db_password }}
+          OMNI_DB_NAME: ${{ steps.secrets.outputs.omni_db_name }}
         run: |
           printf 'OMNI_DB_USER=%s\nOMNI_DB_PASSWORD=%s\nOMNI_DB_NAME=%s\n' \
             "$OMNI_DB_USER" "$OMNI_DB_PASSWORD" "$OMNI_DB_NAME" > /tmp/oci-mgmt.env

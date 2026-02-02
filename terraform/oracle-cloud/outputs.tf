@@ -73,3 +73,23 @@ output "velero_s3_credentials" {
     secret_key = oci_identity_customer_secret_key.velero_s3_key.key
   }
 }
+
+# -----------------------------------------------------------------------------
+# OCI Vault (secrets for CI)
+# -----------------------------------------------------------------------------
+
+output "vault_secrets" {
+  description = "OCI Vault and secret OCIDs (for CI to fetch secrets via OCI CLI/API)"
+  value = {
+    vault_id                  = oci_kms_vault.homelab_secrets.id
+    vault_management_endpoint = oci_kms_vault.homelab_secrets.management_endpoint
+    secrets = {
+      cloudflare_api_token     = try(oci_vault_secret.cloudflare_api_token[0].id, null)
+      tfstate_dev_token        = try(oci_vault_secret.tfstate_dev_token[0].id, null)
+      omni_db_user             = try(oci_vault_secret.omni_db_user[0].id, null)
+      omni_db_password         = try(oci_vault_secret.omni_db_password[0].id, null)
+      omni_db_name             = try(oci_vault_secret.omni_db_name[0].id, null)
+      oci_mgmt_ssh_private_key = try(oci_vault_secret.oci_mgmt_ssh_private_key[0].id, null)
+    }
+  }
+}

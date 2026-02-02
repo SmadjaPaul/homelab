@@ -1,6 +1,8 @@
 # Cloudflare Terraform CI/CD
 # - development: plan only (PR ou push sur develop)
 # - production: apply sur push main
+# - Backend: OCI Object Storage (unified with oracle-cloud module)
+# - Secrets: fetched from OCI Vault
 name: Cloudflare Infrastructure
 
 on:
@@ -39,7 +41,7 @@ concurrency:
 
 env:
   TF_WORKING_DIR: terraform/cloudflare
-  TF_VERSION: '1.7.0'
+  TF_VERSION: '1.11.0'
 
 jobs:
   validate:
@@ -78,27 +80,56 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Fetch secrets from OCI Vault
+        id: secrets
+        uses: ./.github/actions/oci-vault-secrets
+        with:
+          secrets: 'cloudflare_api_token'
+          oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
+          oci_session_private_key: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+
+      - name: Configure OCI for Terraform backend
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          auth=security_token
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
+          EOF
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
+
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Create tfvars
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          cloudflare_api_token = "${{ steps.secrets.outputs.cloudflare_api_token }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
           enable_tunnel = false
@@ -108,6 +139,8 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -no-color -out=tfplan
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ steps.secrets.outputs.cloudflare_api_token }}
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
@@ -139,27 +172,56 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Fetch secrets from OCI Vault
+        id: secrets
+        uses: ./.github/actions/oci-vault-secrets
+        with:
+          secrets: 'cloudflare_api_token'
+          oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
+          oci_session_private_key: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+
+      - name: Configure OCI for Terraform backend
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          auth=security_token
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
+          EOF
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        env:
-          TF_HTTP_PASSWORD: ${{ secrets.TFSTATE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
+
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Create tfvars
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          cloudflare_api_token = "${{ steps.secrets.outputs.cloudflare_api_token }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
           enable_tunnel = false
@@ -169,6 +231,8 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ steps.secrets.outputs.cloudflare_api_token }}
 
       - name: Terraform Output
         run: terraform output -json

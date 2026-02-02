@@ -1,13 +1,11 @@
-# Terraform Backend - TFstate.dev (aligné avec OCI/OVH/Cloudflare)
-# https://tfstate.dev/
+# Terraform Backend - OCI Object Storage (unified with other modules)
+# Uses OCI session token for authentication
 
 terraform {
-  backend "http" {
-    address        = "https://api.tfstate.dev/github/v1"
-    lock_address   = "https://api.tfstate.dev/github/v1/lock"
-    unlock_address = "https://api.tfstate.dev/github/v1/lock"
-    lock_method    = "PUT"
-    unlock_method  = "DELETE"
-    username       = "SmadjaPaul/homelab"
+  backend "oci" {
+    bucket    = "homelab-tfstate"
+    namespace = "YOUR_TENANCY_NAMESPACE" # CI: injected by workflow; Local: replace manually
+    key       = "proxmox/terraform.tfstate"
+    region    = "eu-paris-1"
   }
 }

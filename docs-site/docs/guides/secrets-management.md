@@ -4,7 +4,61 @@ sidebar_position: 3
 
 # Gestion des secrets
 
-## SOPS + Age
+## Architecture des secrets CI
+
+Les **secrets applicatifs** (Cloudflare API token, DB passwords, SSH keys, etc.) sont stockés dans **OCI Vault** et récupérés automatiquement par les workflows GitHub Actions.
+
+Les **secrets d'authentification OCI** (session token, private key, etc.) restent dans **GitHub Secrets** car nécessaires pour accéder au Vault.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     GitHub Actions Workflow                      │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Auth OCI (GitHub Secrets)                                    │
+│     └─> OCI_SESSION_TOKEN, OCI_SESSION_PRIVATE_KEY, etc.        │
+│                                                                   │
+│  2. Fetch secrets from OCI Vault                                 │
+│     └─> cloudflare_api_token, omni_db_password, ssh_key, etc.   │
+│                                                                   │
+│  3. Use secrets in workflow steps                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Secrets dans OCI Vault
+
+| Secret | Usage |
+|--------|-------|
+| `homelab-cloudflare-api-token` | Token API Cloudflare (Zone → Edit) |
+| `homelab-tfstate-dev-token` | GitHub PAT pour TFstate.dev lock |
+| `homelab-omni-db-user` | Utilisateur PostgreSQL Omni |
+| `homelab-omni-db-password` | Mot de passe PostgreSQL Omni |
+| `homelab-omni-db-name` | Nom de la base Omni |
+| `homelab-oci-mgmt-ssh-private-key` | Clé privée SSH pour VM management |
+
+### Gérer les secrets OCI Vault
+
+```bash
+# Lister l'état des secrets
+./scripts/oci-vault-secrets-setup.sh --list
+
+# Mode interactif pour mettre à jour les valeurs
+./scripts/oci-vault-secrets-setup.sh
+
+# Aide
+./scripts/oci-vault-secrets-setup.sh --help
+```
+
+## Documentation additionnelle
+
+- **Recréer tous les secrets** : voir [Rotate secrets](../runbooks/rotate-secrets.md)
+- **Architecture et limites** : [Décisions et limites](../advanced/decisions-and-limits.md)
+- **Liste des secrets GitHub et dépannage** : [.github/DEPLOYMENTS.md](https://github.com/SmadjaPaul/homelab/blob/main/.github/DEPLOYMENTS.md)
+
+En CI, l'authentification OCI utilise un **session token** (généré par `./scripts/oci-session-auth-to-gh.sh`), pas une clé API longue durée.
+
+---
+
+## SOPS + Age (secrets Kubernetes / Git)
 
 ### Fonctionnement
 

@@ -1,0 +1,160 @@
+# Composite action to fetch secrets from OCI Vault
+# Usage in workflow:
+#   - uses: ./.github/actions/oci-vault-secrets
+#     id: secrets
+#     with:
+#       secrets: 'cloudflare_api_token,tfstate_dev_token'
+#       oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
+#       ...
+#   - run: echo "Token is ${{ steps.secrets.outputs.cloudflare_api_token }}"
+#
+# Requires OCI session auth secrets already configured in GitHub.
+name: 'Fetch OCI Vault Secrets'
+description: 'Retrieves secrets from OCI Vault and exposes them as outputs'
+
+inputs:
+  secrets:
+    description: 'Comma-separated list of secrets to fetch (e.g., cloudflare_api_token,tfstate_dev_token)'
+    required: true
+  oci_session_token:
+    description: 'OCI Session Token'
+    required: true
+  oci_session_private_key:
+    description: 'OCI Session Private Key'
+    required: true
+  oci_cli_user:
+    description: 'OCI CLI User OCID'
+    required: true
+  oci_cli_fingerprint:
+    description: 'OCI CLI Fingerprint'
+    required: true
+  oci_cli_tenancy:
+    description: 'OCI CLI Tenancy OCID'
+    required: true
+  oci_cli_region:
+    description: 'OCI CLI Region'
+    required: true
+    default: 'eu-paris-1'
+
+outputs:
+  cloudflare_api_token:
+    description: 'Cloudflare API Token'
+    value: ${{ steps.fetch.outputs.cloudflare_api_token }}
+  tfstate_dev_token:
+    description: 'TFstate.dev / GitHub PAT'
+    value: ${{ steps.fetch.outputs.tfstate_dev_token }}
+  omni_db_user:
+    description: 'Omni DB User'
+    value: ${{ steps.fetch.outputs.omni_db_user }}
+  omni_db_password:
+    description: 'Omni DB Password'
+    value: ${{ steps.fetch.outputs.omni_db_password }}
+  omni_db_name:
+    description: 'Omni DB Name'
+    value: ${{ steps.fetch.outputs.omni_db_name }}
+  oci_mgmt_ssh_private_key:
+    description: 'OCI Management SSH Private Key'
+    value: ${{ steps.fetch.outputs.oci_mgmt_ssh_private_key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install OCI CLI
+      shell: bash
+      run: |
+        if ! command -v oci &> /dev/null; then
+          echo "Installing OCI CLI..."
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+        fi
+
+    - name: Configure OCI Session Token
+      shell: bash
+      run: |
+        mkdir -p ~/.oci
+        echo "${{ inputs.oci_session_token }}" > ~/.oci/session_token
+        echo "${{ inputs.oci_session_private_key }}" > ~/.oci/session_key.pem
+        chmod 600 ~/.oci/session_key.pem
+        cat > ~/.oci/config << EOF
+        [DEFAULT]
+        auth=security_token
+        user=${{ inputs.oci_cli_user }}
+        fingerprint=${{ inputs.oci_cli_fingerprint }}
+        tenancy=${{ inputs.oci_cli_tenancy }}
+        region=${{ inputs.oci_cli_region }}
+        security_token_file=~/.oci/session_token
+        key_file=~/.oci/session_key.pem
+        EOF
+
+    - name: Fetch secrets from OCI Vault
+      id: fetch
+      shell: bash
+      run: |
+        # Secret name to OCID mapping (from Terraform)
+        # These are the secret names created by terraform/oracle-cloud/vault-secrets.tf
+        declare -A SECRET_NAMES=(
+          ["cloudflare_api_token"]="homelab-cloudflare-api-token"
+          ["tfstate_dev_token"]="homelab-tfstate-dev-token"
+          ["omni_db_user"]="homelab-omni-db-user"
+          ["omni_db_password"]="homelab-omni-db-password"
+          ["omni_db_name"]="homelab-omni-db-name"
+          ["oci_mgmt_ssh_private_key"]="homelab-oci-mgmt-ssh-private-key"
+        )
+
+        # Compartment ID (tenancy root)
+        COMPARTMENT_ID="${{ inputs.oci_cli_tenancy }}"
+
+        # Parse requested secrets
+        IFS=',' read -ra REQUESTED <<< "${{ inputs.secrets }}"
+
+        for secret_key in "${REQUESTED[@]}"; do
+          secret_key=$(echo "$secret_key" | xargs)  # trim whitespace
+          secret_name="${SECRET_NAMES[$secret_key]}"
+
+          if [[ -z "$secret_name" ]]; then
+            echo "::warning::Unknown secret key: $secret_key"
+            continue
+          fi
+
+          echo "Fetching $secret_key ($secret_name)..."
+
+          # Get secret OCID by name
+          SECRET_OCID=$(oci vault secret list \
+            --compartment-id "$COMPARTMENT_ID" \
+            --name "$secret_name" \
+            --lifecycle-state ACTIVE \
+            --query 'data[0].id' \
+            --raw-output 2>/dev/null || true)
+
+          if [[ -z "$SECRET_OCID" || "$SECRET_OCID" == "null" ]]; then
+            echo "::warning::Secret not found: $secret_name"
+            continue
+          fi
+
+          # Get latest secret bundle (content)
+          SECRET_VALUE=$(oci secrets secret-bundle get \
+            --secret-id "$SECRET_OCID" \
+            --stage CURRENT \
+            --query 'data."secret-bundle-content".content' \
+            --raw-output 2>/dev/null || true)
+
+          if [[ -z "$SECRET_VALUE" || "$SECRET_VALUE" == "null" ]]; then
+            echo "::warning::Could not retrieve content for: $secret_name"
+            continue
+          fi
+
+          # Decode base64 and set as output (masked)
+          DECODED=$(echo "$SECRET_VALUE" | base64 -d)
+
+          # Mask the secret in logs
+          echo "::add-mask::$DECODED"
+
+          # Set output (multiline safe)
+          {
+            echo "${secret_key}<<EOF_${secret_key}"
+            echo "$DECODED"
+            echo "EOF_${secret_key}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✓ $secret_key fetched successfully"
+        done
