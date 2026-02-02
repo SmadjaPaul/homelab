@@ -135,6 +135,7 @@ jobs:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
+      TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -218,6 +219,7 @@ jobs:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
+      TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -324,6 +326,7 @@ jobs:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
+      TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
