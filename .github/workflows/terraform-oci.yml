@@ -164,8 +164,8 @@ jobs:
             echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
             echo "tenancy=${OCI_CLI_TENANCY_VAL}"
             echo "region=${OCI_CLI_REGION_VAL}"
-            echo "security_token_file=~/.oci/session_token"
-            echo "key_file=~/.oci/session_key.pem"
+            echo "security_token_file=${HOME}/.oci/session_token"
+            echo "key_file=${HOME}/.oci/session_key.pem"
           } > ~/.oci/config
           echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
@@ -256,8 +256,8 @@ jobs:
             echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
             echo "tenancy=${OCI_CLI_TENANCY_VAL}"
             echo "region=${OCI_CLI_REGION_VAL}"
-            echo "security_token_file=~/.oci/session_token"
-            echo "key_file=~/.oci/session_key.pem"
+            echo "security_token_file=${HOME}/.oci/session_token"
+            echo "key_file=${HOME}/.oci/session_key.pem"
           } > ~/.oci/config
           echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
@@ -318,8 +318,8 @@ jobs:
             echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
             echo "tenancy=${OCI_CLI_TENANCY_VAL}"
             echo "region=${OCI_CLI_REGION_VAL}"
-            echo "security_token_file=~/.oci/session_token"
-            echo "key_file=~/.oci/session_key.pem"
+            echo "security_token_file=${HOME}/.oci/session_token"
+            echo "key_file=${HOME}/.oci/session_key.pem"
           } > ~/.oci/config
           echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
@@ -380,8 +380,8 @@ jobs:
             echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
             echo "tenancy=${OCI_CLI_TENANCY_VAL}"
             echo "region=${OCI_CLI_REGION_VAL}"
-            echo "security_token_file=~/.oci/session_token"
-            echo "key_file=~/.oci/session_key.pem"
+            echo "security_token_file=${HOME}/.oci/session_token"
+            echo "key_file=${HOME}/.oci/session_key.pem"
           } > ~/.oci/config
           echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
