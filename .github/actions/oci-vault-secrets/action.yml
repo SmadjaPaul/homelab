@@ -139,18 +139,30 @@ runs:
             continue
           fi
 
-          # Decode base64 and set as output (masked)
+          # Decode base64
           DECODED=$(echo "$SECRET_VALUE" | base64 -d)
+
+          if [[ -z "$DECODED" ]]; then
+            echo "::error::Secret $secret_name is empty after decoding"
+            exit 1
+          fi
 
           # Mask the secret in logs
           echo "::add-mask::$DECODED"
 
-          # Set output (multiline safe)
-          {
-            echo "${secret_key}<<EOF_${secret_key}"
-            echo "$DECODED"
-            echo "EOF_${secret_key}"
-          } >> "$GITHUB_OUTPUT"
+          # Check if secret contains newlines (multiline secret like SSH keys)
+          if echo "$DECODED" | grep -q $'\n'; then
+            # Multiline secret: use heredoc format
+            {
+              echo "${secret_key}<<EOF_${secret_key}"
+              echo "$DECODED"
+              echo "EOF_${secret_key}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # Single-line secret: trim whitespace and use simple format
+            DECODED_TRIMMED=$(echo "$DECODED" | tr -d '\n\r' | xargs)
+            echo "${secret_key}=$DECODED_TRIMMED" >> "$GITHUB_OUTPUT"
+          fi
 
           echo "✓ $secret_key fetched successfully"
         done
