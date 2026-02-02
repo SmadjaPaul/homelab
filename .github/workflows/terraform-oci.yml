@@ -174,18 +174,24 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         timeout-minutes: 10
         run: |
+          # Pass user_ocid explicitly to avoid interactive prompt
+          PLAN_ARGS="-out=tfplan -no-color"
+          if [[ -n "$TF_VAR_user_ocid" ]]; then
+            PLAN_ARGS="$PLAN_ARGS -var=\"user_ocid=$TF_VAR_user_ocid\""
+          fi
+
           # Try plan with lock timeout (wait up to 5 minutes for lock to be released)
           # If lock is stale (from failed/cancelled apply), it will timeout and we'll force-unlock
-          if ! terraform plan -out=tfplan -no-color -lock-timeout=5m | tee plan_output.txt; then
+          if ! terraform plan $PLAN_ARGS -lock-timeout=5m | tee plan_output.txt; then
             # Extract lock ID from error output
-            PLAN_OUTPUT=$(terraform plan -out=tfplan -no-color -lock-timeout=0s 2>&1 || true)
+            PLAN_OUTPUT=$(terraform plan $PLAN_ARGS -lock-timeout=0s 2>&1 || true)
             LOCK_ID=$(echo "$PLAN_OUTPUT" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || true)
 
             if [[ -n "$LOCK_ID" ]]; then
               echo "::warning::Found stale lock: $LOCK_ID. Attempting to force-unlock..."
               terraform force-unlock -force "$LOCK_ID" || echo "::warning::Could not unlock (may already be released)"
               echo "Retrying plan..."
-              terraform plan -out=tfplan -no-color | tee plan_output.txt
+              terraform plan $PLAN_ARGS | tee plan_output.txt
             else
               echo "::error::Plan failed but no lock ID found"
               exit 1

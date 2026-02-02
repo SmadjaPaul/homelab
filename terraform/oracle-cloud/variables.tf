@@ -89,6 +89,7 @@ variable "budget_alert_email" {
 variable "user_ocid" {
   description = "OCI User OCID for creating S3 access keys"
   type        = string
+  default     = "" # Optional: set via TF_VAR_user_ocid if needed
 }
 
 # Tags
