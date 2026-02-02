@@ -89,8 +89,7 @@ jobs:
         uses: ./.github/actions/oci-vault-secrets
         with:
           secrets: 'cloudflare_api_token'
-          oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
-          oci_session_private_key: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci_cli_user: ${{ secrets.OCI_CLI_USER }}
           oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
@@ -180,8 +179,7 @@ jobs:
         uses: ./.github/actions/oci-vault-secrets
         with:
           secrets: 'cloudflare_api_token'
-          oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
-          oci_session_private_key: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci_cli_user: ${{ secrets.OCI_CLI_USER }}
           oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}

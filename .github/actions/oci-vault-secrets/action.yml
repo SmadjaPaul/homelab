@@ -3,24 +3,21 @@
 #   - uses: ./.github/actions/oci-vault-secrets
 #     id: secrets
 #     with:
-#       secrets: 'cloudflare_api_token,tfstate_dev_token'
-#       oci_session_token: ${{ secrets.OCI_SESSION_TOKEN }}
+#       secrets: 'cloudflare_api_token'
+#       oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
 #       ...
 #   - run: echo "Token is ${{ steps.secrets.outputs.cloudflare_api_token }}"
 #
-# Requires OCI session auth secrets already configured in GitHub.
+# Requires OCI API key secrets already configured in GitHub.
 name: 'Fetch OCI Vault Secrets'
 description: 'Retrieves secrets from OCI Vault and exposes them as outputs'
 
 inputs:
   secrets:
-    description: 'Comma-separated list of secrets to fetch (e.g., cloudflare_api_token,tfstate_dev_token)'
+    description: 'Comma-separated list of secrets to fetch (e.g., cloudflare_api_token)'
     required: true
-  oci_session_token:
-    description: 'OCI Session Token'
-    required: true
-  oci_session_private_key:
-    description: 'OCI Session Private Key'
+  oci_cli_key_content:
+    description: 'OCI CLI API Key Content (PEM)'
     required: true
   oci_cli_user:
     description: 'OCI CLI User OCID'
@@ -68,23 +65,22 @@ runs:
           echo "$HOME/bin" >> $GITHUB_PATH
         fi
 
-    - name: Configure OCI Session Token
+    - name: Configure OCI API Key
       shell: bash
+      env:
+        OCI_CLI_KEY: ${{ inputs.oci_cli_key_content }}
       run: |
         mkdir -p ~/.oci
-        echo "${{ inputs.oci_session_token }}" > ~/.oci/session_token
-        echo "${{ inputs.oci_session_private_key }}" > ~/.oci/session_key.pem
-        chmod 600 ~/.oci/session_key.pem
-        cat > ~/.oci/config << EOF
-        [DEFAULT]
-        auth=security_token
-        user=${{ inputs.oci_cli_user }}
-        fingerprint=${{ inputs.oci_cli_fingerprint }}
-        tenancy=${{ inputs.oci_cli_tenancy }}
-        region=${{ inputs.oci_cli_region }}
-        security_token_file=~/.oci/session_token
-        key_file=~/.oci/session_key.pem
-        EOF
+        printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        {
+          echo "[DEFAULT]"
+          echo "user=${{ inputs.oci_cli_user }}"
+          echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
+          echo "tenancy=${{ inputs.oci_cli_tenancy }}"
+          echo "region=${{ inputs.oci_cli_region }}"
+          echo "key_file=${HOME}/.oci/oci_api_key.pem"
+        } > ~/.oci/config
 
     - name: Fetch secrets from OCI Vault
       id: fetch
