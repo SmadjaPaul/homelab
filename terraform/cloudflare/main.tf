@@ -14,7 +14,7 @@ terraform {
   }
 
   # OCI Object Storage backend (same as oracle-cloud module)
-  # No additional secrets needed - uses OCI session token from GitHub Secrets
+  # Requires Terraform 1.11.0+ for native OCI backend support
   backend "oci" {
     bucket    = "homelab-tfstate"
     namespace = "YOUR_TENANCY_NAMESPACE" # CI: injected by workflow; Local: replace manually

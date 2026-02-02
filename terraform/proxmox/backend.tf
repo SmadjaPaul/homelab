@@ -1,5 +1,5 @@
-# Terraform Backend - OCI Object Storage (unified with other modules)
-# Uses OCI session token for authentication
+# Terraform Backend - OCI Object Storage
+# Requires Terraform 1.11.0+ for native OCI backend support
 
 terraform {
   backend "oci" {

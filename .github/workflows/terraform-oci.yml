@@ -47,14 +47,9 @@ concurrency:
 env:
   TF_WORKING_DIR: terraform/oracle-cloud
   # Backend "oci" requires Terraform 1.11+ (no backend type "oci" in 1.10)
-  TF_VERSION: '1.11.0'
-  # Backend OCI Object Storage (bucket homelab-tfstate) — namespace via OCI_OBJECT_STORAGE_NAMESPACE
-  # OCI Authentication (set in GitHub Secrets)
-  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+  TF_VERSION: '1.14.4'
+  # OCI auth: session token (short-lived). Generate with scripts/oci-session-auth-to-gh.sh
+  # Secrets: OCI_SESSION_TOKEN, OCI_SESSION_PRIVATE_KEY, OCI_CLI_USER, OCI_CLI_TENANCY, OCI_CLI_FINGERPRINT, OCI_CLI_REGION
 
 jobs:
   # ==================== Validation ====================
@@ -139,6 +134,7 @@ jobs:
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_vault_secrets_managed_in_ci: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -148,19 +144,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI Credentials
+      - name: Configure OCI Session Token
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
+          auth=security_token
           user=${{ secrets.OCI_CLI_USER }}
           fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_CLI_TENANCY }}
           region=${{ secrets.OCI_CLI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
           EOF
+          echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -219,6 +219,7 @@ jobs:
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_vault_secrets_managed_in_ci: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -228,19 +229,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI Credentials
+      - name: Configure OCI Session Token
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
+          auth=security_token
           user=${{ secrets.OCI_CLI_USER }}
           fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_CLI_TENANCY }}
           region=${{ secrets.OCI_CLI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
           EOF
+          echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -268,6 +273,8 @@ jobs:
     name: Terraform Force-Unlock State
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'force-unlock'
+    env:
+      TF_VAR_vault_secrets_managed_in_ci: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -277,19 +284,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI Credentials
+      - name: Configure OCI Session Token
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
+          auth=security_token
           user=${{ secrets.OCI_CLI_USER }}
           fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_CLI_TENANCY }}
           region=${{ secrets.OCI_CLI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
           EOF
+          echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -318,6 +329,7 @@ jobs:
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_vault_secrets_managed_in_ci: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -327,19 +339,23 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI Credentials
+      - name: Configure OCI Session Token
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
+          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
+          auth=security_token
           user=${{ secrets.OCI_CLI_USER }}
           fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_CLI_TENANCY }}
           region=${{ secrets.OCI_CLI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          security_token_file=~/.oci/session_token
+          key_file=~/.oci/session_key.pem
           EOF
+          echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
