@@ -83,12 +83,14 @@ variable "budget_alert_email" {
   description = "Email address for budget alerts"
   type        = string
   sensitive   = true
+  default     = "" # Optional in CI; set via TF_VAR_budget_alert_email
 }
 
 # User OCID (for S3 compatible access keys)
 variable "user_ocid" {
   description = "OCI User OCID for creating S3 access keys"
   type        = string
+  default     = "" # Set via TF_VAR_user_ocid if needed
 }
 
 # Tags

@@ -1,6 +1,6 @@
 # Compute Instances for Oracle Cloud
 
-# Management VM (Omni, Keycloak, Cloudflare Tunnel)
+# Management VM (Omni, Authentik, Cloudflare Tunnel)
 resource "oci_core_instance" "management" {
   compartment_id      = var.compartment_id
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[var.availability_domain_index % length(data.oci_identity_availability_domains.ads.availability_domains)].name
@@ -40,7 +40,7 @@ resource "oci_core_instance" "management" {
       apt-get install -y docker-compose-plugin
 
       # Create directories for services
-      mkdir -p /opt/homelab/{omni,keycloak,cloudflared,nginx}
+      mkdir -p /opt/homelab/{omni,authentik,cloudflared,nginx}
       chown -R ubuntu:ubuntu /opt/homelab
 
       echo "Management VM setup complete" > /var/log/cloud-init-homelab.log
