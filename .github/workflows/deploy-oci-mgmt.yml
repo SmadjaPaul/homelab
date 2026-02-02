@@ -38,21 +38,25 @@ jobs:
         env:
           OCI_SESSION_TOKEN: ${{ secrets.OCI_SESSION_TOKEN }}
           OCI_SESSION_KEY: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
+          OCI_CLI_USER_VAL: ${{ secrets.OCI_CLI_USER }}
+          OCI_CLI_FINGERPRINT_VAL: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          OCI_CLI_TENANCY_VAL: ${{ secrets.OCI_CLI_TENANCY }}
+          OCI_CLI_REGION_VAL: ${{ secrets.OCI_CLI_REGION }}
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
           printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
           chmod 600 ~/.oci/session_key.pem
-          cat > ~/.oci/config << EOF
-          [DEFAULT]
-          auth=security_token
-          user=${{ secrets.OCI_CLI_USER }}
-          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ secrets.OCI_CLI_TENANCY }}
-          region=${{ secrets.OCI_CLI_REGION }}
-          security_token_file=~/.oci/session_token
-          key_file=~/.oci/session_key.pem
-          EOF
+          {
+            echo "[DEFAULT]"
+            echo "auth=security_token"
+            echo "user=${OCI_CLI_USER_VAL}"
+            echo "fingerprint=${OCI_CLI_FINGERPRINT_VAL}"
+            echo "tenancy=${OCI_CLI_TENANCY_VAL}"
+            echo "region=${OCI_CLI_REGION_VAL}"
+            echo "security_token_file=~/.oci/session_token"
+            echo "key_file=~/.oci/session_key.pem"
+          } > ~/.oci/config
           echo "OCI_CLI_AUTH=security_token" >> $GITHUB_ENV
 
       - name: Inject backend namespace (CI)
