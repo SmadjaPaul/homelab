@@ -252,6 +252,26 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -reconfigure
 
+      - name: Check and unlock stale state lock
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        continue-on-error: true
+        run: |
+          # Try to apply with lock timeout first
+          # If lock exists and is stale, terraform will fail with lock info
+          terraform apply -auto-approve -lock-timeout=0s 2>&1 | tee /tmp/apply_output.txt || true
+
+          # Extract lock ID from error if present
+          LOCK_ID=$(grep -oP 'ID:\s+\K[0-9a-f-]+' /tmp/apply_output.txt | head -1 || true)
+
+          if [[ -n "$LOCK_ID" ]]; then
+            echo "Found stale lock: $LOCK_ID"
+            echo "Attempting to force-unlock..."
+            terraform force-unlock -force "$LOCK_ID" || true
+            echo "Lock released (or already released)"
+          else
+            echo "No stale lock detected"
+          fi
+
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve
