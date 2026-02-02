@@ -97,10 +97,13 @@ jobs:
           oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
 
       - name: Configure OCI for Terraform backend
+        env:
+          OCI_SESSION_TOKEN: ${{ secrets.OCI_SESSION_TOKEN }}
+          OCI_SESSION_KEY: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
-          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
           chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
@@ -189,10 +192,13 @@ jobs:
           oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
 
       - name: Configure OCI for Terraform backend
+        env:
+          OCI_SESSION_TOKEN: ${{ secrets.OCI_SESSION_TOKEN }}
+          OCI_SESSION_KEY: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
-          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
           chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]

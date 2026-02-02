@@ -35,10 +35,13 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure OCI Session Token
+        env:
+          OCI_SESSION_TOKEN: ${{ secrets.OCI_SESSION_TOKEN }}
+          OCI_SESSION_KEY: ${{ secrets.OCI_SESSION_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_SESSION_TOKEN }}" > ~/.oci/session_token
-          echo "${{ secrets.OCI_SESSION_PRIVATE_KEY }}" > ~/.oci/session_key.pem
+          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
           chmod 600 ~/.oci/session_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
