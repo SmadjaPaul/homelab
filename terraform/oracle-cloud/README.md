@@ -1,6 +1,6 @@
 # Terraform Oracle Cloud (OCI) — Homelab
 
-Provisionne la VM management (Omni, Keycloak, Cloudflare Tunnel) et optionnellement les nœuds Kubernetes sur Oracle Cloud. Story **1.3.1** (management VM), Epic 1.3.
+Provisionne la VM management (Omni, Authentik, Cloudflare Tunnel) et optionnellement les nœuds Kubernetes sur Oracle Cloud. Story **1.3.1** (management VM), Epic 1.3.
 
 ## Prérequis
 
@@ -65,6 +65,34 @@ Provisionne la VM management (Omni, Keycloak, Cloudflare Tunnel) et optionnellem
 | (Optionnel)      | Nœuds K8s (voir `variables.tf` / `k8s_nodes`) |
 | Budget + alertes | 1 EUR/mois, alertes à 50 %, 80 %, 100 % |
 | Object Storage   | Bucket `homelab-tfstate` (state Terraform), bucket Velero (backups) |
+| OCI Vault        | KMS Vault `homelab-secrets-vault` + secrets (Cloudflare, Omni, SSH, etc.) pour la CI |
+
+## OCI Vault (secrets pour la CI)
+
+Un **Vault OCI** (KMS, type DEFAULT = virtual vault + software keys, gratuit) et une clé maître sont créés. Les secrets sont stockés dans le Vault si tu fournis les variables (vides = secret non créé). **Limites Free Tier** : Secret Management gratuit ; 5 000 secrets / tenancy, 30 versions actives / secret, 64 KB max / secret.
+
+**En local** : fournir les valeurs via **variables d'environnement** (ex. `.env`). Terraform lit `TF_VAR_vault_secret_*`. Ne jamais committer de valeurs réelles.
+
+**Exemple** (valeurs via variables d’environnement, jamais committées) :
+
+```bash
+# Option 1 : .env avec TF_VAR_* (source avant terraform)
+set -a && source .env && set +a
+terraform apply
+```
+
+```bash
+# Option 2 : mapper tes noms .env vers TF_VAR
+export TF_VAR_vault_secret_cloudflare_api_token="${CLOUDFLARE_API_TOKEN:-}"
+export TF_VAR_vault_secret_omni_db_user="${OMNI_DB_USER:-omni}"
+export TF_VAR_vault_secret_omni_db_password="${OMNI_DB_PASSWORD:-}"
+export TF_VAR_vault_secret_omni_db_name="${OMNI_DB_NAME:-omni}"
+terraform apply
+```
+
+**En CI** : les workflows définissent `TF_VAR_vault_secrets_managed_in_ci=true`. Le contenu des secrets n'est ni mis à jour ni détruit quand les variables sont vides (`lifecycle { ignore_changes = [secret_content] }`).
+
+**Récupérer les secrets** (CLI OCI) : `terraform output vault_secrets` donne les OCID ; `oci secrets secret-bundle get --secret-id <ocid>` pour le contenu.
 
 ## Suite (Story 1.3.2)
 
@@ -106,4 +134,4 @@ Si tu passais par tfstate.dev et que le bucket OCI n’existe pas encore :
 
 - [Epic 1.3](_bmad-output/planning-artifacts/epics-and-stories-homelab.md) — Omni Cluster Management
 - [next-steps OCI + Omni](../../_bmad-output/implementation-artifacts/next-steps-oci-mgmt-and-omni.md)
-- [docs/terraform-state-management.md](../../docs/terraform-state-management.md) — Bonnes pratiques state (remote, locking, backups, isolation)
+- [Décisions et limites (state Terraform)](../../docs-site/docs/advanced/decisions-and-limits.md) — Bonnes pratiques state (remote, locking, backups, isolation)

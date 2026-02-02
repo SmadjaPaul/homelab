@@ -8,8 +8,11 @@
 #
 # Optional env vars (skip interactive prompt when set):
 #   TFSTATE_DEV_TOKEN, CLOUDFLARE_API_TOKEN,
-#   OCI_CLI_USER, OCI_CLI_TENANCY, OCI_CLI_FINGERPRINT, OCI_CLI_REGION,
-#   OCI_COMPARTMENT_ID, OCI_CLI_KEY_FILE, SSH_PUBLIC_KEY or SSH_PUBLIC_KEY_FILE
+#   OCI_COMPARTMENT_ID, OCI_OBJECT_STORAGE_NAMESPACE, SSH_PUBLIC_KEY or SSH_PUBLIC_KEY_FILE
+#
+# OCI auth in CI uses session tokens (short-lived). Run ./scripts/oci-session-auth-to-gh.sh
+# to generate and upload OCI_SESSION_* and OCI_CLI_* secrets. This script only sets
+# OCI_COMPARTMENT_ID, OCI_OBJECT_STORAGE_NAMESPACE, SSH_PUBLIC_KEY.
 set -e
 
 MINIMAL=false
@@ -83,27 +86,9 @@ set_secret CLOUDFLARE_API_TOKEN "CLOUDFLARE_API_TOKEN"
 if [[ "$MINIMAL" != true ]]; then
   echo ""
   echo "=== 3. Oracle Cloud (optionnel si tu n'utilises pas le workflow OCI) ==="
-  set_secret OCI_CLI_USER "OCI_CLI_USER (User OCID)"
-  set_secret OCI_CLI_TENANCY "OCI_CLI_TENANCY (Tenancy OCID)"
-  set_secret OCI_CLI_FINGERPRINT "OCI_CLI_FINGERPRINT"
-  # Clé privée: lecture depuis fichier recommandée
-  if [[ -n "${OCI_CLI_KEY_FILE:-}" ]] && [[ -f "$OCI_CLI_KEY_FILE" ]]; then
-    echo -n "Setting OCI_CLI_KEY_CONTENT from OCI_CLI_KEY_FILE... "
-    gh secret set OCI_CLI_KEY_CONTENT --repo "$REPO" < "$OCI_CLI_KEY_FILE"
-    echo "ok"
-  else
-    echo "OCI_CLI_KEY_CONTENT: path to PEM file (e.g. ~/.oci/oci_api_key.pem, Enter to skip):"
-    read -r keypath
-    keypath="${keypath/#\~/$HOME}"
-    if [[ -n "$keypath" ]] && [[ -f "$keypath" ]]; then
-      gh secret set OCI_CLI_KEY_CONTENT --repo "$REPO" < "$keypath"
-      echo "ok"
-    else
-      echo "skipping OCI_CLI_KEY_CONTENT"
-    fi
-  fi
-  set_secret OCI_CLI_REGION "OCI_CLI_REGION (e.g. eu-paris-1)"
+  echo "OCI auth: run ./scripts/oci-session-auth-to-gh.sh to set session token secrets."
   set_secret OCI_COMPARTMENT_ID "OCI_COMPARTMENT_ID"
+  set_secret OCI_OBJECT_STORAGE_NAMESPACE "OCI_OBJECT_STORAGE_NAMESPACE (tenancy namespace for state bucket)"
   # SSH public key: peut être un fichier
   if [[ -n "${SSH_PUBLIC_KEY_FILE:-}" ]] && [[ -f "$SSH_PUBLIC_KEY_FILE" ]]; then
     echo -n "Setting SSH_PUBLIC_KEY from SSH_PUBLIC_KEY_FILE... "

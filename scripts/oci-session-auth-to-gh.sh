@@ -88,23 +88,14 @@ expand_path() {
   echo "$p"
 }
 
-# Session profiles may not have user/fingerprint; fallback to DEFAULT profile
 USER_OCID=$(get_ini "$CONFIG_FILE" "$PROFILE" "user")
-[[ -z "$USER_OCID" ]] && USER_OCID=$(get_ini "$CONFIG_FILE" "DEFAULT" "user")
-
 TENANCY_OCID=$(get_ini "$CONFIG_FILE" "$PROFILE" "tenancy")
-[[ -z "$TENANCY_OCID" ]] && TENANCY_OCID=$(get_ini "$CONFIG_FILE" "DEFAULT" "tenancy")
-
 REGION_VAL=$(get_ini "$CONFIG_FILE" "$PROFILE" "region")
-[[ -z "$REGION_VAL" ]] && REGION_VAL=$(get_ini "$CONFIG_FILE" "DEFAULT" "region")
-
 FINGERPRINT=$(get_ini "$CONFIG_FILE" "$PROFILE" "fingerprint")
-[[ -z "$FINGERPRINT" ]] && FINGERPRINT=$(get_ini "$CONFIG_FILE" "DEFAULT" "fingerprint")
-
 TOKEN_FILE=$(get_ini "$CONFIG_FILE" "$PROFILE" "security_token_file")
 KEY_FILE=$(get_ini "$CONFIG_FILE" "$PROFILE" "key_file")
 
-[[ -z "$TENANCY_OCID" ]] && { echo "Error: Could not find tenancy in profile [$PROFILE] or [DEFAULT]."; exit 1; }
+[[ -z "$USER_OCID" || -z "$TENANCY_OCID" || -z "$FINGERPRINT" ]] && { echo "Error: Could not parse profile [$PROFILE] (user, tenancy, fingerprint)."; exit 1; }
 [[ -z "$TOKEN_FILE" || -z "$KEY_FILE" ]] && { echo "Error: Profile [$PROFILE] missing security_token_file or key_file."; exit 1; }
 
 TOKEN_FILE=$(expand_path "$TOKEN_FILE")
