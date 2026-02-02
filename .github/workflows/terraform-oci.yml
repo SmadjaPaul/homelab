@@ -131,6 +131,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      id-token: write  # Required for OIDC token exchange
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
@@ -146,21 +147,58 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI API Key
+      - name: Authenticate to OCI using OIDC
+        id: oci-auth
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Configure OCI Authentication
+        shell: bash
         env:
-          OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+          OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+          AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_CLI_USER }}"
-            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
-            echo "region=${{ secrets.OCI_CLI_REGION }}"
-            echo "key_file=${HOME}/.oci/oci_api_key.pem"
-          } > ~/.oci/config
+
+          if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+            echo "Using OIDC authentication (UPST)"
+            # Write UPST token (GitHub Actions handles heredoc automatically)
+            printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+
+            # Write session key
+            printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+
+            {
+              echo "[DEFAULT]"
+              echo "auth=security_token"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "security_token_file=${HOME}/.oci/session_token"
+              echo "key_file=${HOME}/.oci/session_key.pem"
+            } > ~/.oci/config
+          else
+            echo "Using API key authentication (fallback)"
+            # Fallback to API key
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            {
+              echo "[DEFAULT]"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "key_file=${HOME}/.oci/oci_api_key.pem"
+            } > ~/.oci/config
+          fi
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -239,6 +277,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      id-token: write  # Required for OIDC token exchange
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
@@ -254,21 +293,58 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI API Key
+      - name: Authenticate to OCI using OIDC
+        id: oci-auth
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Configure OCI Authentication
+        shell: bash
         env:
-          OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+          OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+          AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_CLI_USER }}"
-            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
-            echo "region=${{ secrets.OCI_CLI_REGION }}"
-            echo "key_file=${HOME}/.oci/oci_api_key.pem"
-          } > ~/.oci/config
+
+          if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+            echo "Using OIDC authentication (UPST)"
+            # Write UPST token (GitHub Actions handles heredoc automatically)
+            printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+
+            # Write session key
+            printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+
+            {
+              echo "[DEFAULT]"
+              echo "auth=security_token"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "security_token_file=${HOME}/.oci/session_token"
+              echo "key_file=${HOME}/.oci/session_key.pem"
+            } > ~/.oci/config
+          else
+            echo "Using API key authentication (fallback)"
+            # Fallback to API key
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            {
+              echo "[DEFAULT]"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "key_file=${HOME}/.oci/oci_api_key.pem"
+            } > ~/.oci/config
+          fi
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -330,21 +406,58 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI API Key
+      - name: Authenticate to OCI using OIDC
+        id: oci-auth
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Configure OCI Authentication
+        shell: bash
         env:
-          OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+          OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+          AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_CLI_USER }}"
-            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
-            echo "region=${{ secrets.OCI_CLI_REGION }}"
-            echo "key_file=${HOME}/.oci/oci_api_key.pem"
-          } > ~/.oci/config
+
+          if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+            echo "Using OIDC authentication (UPST)"
+            # Write UPST token (GitHub Actions handles heredoc automatically)
+            printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+
+            # Write session key
+            printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+
+            {
+              echo "[DEFAULT]"
+              echo "auth=security_token"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "security_token_file=${HOME}/.oci/session_token"
+              echo "key_file=${HOME}/.oci/session_key.pem"
+            } > ~/.oci/config
+          else
+            echo "Using API key authentication (fallback)"
+            # Fallback to API key
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            {
+              echo "[DEFAULT]"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "key_file=${HOME}/.oci/oci_api_key.pem"
+            } > ~/.oci/config
+          fi
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -385,21 +498,58 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure OCI API Key
+      - name: Authenticate to OCI using OIDC
+        id: oci-auth
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Configure OCI Authentication
+        shell: bash
         env:
-          OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+          OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+          AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_CLI_USER }}"
-            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
-            echo "region=${{ secrets.OCI_CLI_REGION }}"
-            echo "key_file=${HOME}/.oci/oci_api_key.pem"
-          } > ~/.oci/config
+
+          if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+            echo "Using OIDC authentication (UPST)"
+            # Write UPST token (GitHub Actions handles heredoc automatically)
+            printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+
+            # Write session key
+            printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+
+            {
+              echo "[DEFAULT]"
+              echo "auth=security_token"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "security_token_file=${HOME}/.oci/session_token"
+              echo "key_file=${HOME}/.oci/session_key.pem"
+            } > ~/.oci/config
+          else
+            echo "Using API key authentication (fallback)"
+            # Fallback to API key
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            {
+              echo "[DEFAULT]"
+              echo "user=${{ secrets.OCI_CLI_USER }}"
+              echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+              echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+              echo "region=${{ secrets.OCI_CLI_REGION }}"
+              echo "key_file=${HOME}/.oci/oci_api_key.pem"
+            } > ~/.oci/config
+          fi
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}

@@ -1,0 +1,170 @@
+# Composite action to authenticate to OCI using GitHub Actions OIDC
+# Exchanges GitHub OIDC token for OCI User Principal Session Token (UPST)
+# Based on: https://www.ateam-oracle.com/github-actions-oci-a-guide-to-secure-oidc-token-exchange
+#
+# Prerequisites:
+#   1. Configure OCI Identity Provider to trust GitHub (via OCI Console)
+#   2. Add permissions: id-token: write in workflow
+#
+# Usage in workflow:
+#   permissions:
+#     id-token: write
+#     contents: read
+#   steps:
+#     - uses: ./.github/actions/oci-oidc-auth
+#       id: oci-auth
+#       with:
+#         oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+#         oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+#         oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+#         oci_region: ${{ secrets.OCI_CLI_REGION }}
+#         oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+#
+# Outputs:
+#   oci_session_token: OCI session token (UPST)
+#   oci_session_key: OCI session private key
+name: 'OCI OIDC Authentication'
+description: 'Exchanges GitHub OIDC token for OCI User Principal Session Token (UPST)'
+
+inputs:
+  oci_tenancy_ocid:
+    description: 'OCI Tenancy OCID'
+    required: true
+  oci_user_ocid:
+    description: 'OCI User OCID'
+    required: true
+  oci_fingerprint:
+    description: 'OCI API Key Fingerprint'
+    required: true
+  oci_region:
+    description: 'OCI Region'
+    required: true
+    default: 'eu-paris-1'
+  oci_api_key_content:
+    description: 'OCI API Key Content (PEM) - used as fallback if OIDC exchange fails'
+    required: true
+
+outputs:
+  oci_session_token:
+    description: 'OCI Session Token (UPST)'
+    value: ${{ steps.exchange.outputs.session_token }}
+  oci_session_key:
+    description: 'OCI Session Private Key'
+    value: ${{ steps.exchange.outputs.session_key }}
+  auth_method:
+    description: 'Authentication method used (oidc or api_key)'
+    value: ${{ steps.exchange.outputs.auth_method }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Request GitHub OIDC token
+      id: github_token
+      shell: bash
+      run: |
+        # Request GitHub OIDC token
+        # The audience should match what's configured in OCI Identity Provider
+        GITHUB_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oci" | jq -r '.value')
+
+        if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
+          echo "::warning::Failed to obtain GitHub OIDC token, will use API key fallback"
+          echo "token=" >> $GITHUB_OUTPUT
+        else
+          echo "✓ GitHub OIDC token obtained"
+          echo "token=$GITHUB_TOKEN" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install OCI CLI and dependencies
+      shell: bash
+      run: |
+        if ! command -v oci &> /dev/null; then
+          echo "Installing OCI CLI..."
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+        fi
+        if ! command -v jq &> /dev/null; then
+          sudo apt-get update && sudo apt-get install -y jq
+        fi
+
+    - name: Configure OCI API Key (for token exchange or fallback)
+      shell: bash
+      env:
+        OCI_CLI_KEY: ${{ inputs.oci_api_key_content }}
+      run: |
+        mkdir -p ~/.oci
+        printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        {
+          echo "[DEFAULT]"
+          echo "user=${{ inputs.oci_user_ocid }}"
+          echo "fingerprint=${{ inputs.oci_fingerprint }}"
+          echo "tenancy=${{ inputs.oci_tenancy_ocid }}"
+          echo "region=${{ inputs.oci_region }}"
+          echo "key_file=${HOME}/.oci/oci_api_key.pem"
+        } > ~/.oci/config
+
+    - name: Exchange GitHub OIDC token for OCI UPST
+      id: exchange
+      shell: bash
+      env:
+        GITHUB_OIDC_TOKEN: ${{ steps.github_token.outputs.token }}
+      run: |
+        if [[ -z "$GITHUB_OIDC_TOKEN" ]]; then
+          echo "::warning::No GitHub OIDC token available, using API key authentication"
+          echo "auth_method=api_key" >> $GITHUB_OUTPUT
+          echo "session_token=" >> $GITHUB_OUTPUT
+          echo "session_key=${{ inputs.oci_api_key_content }}" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "Attempting OIDC token exchange..."
+
+        # Exchange GitHub OIDC token for OCI UPST via OCI API
+        # Endpoint: POST https://identity.{region}.oraclecloud.com/20160918/oauth2/v1/token
+        # This requires an Identity Provider configured in OCI Console to trust GitHub
+
+        EXCHANGE_URL="https://identity.${{ inputs.oci_region }}.oraclecloud.com/20160918/oauth2/v1/token"
+
+        # Prepare request body for token exchange
+        REQUEST_BODY=$(cat <<EOF
+        {
+          "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+          "subject_token": "$GITHUB_OIDC_TOKEN",
+          "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+          "scope": "urn:oracle:oci:identity:user:${{ inputs.oci_user_ocid }}"
+        }
+        EOF
+        )
+
+        # Exchange token (requires Identity Provider configured in OCI)
+        RESPONSE=$(curl -s -X POST "$EXCHANGE_URL" \
+          -H "Content-Type: application/json" \
+          -d "$REQUEST_BODY" || echo "")
+
+        UPST_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // ""' 2>/dev/null || echo "")
+
+        if [[ -n "$UPST_TOKEN" && "$UPST_TOKEN" != "null" && "$UPST_TOKEN" != "" ]]; then
+          echo "✓ Successfully obtained OCI UPST token via OIDC"
+          echo "auth_method=oidc" >> $GITHUB_OUTPUT
+
+          # Store UPST token
+          {
+            echo "session_token<<EOF_SESSION_TOKEN"
+            echo "$UPST_TOKEN"
+            echo "EOF_SESSION_TOKEN"
+          } >> $GITHUB_OUTPUT
+
+          # For UPST, we still need the API key for signing requests
+          {
+            echo "session_key<<EOF_SESSION_KEY"
+            cat ~/.oci/oci_api_key.pem
+            echo "EOF_SESSION_KEY"
+          } >> $GITHUB_OUTPUT
+        else
+          echo "::warning::OIDC token exchange failed (Identity Provider may not be configured)"
+          echo "::warning::Falling back to API key authentication"
+          echo "auth_method=api_key" >> $GITHUB_OUTPUT
+          echo "session_token=" >> $GITHUB_OUTPUT
+          echo "session_key=${{ inputs.oci_api_key_content }}" >> $GITHUB_OUTPUT
+        fi

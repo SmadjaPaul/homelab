@@ -65,22 +65,53 @@ runs:
           echo "$HOME/bin" >> $GITHUB_PATH
         fi
 
-    - name: Configure OCI API Key
+    - name: Authenticate to OCI using OIDC
+      id: oci-auth
+      uses: ./.github/actions/oci-oidc-auth
+      with:
+        oci_tenancy_ocid: ${{ inputs.oci_cli_tenancy }}
+        oci_user_ocid: ${{ inputs.oci_cli_user }}
+        oci_fingerprint: ${{ inputs.oci_cli_fingerprint }}
+        oci_region: ${{ inputs.oci_cli_region }}
+        oci_api_key_content: ${{ inputs.oci_cli_key_content }}
+
+    - name: Configure OCI Authentication
       shell: bash
       env:
-        OCI_CLI_KEY: ${{ inputs.oci_cli_key_content }}
+        OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+        OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+        AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
       run: |
         mkdir -p ~/.oci
-        printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
-        chmod 600 ~/.oci/oci_api_key.pem
-        {
-          echo "[DEFAULT]"
-          echo "user=${{ inputs.oci_cli_user }}"
-          echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
-          echo "tenancy=${{ inputs.oci_cli_tenancy }}"
-          echo "region=${{ inputs.oci_cli_region }}"
-          echo "key_file=${HOME}/.oci/oci_api_key.pem"
-        } > ~/.oci/config
+
+        if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+          echo "Using OIDC authentication (UPST) for Vault access"
+          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
+          {
+            echo "[DEFAULT]"
+            echo "auth=security_token"
+            echo "user=${{ inputs.oci_cli_user }}"
+            echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
+            echo "tenancy=${{ inputs.oci_cli_tenancy }}"
+            echo "region=${{ inputs.oci_cli_region }}"
+            echo "security_token_file=${HOME}/.oci/session_token"
+            echo "key_file=${HOME}/.oci/session_key.pem"
+          } > ~/.oci/config
+        else
+          echo "Using API key authentication (fallback) for Vault access"
+          printf '%s\n' "${{ inputs.oci_cli_key_content }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          {
+            echo "[DEFAULT]"
+            echo "user=${{ inputs.oci_cli_user }}"
+            echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
+            echo "tenancy=${{ inputs.oci_cli_tenancy }}"
+            echo "region=${{ inputs.oci_cli_region }}"
+            echo "key_file=${HOME}/.oci/oci_api_key.pem"
+          } > ~/.oci/config
+        fi
 
     - name: Fetch secrets from OCI Vault
       id: fetch
