@@ -136,6 +136,7 @@ jobs:
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
+      TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -171,8 +172,25 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
+        timeout-minutes: 10
         run: |
-          terraform plan -out=tfplan -no-color | tee plan_output.txt
+          # Try plan with lock timeout (wait up to 5 minutes for lock to be released)
+          # If lock is stale (from failed/cancelled apply), it will timeout and we'll force-unlock
+          if ! terraform plan -out=tfplan -no-color -lock-timeout=5m | tee plan_output.txt; then
+            # Extract lock ID from error output
+            PLAN_OUTPUT=$(terraform plan -out=tfplan -no-color -lock-timeout=0s 2>&1 || true)
+            LOCK_ID=$(echo "$PLAN_OUTPUT" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || true)
+
+            if [[ -n "$LOCK_ID" ]]; then
+              echo "::warning::Found stale lock: $LOCK_ID. Attempting to force-unlock..."
+              terraform force-unlock -force "$LOCK_ID" || echo "::warning::Could not unlock (may already be released)"
+              echo "Retrying plan..."
+              terraform plan -out=tfplan -no-color | tee plan_output.txt
+            else
+              echo "::error::Plan failed but no lock ID found"
+              exit 1
+            fi
+          fi
 
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request'
@@ -220,6 +238,7 @@ jobs:
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
+      TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -344,6 +363,7 @@ jobs:
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
+      TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
