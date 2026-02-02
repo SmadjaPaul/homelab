@@ -3,7 +3,8 @@
 # on Oracle Cloud Always Free tier
 
 terraform {
-  required_version = ">= 1.0"
+  # Backend "oci" requires Terraform 1.11+
+  required_version = ">= 1.11"
 
   required_providers {
     oci = {

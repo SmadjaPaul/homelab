@@ -26,6 +26,7 @@ backend_override.tf
 !terraform.tfvars.example
 .terraform/
 .terraform.lock.hcl
+*.bak
 terraform.tfplan
 tfplan
 *.log

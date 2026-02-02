@@ -76,7 +76,7 @@ Les workflows Cloudflare et OCI utilisent `TFSTATE_DEV_TOKEN` pour `terraform in
 | `OCI_CLI_REGION` | Ex. `eu-paris-1` |
 | `OCI_COMPARTMENT_ID` | Compartment OCID |
 | `SSH_PUBLIC_KEY` | Clé publique SSH pour les VMs |
-| `OCI_OBJECT_STORAGE_NAMESPACE` | Namespace Object Storage du tenancy (pour le backend state). Après 1er apply : `terraform output -json \| jq -r '.tfstate_bucket.value.namespace'`. Voir [terraform/oracle-cloud/README.md](../terraform/oracle-cloud/README.md) (Migration). |
+| `OCI_OBJECT_STORAGE_NAMESPACE` | Namespace Object Storage du tenancy (pour le backend state). En CI il est injecté dans `backend.tf` avant `terraform init`. En local : remplacer `YOUR_TENANCY_NAMESPACE` dans `backend.tf` (voir [terraform/oracle-cloud/README.md](../terraform/oracle-cloud/README.md)). |
 
 ### 3b. OCI Management Stack (workflow Deploy OCI Management Stack)
 

@@ -24,14 +24,16 @@ Provisionne la VM management (Omni, Keycloak, Cloudflare Tunnel) et optionnellem
 
 2. **Backend (state OCI Object Storage)**
 
-   Le state est stocké dans un bucket OCI `homelab-tfstate` (Always Free). Le backend OCI utilise la même auth que le provider (`~/.oci/config` ou env `OCI_CLI_*`). Le **namespace** tenancy est requis à l’init :
+   Le state est stocké dans un bucket OCI `homelab-tfstate` (Always Free). Le backend OCI utilise la même auth que le provider (`~/.oci/config` ou env `OCI_CLI_*`). Le **namespace** tenancy doit être défini dans `backend.tf` (le backend `oci` n'accepte pas `namespace` via `-backend-config`) :
+
+   - Dans `terraform/oracle-cloud/backend.tf`, remplacer `YOUR_TENANCY_NAMESPACE` par le namespace de ton tenancy.
+   - Après un premier apply (ou avec un state existant) : `terraform output -json | jq -r '.tfstate_bucket.value.namespace'`.
+   - En CI : le workflow injecte le namespace depuis le secret `OCI_OBJECT_STORAGE_NAMESPACE`.
+   - En local : `./init-local.sh <namespace>` ou `OCI_OBJECT_STORAGE_NAMESPACE=<ns> ./init-local.sh` (injecte le namespace puis `terraform init -reconfigure`).
 
    ```bash
-   # Récupérer le namespace (après 1er apply ou depuis output existant)
-   NAMESPACE=$(terraform output -json 2>/dev/null | jq -r '.tfstate_bucket.value.namespace // empty')
-   # Si vide : faire un apply avec backend http une fois pour créer le bucket (voir Migration ci-dessous)
-
-   terraform init -reconfigure -backend-config="namespace=$NAMESPACE"
+   # Terraform 1.11+ requis pour le backend "oci"
+   terraform init -reconfigure
    ```
 
 3. **Lancer Terraform**
@@ -97,8 +99,8 @@ Si tu passais par tfstate.dev et que le bucket OCI n’existe pas encore :
    - `terraform init -reconfigure` puis `terraform apply`.
 2. Récupérer le namespace : `terraform output -json | jq -r '.tfstate_bucket.value.namespace'`.
 3. Ajouter le secret GitHub **OCI_OBJECT_STORAGE_NAMESPACE** (valeur = namespace).
-4. Remettre le backend OCI (ce repo) : `terraform init -reconfigure -backend-config="namespace=<namespace>"` puis `terraform init -migrate-state` pour copier le state HTTP → OCI.
-5. En CI : le workflow utilise déjà `OCI_OBJECT_STORAGE_NAMESPACE` pour l’init.
+4. Dans `backend.tf`, remplacer `YOUR_TENANCY_NAMESPACE` par ce namespace, puis `terraform init -reconfigure` et `terraform init -migrate-state` pour copier le state HTTP → OCI.
+5. En CI : le workflow injecte le namespace depuis `OCI_OBJECT_STORAGE_NAMESPACE` avant chaque `terraform init`.
 
 ## Références
 

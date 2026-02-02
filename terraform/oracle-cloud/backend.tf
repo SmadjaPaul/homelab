@@ -7,16 +7,17 @@
 # - State isolation: workspaces (terraform workspace new/select) ou key par env
 #   Ex. key prod: -backend-config="key=oracle-cloud/prod/terraform.tfstate"
 # - Auth: même auth que le provider OCI (~/.oci/config ou env OCI_CLI_*)
-# - Namespace tenancy: -backend-config="namespace=<tenancy_namespace>"
+# - Namespace: défini ci-dessous (obligatoire). Le backend "oci" n'accepte pas
+#   namespace via -backend-config ; en CI il est injecté depuis le secret.
+#   Local : remplacer YOUR_TENANCY_NAMESPACE par ton namespace (terraform output tfstate_bucket) ; CI : injecté.
 # https://developer.hashicorp.com/terraform/language/backend/oci
 # -----------------------------------------------------------------------------
 
 terraform {
   backend "oci" {
-    bucket = "homelab-tfstate"
-    key    = "oracle-cloud/terraform.tfstate"
-    region = "eu-paris-1"
-    # namespace requis : -backend-config="namespace=<tenancy_namespace>"
-    # Après 1er apply : terraform output -json | jq -r '.tfstate_bucket.value.namespace'
+    bucket    = "homelab-tfstate"
+    namespace = "YOUR_TENANCY_NAMESPACE" # Remplacer par ton namespace tenancy (voir README) ; CI : injecté par le workflow
+    key       = "oracle-cloud/terraform.tfstate"
+    region    = "eu-paris-1"
   }
 }

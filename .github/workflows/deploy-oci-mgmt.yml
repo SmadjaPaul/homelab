@@ -16,7 +16,7 @@ concurrency:
 
 env:
   TF_WORKING_DIR: terraform/oracle-cloud
-  TF_VERSION: '1.10.0'
+  TF_VERSION: '1.11.0'
 
 jobs:
   get-mgmt-ip:
@@ -47,9 +47,12 @@ jobs:
           key_file=~/.oci/oci_api_key.pem
           EOF
 
+      - name: Inject backend namespace (CI)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
       - name: Terraform Init (OCI backend)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -reconfigure -backend-config="namespace=${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
+        run: terraform init -reconfigure
 
       - name: Terraform Output (management VM IP)
         id: output
