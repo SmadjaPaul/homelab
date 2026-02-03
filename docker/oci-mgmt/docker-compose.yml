@@ -1,24 +1,53 @@
-# OCI Management Stack — Omni + PostgreSQL (Story 1.3.2)
-# Deploy on the OCI management VM after Terraform apply.
-# See: https://omni.siderolabs.com/how-to-guides/self_hosted/
+# OCI Management Stack — Cloudflared + Omni + PostgreSQL
+# Zero Trust access via Cloudflare Tunnel
+#
+# Prerequisites:
+# 1. Create tunnel in Cloudflare dashboard or via Terraform
+# 2. Copy tunnel token to .env file
+# 3. Configure DNS in Cloudflare to point to tunnel
+#
+# Deploy: docker compose up -d
 
 services:
+  # =========================================================================
+  # Cloudflare Tunnel — Zero Trust access to all services
+  # =========================================================================
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: oci-mgmt-cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    networks:
+      - homelab
+    # No ports exposed — tunnel connects outbound to Cloudflare
+
+  # =========================================================================
+  # PostgreSQL — Shared database for all services
+  # =========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: oci-mgmt-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${OMNI_DB_USER:-omni}
-      POSTGRES_PASSWORD: ${OMNI_DB_PASSWORD:?Set OMNI_DB_PASSWORD in .env}
-      POSTGRES_DB: ${OMNI_DB_NAME:-omni}
+      POSTGRES_USER: ${POSTGRES_USER:-homelab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-homelab}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${OMNI_DB_USER:-omni}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - homelab
 
+  # =========================================================================
+  # Omni — Talos Linux management (Sidero)
+  # =========================================================================
   omni:
     image: ghcr.io/siderolabs/omni:latest
     container_name: oci-mgmt-omni
@@ -27,12 +56,98 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      OMNID_POSTGRES_CONNECTION_STRING: postgres://${OMNI_DB_USER:-omni}:${OMNI_DB_PASSWORD}@postgres:5432/${OMNI_DB_NAME:-omni}?sslmode=disable
-      # Add other Omni env vars per Sidero self-hosted guide
-    ports:
-      - "8080:8080"   # Omni API/UI — put behind HTTPS reverse proxy in production
-    # volumes for config/certs if needed:
-    # - ./omni/config.yaml:/etc/omni/config.yaml:ro
+      # Database
+      OMNI_DB_URL: postgres://${POSTGRES_USER:-homelab}:${POSTGRES_PASSWORD}@postgres:5432/omni?sslmode=disable
+      # Omni configuration
+      OMNI_ACCOUNT_ID: ${OMNI_ACCOUNT_ID:-homelab}
+      OMNI_NAME: ${OMNI_NAME:-Homelab Omni}
+      # Auth (will integrate with Authentik later)
+      OMNI_AUTH_SAML_ENABLED: "false"
+    # Internal only — accessed via Cloudflare Tunnel
+    expose:
+      - "8080"
+      - "8090"
+    networks:
+      - homelab
+
+  # =========================================================================
+  # Authentik — SSO/Identity Provider
+  # =========================================================================
+  authentik-redis:
+    image: redis:7-alpine
+    container_name: oci-mgmt-authentik-redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    volumes:
+      - authentik_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - homelab
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: oci-mgmt-authentik-server
+    restart: unless-stopped
+    command: server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      authentik-redis:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-homelab}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${POSTGRES_PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?Set AUTHENTIK_SECRET_KEY in .env}
+      # Disable outpost for now (can enable later for SSO)
+      AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
+      AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    # Internal only — accessed via Cloudflare Tunnel
+    expose:
+      - "9000"  # HTTP
+      - "9443"  # HTTPS
+    networks:
+      - homelab
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: oci-mgmt-authentik-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      authentik-redis:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-homelab}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${POSTGRES_PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab
+
+networks:
+  homelab:
+    driver: bridge
 
 volumes:
   postgres_data:
+  authentik_redis:
+  authentik_media:
+  authentik_templates:

@@ -1,64 +1,125 @@
-# OCI Management Stack (Story 1.3.2)
+# OCI Management Stack
 
-Docker Compose pour la VM management Oracle Cloud : **Omni** + PostgreSQL.
+Stack de gestion déployé sur la VM OCI gratuite, exposé via **Cloudflare Tunnel** (Zero Trust).
 
-À déployer sur la VM créée par Terraform (Story 1.3.1) après `terraform apply` réussi.
+## Architecture
 
-## Prérequis
-
-- VM OCI management opérationnelle (`ssh ubuntu@<public_ip>`)
-- Docker et Docker Compose déjà installés (cloud-init)
-
-## Déploiement Omni
-
-1. Sur la VM ou en local, cloner/copier ce dossier vers la VM :
-   ```bash
-   scp -r docker/oci-mgmt ubuntu@<management_ip>:~/homelab/
-   ```
-
-2. Sur la VM, créer un fichier `.env` avec (ou fourni par la CI via secrets `OMNI_DB_*`) :
-   ```bash
-   OMNI_DB_USER=omni
-   OMNI_DB_PASSWORD=<mot_de_passe_fort>
-   OMNI_DB_NAME=omni
-   ```
-   En CI : le workflow **Deploy OCI Management Stack** crée `.env` à partir des secrets GitHub ; voir `.github/workflows/deploy-oci-mgmt.yml` et `DEPLOYMENTS.md` (section 3b).
-
-3. Puis :
-   ```bash
-   cd ~/homelab/oci-mgmt
-   docker compose up -d
-   ```
-
-4. Documentation officielle Omni self-hosted :
-   - [Deploy Omni On-Prem](https://omni.siderolabs.com/how-to-guides/self_hosted/)
-   - [Sidero Docs - Self-hosted](https://docs.siderolabs.com/omni/infrastructure-and-extensions/self-hosted/deploy-omni-on-prem)
+```
+Internet → Cloudflare (WAF/DDoS) → Tunnel → cloudflared → Services internes
+                                                            ├── Authentik (auth.smadja.dev)
+                                                            └── Omni (omni.smadja.dev)
+```
 
 ## Services
 
-| Service   | Rôle                          |
-|----------|---------------------------------|
-| postgres | Base de données Omni (et optionnel Authentik) |
-| omni     | Omni server (management Talos)  |
+| Service | Port interne | URL publique | Description |
+|---------|-------------|--------------|-------------|
+| Authentik | 9000 | auth.smadja.dev | SSO / Identity Provider |
+| Omni | 8080 | omni.smadja.dev | Talos Linux management |
+| PostgreSQL | 5432 | - | Base de données (interne) |
+| Redis | 6379 | - | Cache Authentik (interne) |
 
-HTTPS et reverse proxy (Nginx / Caddy) à ajouter selon [Expose Omni with Nginx (HTTPS)](https://omni.siderolabs.com/how-to-guides/self_hosted/).
+## Prérequis
 
-## Docker Compose vs autres options
+1. **Cloudflare Tunnel** créé dans le dashboard Zero Trust
+2. **DNS configuré** dans Cloudflare (CNAME vers le tunnel)
+3. **Secrets** dans le fichier `.env`
 
-**Pourquoi Docker Compose ici (et pas Kubernetes) ?**
+## Déploiement
 
-| Critère | Docker Compose (actuel) | K8s (k3s/microk8s) sur oci-mgmt |
-|--------|---------------------------|----------------------------------|
-| **Ressources** | Léger (pas de control plane) | Lourd (etcd + API server sur une 6 GB VM) |
-| **Omni** | Omni tourne **hors** K8s, comme prévu par Sidero | Omni dans un cluster qu’il ne gère pas = cas particulier, plus fragile |
-| **Opérations** | `docker compose up/restart/logs` | `kubectl`, Helm, voire ArgoCD — plus de pièces pour 4–5 services |
-| **Cohérence avec le reste** | Un seul “nœud management” à part | Même outil (kubectl) partout, mais un 4ᵉ cluster à maintenir |
+### 1. Créer le Tunnel Cloudflare
 
-**Conclusion** : pour une VM dédiée à Omni + Authentik + PostgreSQL + Cloudflared, Docker Compose reste le plus adapté : peu de ressources, modèle simple, et Omni est conçu pour tourner en dehors des clusters qu’il gère. Passer à un petit K8s sur oci-mgmt ajouterait de la complexité (control plane, upgrades K8s) pour peu d’avantage réel.
+```bash
+# Dans Cloudflare Dashboard > Zero Trust > Networks > Tunnels
+# Créer un nouveau tunnel "homelab-oci-mgmt"
+# Copier le token
+```
 
-**Podman / Podman Compose** : possible en remplacement de Docker (rootless, pas de daemon). Même modèle opérationnel, avantage surtout côté sécurité ; pas nécessaire pour démarrer.
+### 2. Configurer les routes du Tunnel
 
-## Suite (Epic 1.3)
+Dans la configuration du tunnel, ajouter les routes :
 
-- **1.3.3** : Enregistrer le cluster DEV dans Omni (join token)
-- **1.3.4** : MachineClasses dans `omni/machine-classes/`
+| Subdomain | Service | URL |
+|-----------|---------|-----|
+| auth.smadja.dev | HTTP | http://authentik-server:9000 |
+| omni.smadja.dev | HTTP | http://omni:8080 |
+
+### 3. Configurer les variables d'environnement
+
+```bash
+# Sur la VM OCI
+cd ~/homelab/oci-mgmt
+cp .env.example .env
+
+# Générer les secrets
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60)
+
+# Éditer .env avec les valeurs
+nano .env
+```
+
+### 4. Démarrer la stack
+
+```bash
+docker compose up -d
+```
+
+### 5. Accéder à Authentik
+
+1. Ouvrir https://auth.smadja.dev/if/flow/initial-setup/
+2. Créer le compte admin
+3. Configurer les providers OAuth/SAML pour les autres services
+
+## Maintenance
+
+```bash
+# Voir les logs
+docker compose logs -f
+
+# Redémarrer un service
+docker compose restart authentik-server
+
+# Mise à jour
+docker compose pull
+docker compose up -d
+
+# Backup PostgreSQL
+docker compose exec postgres pg_dumpall -U homelab > backup.sql
+```
+
+## Sécurité
+
+- **Aucun port exposé** directement sur Internet
+- Tout le trafic passe par **Cloudflare Tunnel** (chiffré)
+- **Cloudflare Access** peut être ajouté pour 2FA sur les services admin
+- La VM a **fail2ban**, **UFW**, et les **mises à jour automatiques**
+
+## Troubleshooting
+
+### Le tunnel ne se connecte pas
+
+```bash
+# Vérifier les logs cloudflared
+docker compose logs cloudflared
+
+# Vérifier le token
+echo $CLOUDFLARE_TUNNEL_TOKEN | wc -c  # Doit être > 100
+```
+
+### Authentik ne démarre pas
+
+```bash
+# Vérifier que PostgreSQL est prêt
+docker compose logs postgres
+docker compose exec postgres pg_isready -U homelab
+
+# Vérifier les migrations
+docker compose logs authentik-server
+```
+
+### Services inaccessibles via le tunnel
+
+1. Vérifier la configuration des routes dans Cloudflare Dashboard
+2. Vérifier que le nom du service correspond (ex: `authentik-server`, pas `authentik`)
+3. Tester localement : `docker compose exec cloudflared curl http://authentik-server:9000`

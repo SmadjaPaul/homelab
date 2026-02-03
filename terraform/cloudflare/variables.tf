@@ -97,6 +97,12 @@ variable "homelab_services" {
       internal    = true
       user_facing = false
     }
+    omni = {
+      subdomain   = "omni"
+      description = "Omni Talos management"
+      internal    = true
+      user_facing = false
+    }
   }
 }
 

@@ -1,6 +1,6 @@
-# Deploy OCI Management Stack (Omni + PostgreSQL) — IaC via CI
+# Deploy OCI Management Stack (Cloudflared + Authentik + Omni)
 # Déploie docker/oci-mgmt sur la VM management OCI (IP depuis Terraform state).
-# Secrets are fetched from OCI Vault (not GitHub Secrets)
+# Services exposés via Cloudflare Tunnel (Zero Trust)
 name: Deploy OCI Management Stack
 
 on:
@@ -125,7 +125,7 @@ jobs:
         id: secrets
         uses: ./.github/actions/oci-vault-secrets
         with:
-          secrets: 'oci_mgmt_ssh_private_key,omni_db_user,omni_db_password,omni_db_name'
+          secrets: 'oci_mgmt_ssh_private_key,postgres_password,authentik_secret_key,cloudflare_tunnel_token'
           oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci_cli_user: ${{ secrets.OCI_CLI_USER }}
           oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
@@ -151,12 +151,26 @@ jobs:
 
       - name: Create .env on VM
         env:
-          OMNI_DB_USER: ${{ steps.secrets.outputs.omni_db_user }}
-          OMNI_DB_PASSWORD: ${{ steps.secrets.outputs.omni_db_password }}
-          OMNI_DB_NAME: ${{ steps.secrets.outputs.omni_db_name }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ steps.secrets.outputs.cloudflare_tunnel_token }}
+          POSTGRES_PASSWORD: ${{ steps.secrets.outputs.postgres_password }}
+          AUTHENTIK_SECRET_KEY: ${{ steps.secrets.outputs.authentik_secret_key }}
         run: |
-          printf 'OMNI_DB_USER=%s\nOMNI_DB_PASSWORD=%s\nOMNI_DB_NAME=%s\n' \
-            "$OMNI_DB_USER" "$OMNI_DB_PASSWORD" "$OMNI_DB_NAME" > /tmp/oci-mgmt.env
+          cat > /tmp/oci-mgmt.env << EOF
+          # Cloudflare Tunnel
+          CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+
+          # PostgreSQL
+          POSTGRES_USER=homelab
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=homelab
+
+          # Authentik
+          AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+
+          # Omni
+          OMNI_ACCOUNT_ID=homelab
+          OMNI_NAME=Homelab Omni
+          EOF
           scp -i ~/.ssh/oci_mgmt.pem /tmp/oci-mgmt.env ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }}:~/homelab/oci-mgmt/.env
           rm -f /tmp/oci-mgmt.env
 
