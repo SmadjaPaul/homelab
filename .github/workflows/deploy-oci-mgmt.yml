@@ -28,6 +28,7 @@ jobs:
       id-token: write  # Required for OIDC token exchange
     outputs:
       mgmt_ip: ${{ steps.output.outputs.public_ip }}
+      vm_exists: ${{ steps.output.outputs.vm_exists }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,17 +102,20 @@ jobs:
         run: |
           IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
           if [ -z "$IP" ]; then
-            echo "::error::Terraform output 'management_vm.public_ip' not found. Run Terraform OCI apply first."
-            exit 1
+            echo "::warning::Management VM not found. Run Terraform OCI apply first to create the VM."
+            echo "public_ip=" >> $GITHUB_OUTPUT
+            echo "vm_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "public_ip=$IP" >> $GITHUB_OUTPUT
+            echo "vm_exists=true" >> $GITHUB_OUTPUT
+            echo "Management VM IP: $IP"
           fi
-          echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Management VM IP: $IP"
 
   deploy:
     name: Deploy Omni stack on VM
     runs-on: ubuntu-latest
     needs: get-mgmt-ip
-    if: needs.get-mgmt-ip.outputs.mgmt_ip != ''
+    if: needs.get-mgmt-ip.outputs.vm_exists == 'true'
     environment: production
     steps:
       - name: Checkout

@@ -2,7 +2,7 @@
 # - development: plan only (PR ou push sur develop)
 # - production: apply sur push main
 # - Backend: OCI Object Storage (unified with oracle-cloud module)
-# - Secrets: fetched from OCI Vault
+# - Secrets: CLOUDFLARE_API_TOKEN from GitHub Secrets
 name: Cloudflare Infrastructure
 
 on:
@@ -80,24 +80,9 @@ jobs:
     permissions:
       contents: read
       deployments: write
-      id-token: write  # Required for OIDC token exchange
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Fetch secrets from OCI Vault
-        id: secrets
-        uses: ./.github/actions/oci-vault-secrets
-        with:
-          secrets: 'cloudflare_api_token'
-          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
-          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
-          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
-          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
-          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI for Terraform backend
         env:
@@ -131,7 +116,7 @@ jobs:
       - name: Create tfvars
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ steps.secrets.outputs.cloudflare_api_token }}"
+          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
           enable_tunnel = false
@@ -142,7 +127,7 @@ jobs:
         run: terraform plan -no-color -out=tfplan
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
-          CLOUDFLARE_API_TOKEN: ${{ steps.secrets.outputs.cloudflare_api_token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Comment PR with Plan
         if: github.event_name == 'pull_request'
@@ -174,24 +159,9 @@ jobs:
     permissions:
       contents: read
       deployments: write
-      id-token: write  # Required for OIDC token exchange
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Fetch secrets from OCI Vault
-        id: secrets
-        uses: ./.github/actions/oci-vault-secrets
-        with:
-          secrets: 'cloudflare_api_token'
-          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
-          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
-          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
-          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
-          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI for Terraform backend
         env:
@@ -225,7 +195,7 @@ jobs:
       - name: Create tfvars
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ steps.secrets.outputs.cloudflare_api_token }}"
+          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
           enable_tunnel = false
@@ -236,7 +206,7 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
-          CLOUDFLARE_API_TOKEN: ${{ steps.secrets.outputs.cloudflare_api_token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Terraform Output
         run: terraform output -json
