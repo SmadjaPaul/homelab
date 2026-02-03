@@ -19,8 +19,8 @@ services:
     command: tunnel run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
-    networks:
-      - homelab
+    # Use host network so cloudflared can access localhost:PORT services
+    network_mode: host
     # No ports exposed — tunnel connects outbound to Cloudflare
 
   # =========================================================================
@@ -63,10 +63,9 @@ services:
       OMNI_NAME: ${OMNI_NAME:-Homelab Omni}
       # Auth (will integrate with Authentik later)
       OMNI_AUTH_SAML_ENABLED: "false"
-    # Internal only — accessed via Cloudflare Tunnel
-    expose:
-      - "8080"
-      - "8090"
+    # Expose on localhost for cloudflared (remotely managed tunnel)
+    ports:
+      - "127.0.0.1:8080:8080"  # HTTP - localhost only
     networks:
       - homelab
 
@@ -111,10 +110,9 @@ services:
     volumes:
       - authentik_media:/media
       - authentik_templates:/templates
-    # Internal only — accessed via Cloudflare Tunnel
-    expose:
-      - "9000"  # HTTP
-      - "9443"  # HTTPS
+    # Expose on localhost for cloudflared (remotely managed tunnel)
+    ports:
+      - "127.0.0.1:9000:9000"  # HTTP - localhost only
     networks:
       - homelab
 

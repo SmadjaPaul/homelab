@@ -50,16 +50,16 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
       }
     }
 
-    # Authentik (auth) - on OCI management VM
+    # Authentik (auth) - on OCI management VM via localhost
     ingress_rule {
       hostname = "auth.${var.domain}"
-      service  = "http://authentik-server:9000"
+      service  = "http://localhost:9000"
     }
 
-    # Omni (Talos management) - on OCI management VM
+    # Omni (Talos management) - on OCI management VM via localhost
     ingress_rule {
       hostname = "omni.${var.domain}"
-      service  = "http://omni:8080"
+      service  = "http://localhost:8080"
     }
 
     # Homepage dashboard

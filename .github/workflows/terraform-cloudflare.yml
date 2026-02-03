@@ -120,7 +120,10 @@ jobs:
           cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
-          enable_tunnel = false
+          # Cloudflare Tunnel (Zero Trust)
+          enable_tunnel = ${{ vars.CLOUDFLARE_ENABLE_TUNNEL || 'false' }}
+          cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
           EOF
         working-directory: ${{ env.TF_WORKING_DIR }}
 
@@ -199,7 +202,10 @@ jobs:
           cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
           zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
           domain = "smadja.dev"
-          enable_tunnel = false
+          # Cloudflare Tunnel (Zero Trust)
+          enable_tunnel = ${{ vars.CLOUDFLARE_ENABLE_TUNNEL || 'false' }}
+          cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
           EOF
         working-directory: ${{ env.TF_WORKING_DIR }}
 

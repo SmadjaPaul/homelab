@@ -55,6 +55,12 @@ output "tunnel_info" {
   }
 }
 
+output "tunnel_token" {
+  description = "Cloudflare Tunnel token for cloudflared (sensitive)"
+  sensitive   = true
+  value       = var.enable_tunnel ? cloudflare_zero_trust_tunnel_cloudflared.homelab[0].tunnel_token : ""
+}
+
 output "service_urls" {
   description = "URLs for homelab services"
   value = { for k, v in var.homelab_services : k => {
