@@ -114,7 +114,8 @@ resource "cloudflare_record" "tunnel_cname" {
 
 # Access policies for internal services (Zero Trust)
 # Requires Cloudflare Access (free for up to 50 users)
-resource "cloudflare_access_application" "internal_services" {
+# Using cloudflare_zero_trust_access_application (replaces deprecated cloudflare_access_application)
+resource "cloudflare_zero_trust_access_application" "internal_services" {
   for_each = var.enable_tunnel ? { for k, v in var.homelab_services : k => v if v.internal } : {}
 
   zone_id          = var.zone_id
@@ -128,11 +129,12 @@ resource "cloudflare_access_application" "internal_services" {
 }
 
 # Access policy - allow only specific emails
-resource "cloudflare_access_policy" "internal_allow" {
+# Using cloudflare_zero_trust_access_policy (replaces deprecated cloudflare_access_policy)
+resource "cloudflare_zero_trust_access_policy" "internal_allow" {
   for_each = var.enable_tunnel ? { for k, v in var.homelab_services : k => v if v.internal } : {}
 
   zone_id        = var.zone_id
-  application_id = cloudflare_access_application.internal_services[each.key].id
+  application_id = cloudflare_zero_trust_access_application.internal_services[each.key].id
   name           = "Allow homelab admins"
   precedence     = 1
   decision       = "allow"
