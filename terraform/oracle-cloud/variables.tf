@@ -108,15 +108,45 @@ variable "tags" {
 # =============================================================================
 
 variable "admin_allowed_cidrs" {
-  description = "CIDR blocks allowed for SSH/admin access. Use your public IP with /32 for maximum security, or 0.0.0.0/0 for open access (not recommended)."
+  description = "CIDR blocks allowed for SSH/admin access. Use your public IP with /32 for maximum security."
   type        = list(string)
-  default     = [] # Empty = no external SSH access (use Twingate/VPN only)
+  default     = [] # Empty = use github_actions_cidrs only for CI access
 }
 
 variable "enable_ssh_access" {
-  description = "Enable SSH access from admin_allowed_cidrs. Set to false to use Twingate only."
+  description = "Enable SSH access from admin_allowed_cidrs + GitHub Actions IPs."
   type        = bool
   default     = true
+}
+
+# GitHub Actions IP ranges for CI/CD access
+# These are relatively stable but can change - check https://api.github.com/meta
+variable "github_actions_cidrs" {
+  description = "GitHub Actions runner IP ranges for CI/CD SSH access"
+  type        = list(string)
+  default = [
+    # GitHub Actions hosted runners (main ranges)
+    # Source: https://api.github.com/meta -> actions
+    "4.148.0.0/14",
+    "4.152.0.0/13",
+    "4.160.0.0/11",
+    "4.192.0.0/12",
+    "4.208.0.0/12",
+    "4.224.0.0/12",
+    "4.240.0.0/12",
+    "13.64.0.0/11",
+    "20.0.0.0/11",
+    "40.64.0.0/10",
+    "52.160.0.0/11",
+    "52.224.0.0/11",
+    "74.234.0.0/15",
+    "98.64.0.0/14",
+    "135.225.0.0/16",
+    "138.91.0.0/16",
+    "157.56.0.0/14",
+    "168.61.0.0/16",
+    "191.232.0.0/13",
+  ]
 }
 
 # -----------------------------------------------------------------------------

@@ -116,26 +116,36 @@ resource "oci_core_security_list" "public" {
 }
 
 # =============================================================================
-# SSH Access - Restricted to Admin IPs only
+# SSH Access - Restricted to Admin IPs + GitHub Actions
 # =============================================================================
-# Separate security list for SSH to allow dynamic IP whitelisting
-# If admin_allowed_cidrs is empty, SSH is only accessible via VCN (Twingate)
+# Separate security list for SSH to allow:
+# 1. Admin IPs (your personal IP for manual access)
+# 2. GitHub Actions IPs (for CI/CD deployments)
+# Both lists are combined for the security rules.
+
+locals {
+  # Combine admin IPs with GitHub Actions IPs
+  all_ssh_allowed_cidrs = concat(
+    var.admin_allowed_cidrs,
+    var.github_actions_cidrs
+  )
+}
 
 resource "oci_core_security_list" "admin_ssh" {
-  count = var.enable_ssh_access && length(var.admin_allowed_cidrs) > 0 ? 1 : 0
+  count = var.enable_ssh_access && length(local.all_ssh_allowed_cidrs) > 0 ? 1 : 0
 
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.homelab.id
   display_name   = "homelab-admin-ssh-sl"
 
-  # SSH from whitelisted IPs only
+  # SSH from whitelisted IPs (admin + GitHub Actions)
   dynamic "ingress_security_rules" {
-    for_each = var.admin_allowed_cidrs
+    for_each = local.all_ssh_allowed_cidrs
     content {
       protocol    = "6" # TCP
       source      = ingress_security_rules.value
       stateless   = false
-      description = "SSH from admin IP: ${ingress_security_rules.value}"
+      description = "SSH from ${contains(var.admin_allowed_cidrs, ingress_security_rules.value) ? "admin" : "GitHub Actions"}: ${ingress_security_rules.value}"
 
       tcp_options {
         min = 22
@@ -157,7 +167,7 @@ resource "oci_core_subnet" "public" {
   route_table_id = oci_core_route_table.public.id
   security_list_ids = concat(
     [oci_core_security_list.public.id],
-    var.enable_ssh_access && length(var.admin_allowed_cidrs) > 0 ? [oci_core_security_list.admin_ssh[0].id] : []
+    var.enable_ssh_access && length(local.all_ssh_allowed_cidrs) > 0 ? [oci_core_security_list.admin_ssh[0].id] : []
   )
   prohibit_public_ip_on_vnic = false
 
