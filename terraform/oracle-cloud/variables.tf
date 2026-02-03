@@ -103,6 +103,22 @@ variable "tags" {
   }
 }
 
+# =============================================================================
+# Security Configuration
+# =============================================================================
+
+variable "admin_allowed_cidrs" {
+  description = "CIDR blocks allowed for SSH/admin access. Use your public IP with /32 for maximum security, or 0.0.0.0/0 for open access (not recommended)."
+  type        = list(string)
+  default     = [] # Empty = no external SSH access (use Twingate/VPN only)
+}
+
+variable "enable_ssh_access" {
+  description = "Enable SSH access from admin_allowed_cidrs. Set to false to use Twingate only."
+  type        = bool
+  default     = true
+}
+
 # -----------------------------------------------------------------------------
 # Vault secrets (OCI Vault — stored in homelab-secrets-vault)
 # Local: set via .env (TF_VAR_vault_secret_*) or terraform.tfvars (never commit).

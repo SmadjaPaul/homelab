@@ -142,6 +142,8 @@ jobs:
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
+      # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
+      TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -288,6 +290,8 @@ jobs:
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
+      # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
+      TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -496,6 +500,8 @@ jobs:
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
+      # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
+      TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

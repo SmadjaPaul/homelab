@@ -35,38 +35,35 @@ resource "oci_core_route_table" "public" {
   freeform_tags = var.tags
 }
 
-# Security List
+# =============================================================================
+# Security List - Zero Trust Configuration
+# =============================================================================
+# Philosophy: No ports open to the world except HTTP/HTTPS (for Cloudflare Tunnel)
+# All admin access goes through Twingate VPN or restricted IP whitelist
+# =============================================================================
+
 resource "oci_core_security_list" "public" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.homelab.id
   display_name   = "homelab-public-sl"
 
-  # Egress - Allow all outbound
+  # Egress - Allow all outbound (required for updates, Cloudflare Tunnel, etc.)
   egress_security_rules {
     destination = "0.0.0.0/0"
     protocol    = "all"
     stateless   = false
   }
 
-  # Ingress - SSH
+  # ==========================================================================
+  # PUBLIC ACCESS (Cloudflare Tunnel only)
+  # ==========================================================================
+
+  # Ingress - HTTP (for Cloudflare Tunnel / Let's Encrypt)
   ingress_security_rules {
     protocol    = "6" # TCP
     source      = "0.0.0.0/0"
     stateless   = false
-    description = "SSH access"
-
-    tcp_options {
-      min = 22
-      max = 22
-    }
-  }
-
-  # Ingress - HTTP
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "HTTP"
+    description = "HTTP - Cloudflare Tunnel"
 
     tcp_options {
       min = 80
@@ -74,12 +71,12 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Ingress - HTTPS
+  # Ingress - HTTPS (for Cloudflare Tunnel)
   ingress_security_rules {
     protocol    = "6" # TCP
     source      = "0.0.0.0/0"
     stateless   = false
-    description = "HTTPS"
+    description = "HTTPS - Cloudflare Tunnel"
 
     tcp_options {
       min = 443
@@ -87,51 +84,27 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Ingress - Omni UI (Story 1.3.2; put behind HTTPS reverse proxy in production)
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "Omni API/UI"
+  # ==========================================================================
+  # INTERNAL VCN TRAFFIC (between VMs)
+  # ==========================================================================
 
-    tcp_options {
-      min = 8080
-      max = 8080
-    }
+  # Allow all traffic within VCN (K8s inter-node communication)
+  ingress_security_rules {
+    protocol    = "all"
+    source      = var.vcn_cidr
+    stateless   = false
+    description = "Internal VCN traffic"
   }
 
-  # Ingress - Kubernetes API
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "Kubernetes API"
+  # ==========================================================================
+  # ICMP (for network diagnostics)
+  # ==========================================================================
 
-    tcp_options {
-      min = 6443
-      max = 6443
-    }
-  }
-
-  # Ingress - Talos API
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "Talos API"
-
-    tcp_options {
-      min = 50000
-      max = 50001
-    }
-  }
-
-  # Ingress - ICMP (ping)
   ingress_security_rules {
     protocol    = "1" # ICMP
     source      = "0.0.0.0/0"
     stateless   = false
-    description = "ICMP"
+    description = "ICMP - Path MTU Discovery"
 
     icmp_options {
       type = 3
@@ -139,14 +112,35 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  ingress_security_rules {
-    protocol    = "1" # ICMP
-    source      = "10.0.0.0/16"
-    stateless   = false
-    description = "ICMP from VCN"
+  freeform_tags = var.tags
+}
 
-    icmp_options {
-      type = 3
+# =============================================================================
+# SSH Access - Restricted to Admin IPs only
+# =============================================================================
+# Separate security list for SSH to allow dynamic IP whitelisting
+# If admin_allowed_cidrs is empty, SSH is only accessible via VCN (Twingate)
+
+resource "oci_core_security_list" "admin_ssh" {
+  count = var.enable_ssh_access && length(var.admin_allowed_cidrs) > 0 ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.homelab.id
+  display_name   = "homelab-admin-ssh-sl"
+
+  # SSH from whitelisted IPs only
+  dynamic "ingress_security_rules" {
+    for_each = var.admin_allowed_cidrs
+    content {
+      protocol    = "6" # TCP
+      source      = ingress_security_rules.value
+      stateless   = false
+      description = "SSH from admin IP: ${ingress_security_rules.value}"
+
+      tcp_options {
+        min = 22
+        max = 22
+      }
     }
   }
 
@@ -155,13 +149,16 @@ resource "oci_core_security_list" "public" {
 
 # Public Subnet
 resource "oci_core_subnet" "public" {
-  compartment_id             = var.compartment_id
-  vcn_id                     = oci_core_vcn.homelab.id
-  cidr_block                 = var.public_subnet_cidr
-  display_name               = "homelab-public-subnet"
-  dns_label                  = "public"
-  route_table_id             = oci_core_route_table.public.id
-  security_list_ids          = [oci_core_security_list.public.id]
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.homelab.id
+  cidr_block     = var.public_subnet_cidr
+  display_name   = "homelab-public-subnet"
+  dns_label      = "public"
+  route_table_id = oci_core_route_table.public.id
+  security_list_ids = concat(
+    [oci_core_security_list.public.id],
+    var.enable_ssh_access && length(var.admin_allowed_cidrs) > 0 ? [oci_core_security_list.admin_ssh[0].id] : []
+  )
   prohibit_public_ip_on_vnic = false
 
   freeform_tags = var.tags
