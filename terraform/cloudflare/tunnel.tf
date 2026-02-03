@@ -106,16 +106,18 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
 }
 
 # DNS records pointing to the tunnel (only when enabled)
+# allow_overwrite: replace existing A/placeholder records from homelab_services with CNAME to tunnel
 resource "cloudflare_record" "tunnel_cname" {
   for_each = var.enable_tunnel ? var.homelab_services : {}
 
-  zone_id = var.zone_id
-  name    = each.value.subdomain
-  content = "${cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id}.cfargotunnel.com"
-  type    = "CNAME"
-  proxied = true
-  ttl     = 1
-  comment = "${each.value.description} (via Tunnel)"
+  zone_id         = var.zone_id
+  name            = each.value.subdomain
+  content         = "${cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id}.cfargotunnel.com"
+  type            = "CNAME"
+  proxied         = true
+  ttl             = 1
+  comment         = "${each.value.description} (via Tunnel)"
+  allow_overwrite = true
 }
 
 # Access policies for internal services (Zero Trust)
