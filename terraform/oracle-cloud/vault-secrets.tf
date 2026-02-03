@@ -117,3 +117,61 @@ resource "oci_vault_secret" "oci_mgmt_ssh_private_key" {
     ignore_changes = [secret_content]
   }
 }
+
+# =============================================================================
+# OCI Management Stack secrets (Cloudflare Tunnel + Authentik + PostgreSQL)
+# =============================================================================
+
+# Cloudflare Tunnel Token (for cloudflared on OCI VM)
+resource "oci_vault_secret" "cloudflare_tunnel_token" {
+  count          = (length(try(var.vault_secret_cloudflare_tunnel_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-cloudflare-tunnel-token"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_cloudflare_tunnel_token, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+# PostgreSQL password (shared database for Authentik + Omni)
+resource "oci_vault_secret" "postgres_password" {
+  count          = (length(try(var.vault_secret_postgres_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-postgres-password"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_postgres_password, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+# Authentik secret key (for session encryption)
+resource "oci_vault_secret" "authentik_secret_key" {
+  count          = (length(try(var.vault_secret_authentik_secret_key, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-secret-key"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_secret_key, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}

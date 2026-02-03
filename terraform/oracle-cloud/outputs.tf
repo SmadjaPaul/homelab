@@ -90,6 +90,10 @@ output "vault_secrets" {
       omni_db_password         = try(oci_vault_secret.omni_db_password[0].id, null)
       omni_db_name             = try(oci_vault_secret.omni_db_name[0].id, null)
       oci_mgmt_ssh_private_key = try(oci_vault_secret.oci_mgmt_ssh_private_key[0].id, null)
+      # OCI Management Stack
+      cloudflare_tunnel_token = try(oci_vault_secret.cloudflare_tunnel_token[0].id, null)
+      postgres_password       = try(oci_vault_secret.postgres_password[0].id, null)
+      authentik_secret_key    = try(oci_vault_secret.authentik_secret_key[0].id, null)
     }
   }
 }

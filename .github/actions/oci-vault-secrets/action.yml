@@ -64,6 +64,16 @@ outputs:
   oci_mgmt_ssh_private_key:
     description: 'OCI Management SSH Private Key'
     value: ${{ steps.fetch.outputs.oci_mgmt_ssh_private_key }}
+  # OCI Management Stack secrets
+  cloudflare_tunnel_token:
+    description: 'Cloudflare Tunnel Token for cloudflared'
+    value: ${{ steps.fetch.outputs.cloudflare_tunnel_token }}
+  postgres_password:
+    description: 'PostgreSQL password for OCI management stack'
+    value: ${{ steps.fetch.outputs.postgres_password }}
+  authentik_secret_key:
+    description: 'Authentik secret key for session encryption'
+    value: ${{ steps.fetch.outputs.authentik_secret_key }}
 
 runs:
   using: 'composite'
@@ -141,6 +151,10 @@ runs:
           ["omni_db_password"]="homelab-omni-db-password"
           ["omni_db_name"]="homelab-omni-db-name"
           ["oci_mgmt_ssh_private_key"]="homelab-oci-mgmt-ssh-private-key"
+          # OCI Management Stack
+          ["cloudflare_tunnel_token"]="homelab-cloudflare-tunnel-token"
+          ["postgres_password"]="homelab-postgres-password"
+          ["authentik_secret_key"]="homelab-authentik-secret-key"
         )
 
         # Compartment ID (tenancy root)

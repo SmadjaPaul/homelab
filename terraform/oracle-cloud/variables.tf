@@ -203,3 +203,25 @@ variable "vault_secret_oci_mgmt_ssh_private_key" {
   default     = ""
   sensitive   = true
 }
+
+# OCI Management Stack secrets (Cloudflare Tunnel + Authentik + PostgreSQL)
+variable "vault_secret_cloudflare_tunnel_token" {
+  description = "Cloudflare Tunnel token for cloudflared (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_postgres_password" {
+  description = "PostgreSQL password for OCI management stack (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_authentik_secret_key" {
+  description = "Authentik secret key for session encryption (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
