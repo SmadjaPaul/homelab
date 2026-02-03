@@ -156,6 +156,9 @@ jobs:
           oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_region: ${{ secrets.OCI_CLI_REGION }}
           oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI Authentication
         shell: bash
@@ -302,6 +305,9 @@ jobs:
           oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_region: ${{ secrets.OCI_CLI_REGION }}
           oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI Authentication
         shell: bash
@@ -415,6 +421,9 @@ jobs:
           oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_region: ${{ secrets.OCI_CLI_REGION }}
           oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI Authentication
         shell: bash
@@ -507,6 +516,9 @@ jobs:
           oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
           oci_region: ${{ secrets.OCI_CLI_REGION }}
           oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Configure OCI Authentication
         shell: bash

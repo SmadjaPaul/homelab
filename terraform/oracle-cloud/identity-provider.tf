@@ -3,19 +3,27 @@
 # Allows GitHub Actions to authenticate to OCI using OIDC tokens
 # =============================================================================
 #
-# NOTE: OCI Identity Provider for OIDC must be configured via OCI Console or API,
-# not via Terraform. This file is for reference/documentation purposes only.
+# CONFIGURATION COMPLETED:
+# -----------------------
+# Identity Propagation Trust and OAuth Application have been configured via CLI.
 #
-# To configure the Identity Provider:
-# 1. Log in to OCI Console
-# 2. Navigate to: Identity & Security → Domains → Default Domain → Identity Providers
-# 3. Create Identity Provider with:
-#    - Protocol: SAML 2.0
-#    - Metadata URL: https://token.actions.githubusercontent.com/.well-known/openid-configuration
-#    - Audience: oci
-# 4. Configure group mapping and IAM policies
+# Identity Propagation Trust:
+#   - Name: GitHub-Actions-OIDC
+#   - Issuer: https://token.actions.githubusercontent.com
+#   - Type: JWT
+#   - Public Key Endpoint: https://token.actions.githubusercontent.com/.well-known/jwks
 #
-# See: docs-site/docs/guides/oci-oidc-setup.md for detailed instructions
+# OAuth Application (GitHub-Actions-OIDC):
+#   - Allowed Grants: jwt-bearer, client_credentials
 #
-# The OIDC token exchange happens via API in the GitHub Actions workflow,
-# not through Terraform resources.
+# GitHub Secrets Required:
+#   - OCI_DOMAIN_URL: (Identity Domain URL from OCI Console)
+#   - OCI_OIDC_CLIENT_ID: (OAuth App Client ID from OCI Console)
+#   - OCI_OIDC_CLIENT_SECRET: (OAuth App Client Secret from OCI Console)
+#
+# How it works:
+#   1. GitHub Actions requests an OIDC token with audience "oci"
+#   2. The token is exchanged via JWT Bearer grant at the Identity Domain
+#   3. OCI returns an access token for API calls
+#
+# See: https://www.ateam-oracle.com/github-actions-oci-a-guide-to-secure-oidc-token-exchange
