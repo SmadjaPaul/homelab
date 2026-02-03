@@ -32,6 +32,18 @@ inputs:
     description: 'OCI CLI Region'
     required: true
     default: 'eu-paris-1'
+  oci_domain_url:
+    description: 'OCI Identity Domain URL (for OIDC)'
+    required: false
+    default: ''
+  oci_client_id:
+    description: 'OCI OIDC OAuth Client ID'
+    required: false
+    default: ''
+  oci_client_secret:
+    description: 'OCI OIDC OAuth Client Secret'
+    required: false
+    default: ''
 
 outputs:
   cloudflare_api_token:
@@ -74,6 +86,9 @@ runs:
         oci_fingerprint: ${{ inputs.oci_cli_fingerprint }}
         oci_region: ${{ inputs.oci_cli_region }}
         oci_api_key_content: ${{ inputs.oci_cli_key_content }}
+        oci_domain_url: ${{ inputs.oci_domain_url }}
+        oci_client_id: ${{ inputs.oci_client_id }}
+        oci_client_secret: ${{ inputs.oci_client_secret }}
 
     - name: Configure OCI Authentication
       shell: bash
