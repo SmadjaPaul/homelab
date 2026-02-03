@@ -20,7 +20,7 @@ resource "oci_core_instance" "management" {
 
   create_vnic_details {
     subnet_id        = oci_core_subnet.public.id
-    assign_public_ip = false # Reserved public IP attached separately; do not change or Terraform will try to add an ephemeral IP and conflict with existing
+    assign_public_ip = true # Use ephemeral public IP for SSH access
     display_name     = "${var.management_vm.name}-vnic"
     hostname_label   = var.management_vm.name
   }
