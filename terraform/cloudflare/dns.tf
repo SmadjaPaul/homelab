@@ -5,13 +5,14 @@
 # Root domain - placeholder for now
 # Will point to Cloudflare Tunnel or load balancer
 resource "cloudflare_record" "root" {
-  zone_id = var.zone_id
-  name    = "@"
-  content = "192.0.2.1" # Placeholder - will be replaced by Tunnel
-  type    = "A"
-  proxied = true
-  ttl     = 1 # Auto when proxied
-  comment = "Root domain - placeholder for Cloudflare Tunnel"
+  zone_id         = var.zone_id
+  name            = "@"
+  content         = "192.0.2.1" # Placeholder - will be replaced by Tunnel
+  type            = "A"
+  proxied         = true
+  ttl             = 1 # Auto when proxied
+  comment         = "Root domain - placeholder for Cloudflare Tunnel"
+  allow_overwrite = true
 
   lifecycle {
     ignore_changes = [content] # Will be managed by Tunnel later
@@ -20,13 +21,14 @@ resource "cloudflare_record" "root" {
 
 # WWW redirect to root
 resource "cloudflare_record" "www" {
-  zone_id = var.zone_id
-  name    = "www"
-  content = var.domain
-  type    = "CNAME"
-  proxied = true
-  ttl     = 1
-  comment = "WWW redirect to root"
+  zone_id         = var.zone_id
+  name            = "www"
+  content         = var.domain
+  type            = "CNAME"
+  proxied         = true
+  ttl             = 1
+  comment         = "WWW redirect to root"
+  allow_overwrite = true
 }
 
 # =============================================================================
@@ -38,13 +40,14 @@ resource "cloudflare_record" "www" {
 resource "cloudflare_record" "homelab_services" {
   for_each = var.homelab_services
 
-  zone_id = var.zone_id
-  name    = each.value.subdomain
-  content = "192.0.2.1" # Placeholder - will be Tunnel UUID
-  type    = "A"
-  proxied = true
-  ttl     = 1
-  comment = each.value.description
+  zone_id         = var.zone_id
+  name            = each.value.subdomain
+  content         = "192.0.2.1" # Placeholder - will be Tunnel UUID
+  type            = "A"
+  proxied         = true
+  ttl             = 1
+  comment         = each.value.description
+  allow_overwrite = true # Allow overwriting existing records
 
   lifecycle {
     ignore_changes = [content, type] # Will be managed by Tunnel later
@@ -98,20 +101,22 @@ resource "cloudflare_record" "oci_nodes" {
 
 # SPF record (prevents email spoofing)
 resource "cloudflare_record" "spf" {
-  zone_id = var.zone_id
-  name    = "@"
-  content = "v=spf1 -all" # No email sent from this domain (for now)
-  type    = "TXT"
-  ttl     = 3600
-  comment = "SPF - no email sending allowed"
+  zone_id         = var.zone_id
+  name            = "@"
+  content         = "v=spf1 -all" # No email sent from this domain (for now)
+  type            = "TXT"
+  ttl             = 3600
+  comment         = "SPF - no email sending allowed"
+  allow_overwrite = true
 }
 
 # DMARC record (email authentication)
 resource "cloudflare_record" "dmarc" {
-  zone_id = var.zone_id
-  name    = "_dmarc"
-  content = "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;"
-  type    = "TXT"
-  ttl     = 3600
-  comment = "DMARC - reject all unauthorized email"
+  zone_id         = var.zone_id
+  name            = "_dmarc"
+  content         = "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;"
+  type            = "TXT"
+  ttl             = 3600
+  comment         = "DMARC - reject all unauthorized email"
+  allow_overwrite = true
 }
