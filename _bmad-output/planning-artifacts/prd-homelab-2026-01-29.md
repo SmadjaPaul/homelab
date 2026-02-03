@@ -5,11 +5,11 @@ project: homelab
 version: 2.0
 status: draft
 lastUpdated: 2026-01-29
-updateNotes: Align with Architecture v6.0 (Authentik as IdP ; validation manuelle ; design Authentik formalisé 2026-02-01 — session-travail-authentik.md §6)
+updateNotes: Align with Architecture v6.0 (Authentik as IdP ; validation manuelle ; design Authentik formalisé 2026-02-01 — docs-site/docs/advanced/planning-conclusions.md §4)
 inputDocuments:
-  - product-brief-homelab-2026-01-21.md
+  - docs-site/docs/advanced/planning-conclusions.md §1
   - architecture-proxmox-omni.md (v6.0)
-  - session-travail-authentik.md (design Authentik à affiner avec agent PM)
+  - docs-site/docs/advanced/planning-conclusions.md (§4 Design Authentik)
 previousVersion: prd-homelab-2026-01-22.md (v1.1)
 ---
 
@@ -39,8 +39,8 @@ This PRD defines the functional and non-functional requirements for a self-hoste
 **Homelab Server** (Proxmox Host):
 - **IP**: 192.168.68.51 (Proxmox Web UI: https://192.168.68.51:8006)
 - **RAM**: 64GB
-- **Storage**: 1TB SSD (system), 2x 20TB HDD (data)
-- **GPU**: NVIDIA GPU (for gaming VMs)
+- **Storage**: 1TB SSD (system), 2x 14TB HDD (data)
+- **GPU**: APU 780m 
 
 **Oracle Cloud** (Always Free Tier):
 - **Instances**: 2 ARM VMs (24GB RAM total, 4 OCPUs)
@@ -58,7 +58,7 @@ This PRD defines the functional and non-functional requirements for a self-hoste
 | **CNI** | Cilium | eBPF networking, Gateway API |
 | **Storage** | ZFS + Longhorn | Data integrity + distributed K8s storage |
 | **IaC** | Terraform + Ansible | VM provisioning + configuration |
-| **Identity** | Authentik | SSO/OIDC/SAML for private services ; validation manuelle ; service accounts ; voir session-travail-authentik.md |
+| **Identity** | Authentik | SSO/OIDC/SAML for private services ; validation manuelle ; service accounts ; voir docs-site/docs/advanced/planning-conclusions.md §4 |
 | **Ingress** | Cloudflare Tunnel | Zero-trust, no open ports |
 
 ### Architecture Overview
@@ -260,7 +260,7 @@ The system MUST expose services via Cloudflare Tunnel (zero open ports).
 **Priority**: P0 (Critical)  
 **Phase**: Phase 3 - PROD + Oracle Cloud
 
-The system MUST implement 2-tier authentication as defined in architecture and in the Authentik design (session-travail-authentik.md §6).
+The system MUST implement 2-tier authentication as defined in architecture and in the Authentik design (docs-site/docs/advanced/planning-conclusions.md §4).
 
 **Tier 1 - Private Data (Authentik SSO)**:
 - Nextcloud, Immich, Vaultwarden, Baïkal, n8n
@@ -274,7 +274,7 @@ The system MUST implement 2-tier authentication as defined in architecture and i
 - Cloudflare access layer
 
 **Acceptance Criteria**:
-- Tier 1 services require Authentik login (validation manuelle avant accès ; design formalisé session-travail-authentik.md §6)
+- Tier 1 services require Authentik login (validation manuelle avant accès ; design formalisé docs-site/docs/advanced/planning-conclusions.md §4)
 - Tier 2 services use native auth
 - oauth2-proxy functional
 - SSO session management working
@@ -637,7 +637,7 @@ The system MUST implement comprehensive backup following 3-2-1 rule.
 **Requirements**:
 - 3 copies: primary + local backup + offsite
 - 2 media types: SSD/HDD + cloud
-- 1 offsite: OVH Object Storage (3TB free)
+- 1 offsite: cloud object storage (ex. OCI Object Storage)
 - Velero for Kubernetes backup
 - Restic/Volsync for file-level backup
 - ZFS snapshots for point-in-time recovery
@@ -1120,7 +1120,7 @@ The following are explicitly out of scope for MVP:
 
 ### 10.2 Identity Design (Authentik) — Summary
 
-Design formalisé le 2026-02-01 ; mises à jour 2026-02-01 (invitation-only, trafic Cloudflare). Détail dans `session-travail-authentik.md` §6 et `decision-invitation-only-et-acces-cloudflare.md`.
+Design formalisé le 2026-02-01 ; mises à jour 2026-02-01 (invitation-only, trafic Cloudflare). Détail dans docs-site/docs/advanced/planning-conclusions.md (§4 et §3).
 
 | Thème | Décision |
 |-------|----------|
@@ -1133,9 +1133,9 @@ Design formalisé le 2026-02-01 ; mises à jour 2026-02-01 (invitation-only, tra
 
 ### 10.3 References
 
-- Product Brief: `product-brief-homelab-2026-01-21.md`
+- Product Brief: `docs-site/docs/advanced/planning-conclusions.md §1`
 - Architecture: `architecture-proxmox-omni.md` (v6.0)
-- Identity design: `session-travail-authentik.md` (§6 Décisions prises), `decision-invitation-only-et-acces-cloudflare.md`
+- Identity design: docs-site/docs/advanced/planning-conclusions.md (§4, §3)
 - Inspired repos: qjoly/GitOps, ravilushqa/homelab, mitchross/talos-argocd-proxmox, Mafyuh/iac, ahinko/home-ops
 
 ---

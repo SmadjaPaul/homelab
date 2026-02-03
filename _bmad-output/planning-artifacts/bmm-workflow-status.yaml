@@ -40,7 +40,7 @@ workflow_status:
           note: "Can have multiple research workflows"
         
         - id: "product-brief"
-          status: "planning-artifacts/product-brief-homelab-2026-01-21.md"
+          status: "Résumé dans docs-site/docs/advanced/planning-conclusions.md"
           agent: "analyst"
           command: "/bmad:bmm:workflows:create-product-brief"
           note: "Recommended for greenfield Method projects"
@@ -77,7 +77,7 @@ workflow_status:
           agent: "architect"
           command: "/bmad:bmm:workflows:create-architecture"
           output: "System architecture document v6.0 - Authentik as IdP, validation manuelle, apps admin non exposées, service accounts"
-          note: "v6.0: Authentik (remplace Keycloak); validation manuelle avant accès apps; session-travail-authentik.md pour affiner avec PM"
+          note: "v6.0: Authentik; validation manuelle avant accès apps; conclusions dans docs-site/docs/advanced/planning-conclusions.md"
           completed: "2026-01-31T12:00:00Z"
           finalized: true
           previous_versions:

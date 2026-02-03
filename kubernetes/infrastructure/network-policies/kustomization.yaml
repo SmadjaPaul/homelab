@@ -5,4 +5,4 @@ resources:
   - default-deny.yaml
   - monitoring.yaml
   - argocd.yaml
-  - keycloak.yaml
+  - authentik.yaml

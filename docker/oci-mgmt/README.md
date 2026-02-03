@@ -38,7 +38,7 @@ Docker Compose pour la VM management Oracle Cloud : **Omni** + PostgreSQL.
 
 | Service   | Rôle                          |
 |----------|---------------------------------|
-| postgres | Base de données Omni (et optionnel Keycloak) |
+| postgres | Base de données Omni (et optionnel Authentik) |
 | omni     | Omni server (management Talos)  |
 
 HTTPS et reverse proxy (Nginx / Caddy) à ajouter selon [Expose Omni with Nginx (HTTPS)](https://omni.siderolabs.com/how-to-guides/self_hosted/).
@@ -54,7 +54,7 @@ HTTPS et reverse proxy (Nginx / Caddy) à ajouter selon [Expose Omni with Nginx 
 | **Opérations** | `docker compose up/restart/logs` | `kubectl`, Helm, voire ArgoCD — plus de pièces pour 4–5 services |
 | **Cohérence avec le reste** | Un seul “nœud management” à part | Même outil (kubectl) partout, mais un 4ᵉ cluster à maintenir |
 
-**Conclusion** : pour une VM dédiée à Omni + Keycloak + PostgreSQL + Cloudflared, Docker Compose reste le plus adapté : peu de ressources, modèle simple, et Omni est conçu pour tourner en dehors des clusters qu’il gère. Passer à un petit K8s sur oci-mgmt ajouterait de la complexité (control plane, upgrades K8s) pour peu d’avantage réel.
+**Conclusion** : pour une VM dédiée à Omni + Authentik + PostgreSQL + Cloudflared, Docker Compose reste le plus adapté : peu de ressources, modèle simple, et Omni est conçu pour tourner en dehors des clusters qu’il gère. Passer à un petit K8s sur oci-mgmt ajouterait de la complexité (control plane, upgrades K8s) pour peu d’avantage réel.
 
 **Podman / Podman Compose** : possible en remplacement de Docker (rootless, pas de daemon). Même modèle opérationnel, avantage surtout côté sécurité ; pas nécessaire pour démarrer.
 

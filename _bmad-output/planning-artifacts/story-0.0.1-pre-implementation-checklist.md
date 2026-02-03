@@ -94,7 +94,7 @@ Before starting Sprint 1 (Phase 1: Foundation), you need to complete these manua
 
 ### 3. Oracle Cloud Account Verification
 
-**Why**: Oracle Cloud hosts the management VM (Omni, Keycloak) and CLOUD cluster.
+**Why**: Oracle Cloud hosts the management VM (Omni, Authentik) and CLOUD cluster.
 
 - [ ] **3.1 Verify Always Free tier status**
   
@@ -103,7 +103,7 @@ Before starting Sprint 1 (Phase 1: Foundation), you need to complete these manua
   Check you have available:
   - [ ] VM.Standard.A1.Flex (ARM): 4 OCPUs, 24GB RAM total
   - [ ] Block Volume: 200GB
-  - [ ] Object Storage: 20GB (we'll use OVH for backups instead)
+  - [ ] Object Storage: 20GB
 
 - [ ] **3.2 Check ARM shape availability in your region**
   

@@ -45,9 +45,9 @@ terraform apply
 
 - **IP publique** : `terraform output management_vm` → champ `public_ip`
 - **SSH** : `terraform output ssh_connection_commands` → `management` (ex. `ssh -i ~/.ssh/oci-homelab ubuntu@<public_ip>`)
-- **Sur la VM** : Docker et Docker Compose déjà installés par cloud-init ; répertoires `/opt/homelab/{omni,keycloak,cloudflared,nginx}` créés
+- **Sur la VM** : Docker et Docker Compose déjà installés par cloud-init ; répertoires `/opt/homelab/{omni,authentik,cloudflared,nginx}` créés
 
-**Doc** : [docs/oci-management-vm.md](../../docs/oci-management-vm.md)
+**Doc** : voir `docs-site/docs/advanced/architecture.md` et `terraform/oracle-cloud/README.md` pour la VM management.
 
 ---
 

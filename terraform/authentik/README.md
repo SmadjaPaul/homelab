@@ -2,7 +2,7 @@
 
 Configuration Authentik en IaC : **groupes**, **applications + providers**, **policies/bindings**, **service accounts** uniquement.
 Les **utilisateurs humains** et **qui est dans quel groupe** se gèrent dans l’UI Authentik (ou via API), pas dans Terraform.
-Design : `_bmad-output/planning-artifacts/session-travail-authentik.md` §6.
+Design : docs-site/docs/advanced/planning-conclusions.md (§4).
 Détail d’implémentation : `_bmad-output/implementation-artifacts/authentik-terraform-implementation.md` (§2).
 
 ## Prérequis

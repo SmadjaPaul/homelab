@@ -80,9 +80,9 @@
       "groupName": "cilium"
     },
     {
-      "description": "Group Keycloak updates",
-      "matchPackagePatterns": ["keycloak"],
-      "groupName": "keycloak"
+      "description": "Group Authentik / IdP updates",
+      "matchPackagePatterns": ["authentik"],
+      "groupName": "authentik-idp"
     },
     {
       "description": "Group Terraform providers",

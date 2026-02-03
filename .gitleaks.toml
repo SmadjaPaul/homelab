@@ -19,6 +19,5 @@ paths = [
   '''_bmad.*''',
   # Documentation contains example keys (not real)
   '''docs/.*\.md$''',
-  # Terraform: secret_key = var.xxx (variable reference, not literal secret)
-  '''terraform/ovhcloud/main\.tf$''',
+  # Terraform: secret_key = var.xxx (variable reference, not literal secret),
 ]

@@ -1,7 +1,7 @@
 # Détail d’implémentation : Authentik avec Terraform
 
 **Date** : 2026-02-01  
-**Contexte** : Homelab, design Authentik (session-travail-authentik.md §6).  
+**Contexte** : Homelab, design Authentik (docs-site/docs/advanced/planning-conclusions.md §4).  
 **Objectif** : Guide d’implémentation Terraform pour la configuration Authentik (applications, groupes, policies, service accounts), aligné avec les décisions prises et les ressources en ligne.
 
 ---
@@ -20,7 +20,7 @@
 | [Manage Authentik Resources in Terraform (Christian Lempa)](https://christianlempa.de/videos/authentik-terraform/) | Provider config, proxy provider, application, data sources (flows). |
 | [GoAuthentik de A à Y (une-tasse-de.cafe)](https://une-tasse-de.cafe/blog/goauthentik/#ajouter-des-utilisateurs) | Flows, stages, invitations, social login, policies (expression), accès par groupe. |
 
-Design et décisions : `_bmad-output/planning-artifacts/session-travail-authentik.md` §6 ; epics/stories : `epics-and-stories-homelab.md` Epic 3.3.
+Design et décisions : docs-site/docs/advanced/planning-conclusions.md §4 ; epics/stories : `epics-and-stories-homelab.md` Epic 3.3.
 
 ---
 
@@ -30,7 +30,7 @@ Article de référence : [GoAuthentik de A à Y](https://une-tasse-de.cafe/blog/
 
 | Domaine | Référence article | Application pour nous |
 |---------|-------------------|------------------------|
-| **Flows & Stages** | Fonctionnement GoAuthentik (Stages, Flows, Policies). Authentication flow, Enrollment flow, Authorization flow (implicit vs explicit consent). | **Invitation-only** : enrollment accessible uniquement avec token d’invitation (Stage Invitation) ; self-registration désactivée. Voir `decision-invitation-only-et-acces-cloudflare.md`. Authorization : `default-provider-authorization-implicit-consent` pour les apps famille. |
+| **Flows & Stages** | Fonctionnement GoAuthentik (Stages, Flows, Policies). Authentication flow, Enrollment flow, Authorization flow (implicit vs explicit consent). | **Invitation-only** : enrollment accessible uniquement avec token d’invitation (Stage Invitation) ; self-registration désactivée. Voir docs-site/docs/advanced/planning-conclusions.md §3. Authorization : `default-provider-authorization-implicit-consent` pour les apps famille. |
 | **Applications & providers** | Création app + provider (OAuth2/OIDC), redirect URIs, signing key, subject mode. Group (affichage) ≠ groupes d’accès. | Terraform : `authentik_application` + `authentik_provider_oauth2` ; bindings par groupe (family-validated, admin). |
 | **Ajouter des utilisateurs** | Création manuelle ; Social Login (GitHub avec policy « organisation ») ; Invitations (lien, custom attributes, User Write Stage pour groupe automatique). | Self-registration activé ; validation manuelle (admin ajoute aux groupes dans l’UI). Invitations optionnel pour onboarding ciblé. |
 | **Gérer les accès** | Par utilisateur, groupe ou policy. « Dans 99 % des cas je me contente de créer un groupe ayant accès à des sites et j’ajoute les utilisateurs à ces groupes. » | Même approche : groupes en Terraform ; qui est dans quel groupe = UI Authentik (Directory → Groups → Users). |
@@ -39,7 +39,7 @@ Article de référence : [GoAuthentik de A à Y](https://une-tasse-de.cafe/blog/
 | **Reverse Proxy** | Agent Authentik (proxy) avec AUTHENTIK_HOST, AUTHENTIK_TOKEN ; ou middleware Traefik (Forward Auth). | Nous : oauth2-proxy (Story 3.3.2) ou proxy Authentik selon choix ; voir intégrations Authentik. |
 | **Service accounts** | Directory → Users, type Service Account, groupe dédié (ex. pour LDAP). | Terraform : `authentik_user` (type=service_account) + `authentik_token` ; un groupe par usage si besoin. |
 
-Session de travail (inspiration + suite BMad) : `session-travail-authentik.md` §7.
+Session de travail (inspiration + suite BMad) : docs-site/docs/advanced/planning-conclusions.md.
 
 ---
 

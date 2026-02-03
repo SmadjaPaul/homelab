@@ -4,7 +4,7 @@ project: homelab
 version: 6.0
 status: current
 lastUpdated: 2026-01-31
-note: v6.0 - Authentik as IdP; validation manuelle avant accès apps; apps admin non exposées; service accounts; session travail _bmad-output/planning-artifacts/session-travail-authentik.md
+note: v6.0 - Authentik as IdP; validation manuelle avant accès apps; apps admin non exposées; service accounts; conclusions dans docs-site/docs/advanced/planning-conclusions.md
 ---
 
 # Architecture Document: Homelab Infrastructure with Proxmox + Omni
@@ -331,12 +331,12 @@ Pour activer le Workload Proxy sur un cluster Omni : `features.enableWorkloadPro
 Omni sert de proxy (UI, kubeconfig, talosctl) ; Authentik s’y connecte en **SAML** ([Integrate Authentik with Omni](https://integrations.goauthentik.io/infrastructure/omni/)). SSO pour les apps (Nextcloud, Vaultwarden, etc.) via OIDC + oauth2-proxy ou proxy Authentik.
 
 **Flux utilisateur (invitation-only, trafic via Cloudflare)** :  
-- **Onboarding par invitation uniquement** : self-registration **désactivée**. L’admin crée une invitation (UI Authentik ou API) et envoie le lien à l’utilisateur ; le flow d’enrollment n’est accessible qu’avec un token d’invitation. Voir `decision-invitation-only-et-acces-cloudflare.md`.  
+- **Onboarding par invitation uniquement** : self-registration **désactivée**. L’admin crée une invitation (UI Authentik ou API) et envoie le lien à l’utilisateur ; le flow d’enrollment n’est accessible qu’avec un token d’invitation. Voir docs-site/docs/advanced/planning-conclusions.md (§3).  
 - **Pas d’accès sans groupes** : tant qu’il n’est pas dans les groupes autorisés, l’utilisateur n’a accès à aucune application ; les policies Authentik refusent l’accès.  
 - **Validation / groupes** : après enrollment, l’admin ajoute l’utilisateur aux groupes autorisés (ex. `family-validated`, `family-app-nextcloud`) ; optionnellement un job CI manuel peut appeler l’API Authentik pour ajouter aux groupes ou déclencher le provisionnement.  
 - **Après validation** : accès aux apps (Nextcloud, Navidrome, etc.) selon les groupes ; la CI peut créer les comptes dans chaque app (webhook Authentik ou job manuel).  
 - **Trafic utilisateur via Cloudflare** : toutes les connexions utilisateurs (auth, portail Authentik, apps protégées) **passent par Cloudflare** (Tunnel) ; pas d’accès direct à l’origine pour les utilisateurs finaux. Règles WAF/config possibles pour renforcer.  
-- **Design formalisé** : flux, listes apps, CI, service accounts → `session-travail-authentik.md` §6 ; invitation-only et Cloudflare → `decision-invitation-only-et-acces-cloudflare.md`.
+- **Design formalisé** : flux, listes apps, CI, service accounts → docs-site/docs/advanced/planning-conclusions.md (§4).
 
 **Applications d’administration non exposées** :  
 Les apps d’administration (Authentik Admin, Omni UI, ArgoCD, Grafana admin, Prometheus, etc.) **ne sont pas** exposées aux utilisateurs finaux : pas de lien dans le portail Authentik pour les groupes « famille » ; accès réservé aux admins (groupe dédié) ou par URL/accès restreint (IP, VPN). Les policies Authentik et bindings d’applications distinguent « apps famille » (visibles) et « apps admin » (cachées / réservées).
@@ -344,7 +344,7 @@ Les apps d’administration (Authentik Admin, Omni UI, ArgoCD, Grafana admin, Pr
 **Service accounts** :  
 Authentik fournit des **service accounts** (utilisateurs de type `service_account`) pour les connexions machine-to-machine (CI, ArgoCD, scripts, n8n, etc.). Droits granulaires par compte ; gestion en **Terraform** (provider goauthentik/authentik) pour `terraform apply`. Secrets stockés dans un secret manager (Bitwarden / Vault), pas en clair dans le repo.
 
-**RBAC & onboarding** : Détail et options (catalogue d’apps, webhook CI) : voir `session-travail-authentik.md` §6 (décisions prises).
+**RBAC & onboarding** : Détail et options (catalogue d’apps, webhook CI) : voir docs-site/docs/advanced/planning-conclusions.md (§4).
 
 **Security Layers**:
 1. **Identity**: Authentik SSO (OIDC/SAML) for private services ; validation manuelle avant accès ; apps admin non exposées ; service accounts pour M2M
@@ -427,7 +427,7 @@ Prometheus → Alertmanager → ntfy (push) + Telegram bot
 Backup Targets:
 ├── Local (ZFS snapshots)     # Immediate recovery
 ├── NAS (rsync/restic)        # Local backup
-└── Cloud (OVH Object Storage) # Offsite (3TB free)
+└── Cloud (Object Storage)    # Offsite (ex. OCI)
     ├── Critical configs
     ├── Databases
     └── Photos (Immich)
@@ -1324,9 +1324,9 @@ jobs:
 **Document Status**: ✅ **VALIDATED & READY FOR IMPLEMENTATION**
 
 Architecture v6.0 validated on 2026-01-31. Key changes from v5.0:
-- **IdP : Authentik** (remplace Keycloak). Intégration Omni SAML, webhooks, service accounts, Terraform.
+- **IdP : Authentik**. Intégration Omni SAML, webhooks, service accounts, Terraform.
 - **Flux utilisateur** : **invitation-only** (pas de self-registration) ; trafic utilisateur **via Cloudflare** ; **apps admin non exposées** aux utilisateurs finaux.
-- **Design Authentik** : flux, listes apps, CI, service accounts → `session-travail-authentik.md` §6 ; invitation-only et Cloudflare → `decision-invitation-only-et-acces-cloudflare.md`.
+- **Design Authentik** : flux, listes apps, CI, service accounts → docs-site/docs/advanced/planning-conclusions.md (§4).
 
 This design provides:
 - Pas de VM DEV 24/7 sur Proxmox (économie de ressources).

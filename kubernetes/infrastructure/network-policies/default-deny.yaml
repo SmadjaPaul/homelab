@@ -27,12 +27,12 @@ spec:
     - Ingress
 
 ---
-# Deny all ingress in keycloak namespace
+# Deny all ingress in identity namespace (Authentik)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
-  namespace: keycloak
+  namespace: identity
 spec:
   podSelector: {}
   policyTypes:

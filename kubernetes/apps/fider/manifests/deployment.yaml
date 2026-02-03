@@ -60,7 +60,7 @@ spec:
                   name: fider-secrets
                   key: jwt-secret
 
-            # Email (optional - can use Keycloak later)
+            # Email (optional - can use Authentik OIDC later)
             - name: EMAIL_NOREPLY
               value: "noreply@smadja.dev"
 
@@ -68,16 +68,18 @@ spec:
             - name: EMAIL_SMTP_HOST
               value: ""
 
-            # OAuth with Keycloak (optional)
-            # - name: OAUTH_KEYCLOAK_CLIENT_ID
+            # OAuth with Authentik (optional)
+            # - name: OAUTH_PROVIDER
+            #   value: "oidc"
+            # - name: OAUTH_OIDC_CLIENT_ID
             #   value: "fider"
-            # - name: OAUTH_KEYCLOAK_SECRET
+            # - name: OAUTH_OIDC_CLIENT_SECRET
             #   valueFrom:
             #     secretKeyRef:
             #       name: fider-secrets
-            #       key: keycloak-secret
-            # - name: OAUTH_KEYCLOAK_URL
-            #   value: "https://auth.smadja.dev/realms/homelab"
+            #       key: authentik-secret
+            # - name: OAUTH_OIDC_ISSUER_URL
+            #   value: "https://auth.smadja.dev/application/o/fider/"
 
           resources:
             requests:

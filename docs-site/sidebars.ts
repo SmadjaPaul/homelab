@@ -44,6 +44,8 @@ const sidebars: SidebarsConfig = {
           label: 'Guides avancés',
           items: [
             'advanced/architecture',
+            'advanced/decisions-and-limits',
+            'advanced/planning-conclusions',
             'advanced/network',
             'advanced/security',
             'advanced/disaster-recovery',

@@ -1,7 +1,8 @@
 # RBAC & Onboarding familial : auto-inscription + catalogue d’apps + provisionnement
 
 **Date** : 2026-01-31  
-**Contexte** : Permettre à la famille de s’auto-inscrire, choisir les applications (hors admin/monitoring), puis déclencher une CI qui crée les comptes dans chaque service avec les bonnes ressources.
+**Contexte** : Permettre à la famille de s’auto-inscrire, choisir les applications (hors admin/monitoring), puis déclencher une CI qui crée les comptes dans chaque service avec les bonnes ressources.  
+**Choix homelab** : Authentik (IdP retenu).
 
 ---
 
@@ -71,26 +72,26 @@ En pratique homelab : **CI déclenchée par webhook (Keycloak event)** + **scrip
 
 ## 4. Approche recommandée (composée)
 
-Rester sur **Keycloak** (déjà prévu) et ajouter :
+Utiliser **Authentik** (choix homelab) et ajouter :
 
-1. **Self-registration** : activer dans le realm + User Profile si besoin (champs custom optionnels).
+1. **Self-registration** : activer dans Authentik (Flows, Enrollment) + attributs custom si besoin.
 2. **Catalogue « choix d’apps »** (hors admin/monitoring) :
-   - **Option A** : Petite app « onboarding » (ex. après première connexion) : liste d’apps autorisées (Navidrome, Nextcloud, Mealie, etc.) → l’utilisateur coche → sauvegarde en base ou en attributs Keycloak (ou groupes) → webhook vers CI.
-   - **Option B** : Utiliser uniquement les **groupes Keycloak** comme « abonnements » (ex. `family-app-navidrome`, `family-app-nextcloud`). Une page simple (ou un formulaire post-login) ajoute/retire l’utilisateur de ces groupes ; un event listener Keycloak ou un webhook sur changement de groupe déclenche la CI.
+   - **Option A** : Petite app « onboarding » (ex. après première connexion) : liste d’apps autorisées (Navidrome, Nextcloud, Mealie, etc.) → l’utilisateur coche → sauvegarde en base ou en attributs/groupes Authentik → webhook vers CI.
+   - **Option B** : Utiliser uniquement les **groupes Authentik** comme « abonnements » (ex. `family-app-navidrome`, `family-app-nextcloud`). Une page simple (ou un formulaire post-login) ajoute/retire l’utilisateur de ces groupes ; un Notification Transport (webhook) Authentik sur changement de groupe déclenche la CI.
 3. **CI (GitHub Actions ou équivalent)** :
-   - Déclenchée par **webhook** (Keycloak event listener ou plugin keycloak-webhook) : événements `REGISTER`, `UPDATE_GROUP_MEMBERSHIP`, etc.
+   - Déclenchée par **webhook** (Authentik Notification Transports) : événements user created, group membership updated, etc.
    - Payload : `user_id`, `email`, `groups` (ou liste d’apps).
    - La CI exécute pour chaque app sélectionnée un script/API qui crée le compte (et applique quotas/ressources si l’app le permet).
 4. **RBAC** :
-   - **Admin / monitoring** : rôles Keycloak dédiés (ex. `admin`, `monitoring`) ; pas proposés dans le catalogue famille.
-   - **Apps famille** : accès via groupes (ou rôles) mappés aux apps ; la CI ne crée des comptes que pour les apps dans la liste « catalogue famille ».
+   - **Admin / monitoring** : groupes Authentik dédiés (ex. `admin`, `monitoring`) ; pas proposés dans le catalogue famille.
+   - **Apps famille** : accès via groupes mappés aux apps ; la CI ne crée des comptes que pour les apps dans la liste « catalogue famille ».
 
 Résumé du flux :
 
 ```
-[Première connexion] → Keycloak self-register
+[Première connexion] → Authentik (enrollment / invitation)
        ↓
-[Page « Choisis tes apps »] → choix stocké (groupes Keycloak ou DB onboarding)
+[Page « Choisis tes apps »] → choix stocké (groupes Authentik ou DB onboarding)
        ↓
 [Event / webhook] → CI (GitHub Actions ou autre)
        ↓
@@ -101,8 +102,8 @@ Résumé du flux :
 
 ## 5. Options à trancher plus tard
 
-- **IdP** : rester sur Keycloak vs migrer vers Authentik (Authentik permet des flows plus riches, Keycloak a plus de plugins webhook/event).
-- **Stockage du choix d’apps** : groupes Keycloak uniquement vs table dédiée (app onboarding) avec webhook.
+- **IdP** : Authentik (choix homelab) ; Notification Transports pour webhooks.
+- **Stockage du choix d’apps** : groupes Authentik uniquement vs table dédiée (app onboarding) avec webhook.
 - **Quelles apps exposées dans le catalogue** : liste explicite (Navidrome, Nextcloud, Mealie, Komga, etc.) hors admin/monitoring ; à maintenir dans la config (YAML ou admin UI).
 - **Ressources par app** : selon les APIs (quotas Nextcloud, limites Navidrome, etc.) ; à coder dans les scripts de la CI.
 
@@ -111,8 +112,8 @@ Résumé du flux :
 ## 6. Synthèse
 
 - **Pas de solution open source unique** qui fasse tout.
-- **Recommandation** : composer **Keycloak** (self-registration + groupes/roles) + **catalogue « choix d’apps »** (petite app ou groupes) + **webhook → CI** qui crée les comptes par API/script dans chaque service avec les bonnes ressources.
-- Ce document peut alimenter une epic « RBAC & onboarding familial » et des stories (Keycloak self-registration, catalogue, webhook, CI par app).
+- **Recommandation** : composer **Authentik** (enrollment + groupes) + **catalogue « choix d’apps »** (petite app ou groupes) + **webhook → CI** (Notification Transports) qui crée les comptes par API/script dans chaque service avec les bonnes ressources.
+- Ce document peut alimenter une epic « RBAC & onboarding familial » et des stories (Authentik enrollment, catalogue, webhook, CI par app).
 
 ---
 

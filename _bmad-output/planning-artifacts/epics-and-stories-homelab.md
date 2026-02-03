@@ -9,8 +9,7 @@ stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step
 inputDocuments:
   - prd-homelab-2026-01-29.md (v2.0)
   - architecture-proxmox-omni.md (v6.0)
-  - session-travail-authentik.md (§6 décisions prises)
-  - decision-invitation-only-et-acces-cloudflare.md
+  - docs-site/docs/advanced/planning-conclusions.md (§4 Décisions Authentik, §3 invitation-only / Cloudflare)
 ---
 
 # Epics and Stories: Homelab Infrastructure
@@ -83,7 +82,7 @@ FR-020: Prometheus stack (Prometheus, Grafana, Loki, Alloy).
 FR-021: Alerting (Alertmanager, ntfy, Telegram).  
 FR-022: GitHub Actions CI (kubeval, yamllint, Trivy, GitGuardian).  
 FR-023: Dev/Prod promotion (DEV on push, stability period, manual/auto PROD).  
-FR-024: 3-2-1 backup (Velero, Restic/Volsync, ZFS snapshots, OVH offsite).  
+FR-024: 3-2-1 backup (Velero, Restic/Volsync, ZFS snapshots, oci).  
 FR-025: Critical data classification (tagging, retention, bandwidth).  
 FR-026: Windows gaming VM (Proxmox, GPU passthrough, Parsec/Moonlight).  
 FR-027: KubeVirt (future, on-demand gaming).  
@@ -917,13 +916,13 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 ### Epic 3.3: Identity & Access (Authentik)
 **Priority**: P0 (Critical)  
 **FR Reference**: FR-008  
-**Description**: Deploy Authentik SSO and configure 2-tier authentication (**invitation-only** onboarding, apps admin non exposées, service accounts). Toutes les connexions utilisateurs passent par **Cloudflare** (Tunnel). Design : session-travail-authentik.md §6, decision-invitation-only-et-acces-cloudflare.md.
+**Description**: Deploy Authentik SSO and configure 2-tier authentication (**invitation-only** onboarding, apps admin non exposées, service accounts). Toutes les connexions utilisateurs passent par **Cloudflare** (Tunnel). Design : docs-site/docs/advanced/planning-conclusions.md (§4, §3).
 
 **Epic-level Technical Notes**:
-- **Invitation-only** : self-registration désactivée ; onboarding uniquement par lien d’invitation (UI ou API Authentik). Flow d’enrollment avec Stage Invitation. Voir decision-invitation-only-et-acces-cloudflare.md.
+- **Invitation-only** : self-registration désactivée ; onboarding uniquement par lien d’invitation (UI ou API Authentik). Flow d’enrollment avec Stage Invitation. Voir docs-site/docs/advanced/planning-conclusions.md §3.
 - **Trafic utilisateur via Cloudflare** : Authentik et apps protégées exposés uniquement via Cloudflare Tunnel ; pas d’accès direct à l’origine pour les utilisateurs finaux.
 - **Terraform vs UI** : Terraform (provider goauthentik/authentik) gère la **structure** : groupes, applications, providers, policies, **service accounts** uniquement. Les **utilisateurs humains**, **invitations** et **qui est dans quel groupe** se gèrent dans l’UI Authentik (Directory → Users, Groups, Invitations) ou via API. Détail : `_bmad-output/implementation-artifacts/authentik-terraform-implementation.md` §3.
-- **Inspiration setup** : [GoAuthentik de A à Y](https://une-tasse-de.cafe/blog/goauthentik/) (une-tasse-de.cafe) pour flows/stages, invitations, accès par groupe, notifications, reverse proxy. Résumé : session-travail-authentik.md §7.1, implementation doc §2.
+- **Inspiration setup** : [GoAuthentik de A à Y](https://une-tasse-de.cafe/blog/goauthentik/) (une-tasse-de.cafe) pour flows/stages, invitations, accès par groupe, notifications, reverse proxy. Résumé : docs-site/docs/advanced/planning-conclusions.md, implementation doc §2.
 
 #### Story 3.3.1: Deploy Authentik
 **As a** developer administrator  
@@ -941,7 +940,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 
 **Technical Notes**:
 - Deploy via Docker Compose on oci-mgmt
-- Invitation-only : admin crée des invitations (Directory → Invitations ou API `POST /api/v3/stages/invitation/invitations/`) et envoie le lien ; pas de page d’inscription publique. Voir decision-invitation-only-et-acces-cloudflare.md.
+- Invitation-only : admin crée des invitations (Directory → Invitations ou API `POST /api/v3/stages/invitation/invitations/`) et envoie le lien ; pas de page d’inscription publique. Voir docs-site/docs/advanced/planning-conclusions.md §3.
 - Règle Cloudflare : s’assurer qu’aucune route utilisateur ne contourne Cloudflare (Tunnel comme seul point d’entrée pour auth et apps)
 
 ---
@@ -961,7 +960,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 **Technical Notes**:
 - Single instance protecting multiple services
 - Configure allowed groups (e.g. `family-validated`) ; admin apps not behind this proxy for family
-- Cohérent avec decision-invitation-only-et-acces-cloudflare.md : toutes les connexions utilisateurs passent par Cloudflare
+- Cohérent avec docs-site/docs/advanced/planning-conclusions.md §3 : toutes les connexions utilisateurs passent par Cloudflare
 
 ---
 
@@ -978,7 +977,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 
 **Technical Notes**:
 - Bindings : family apps → family groups ; admin apps → `admin` only
-- See session-travail-authentik.md §6.2 (listes apps famille vs admin) ; exposition via Cloudflare : decision-invitation-only-et-acces-cloudflare.md §3
+- See docs-site/docs/advanced/planning-conclusions.md §4.2 (listes apps famille vs admin)
 
 ---
 
@@ -994,7 +993,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 - [ ] Documentation or runbook for **onboarding par invitation** : admin crée une invitation (UI ou API), envoie le lien à l’utilisateur ; après enrollment, admin ajoute aux groupes si besoin ; webhook déclenche le provisionnement
 
 **Technical Notes**:
-- Invitation-only : pas de « validation » post-inscription ; l’admin envoie un lien d’invitation, l’utilisateur complète l’enrollment, l’admin ajoute aux groupes si besoin ; webhook triggers provisionnement. See session-travail-authentik.md §6.1, §6.3.
+- Invitation-only : pas de « validation » post-inscription ; l’admin envoie un lien d’invitation, l’utilisateur complète l’enrollment, l’admin ajoute aux groupes si besoin ; webhook triggers provisionnement. See docs-site/docs/advanced/planning-conclusions.md §4.1, §4.3.
 
 ---
 
@@ -1011,7 +1010,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 
 **Technical Notes**:
 - `authentik_user` with `type = "service_account"`
-- See session-travail-authentik.md §6.4
+- See docs-site/docs/advanced/planning-conclusions.md §4.4
 
 ---
 
@@ -1359,7 +1358,7 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 **Acceptance Criteria**:
 - [ ] Velero deployed on all clusters
 - [ ] Backup schedules configured
-- [ ] Cloud storage target (OVH S3)
+- [ ] Cloud storage target (ex. OCI S3)
 - [ ] Restoration tested
 - [ ] Backup monitoring in place
 
@@ -1378,11 +1377,10 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 - [ ] Volsync or Restic configured
 - [ ] Critical data identified and backed up
 - [ ] Encryption enabled (user-provided key)
-- [ ] OVH Object Storage target configured
+- [ ] Cloud Object Storage target configured (ex. OCI)
 - [ ] Backup verification automated
 
 **Technical Notes**:
-- 3TB free OVH storage
 - Deduplicate and compress
 
 ---

@@ -75,7 +75,7 @@ kind: Kustomization
 
 resources:
   - homepage/application.yaml
-  - keycloak/application.yaml
+  - authentik/application.yaml
   - uptime-kuma/application.yaml
   - fider/application.yaml
   - wikijs/application.yaml  # Nouveau!

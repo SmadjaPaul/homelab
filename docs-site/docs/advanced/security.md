@@ -29,7 +29,7 @@ sidebar_position: 3
 |---------|-------|
 | Cloudflare Access | Services admin (emails autorisés) |
 | Twingate | Accès infrastructure |
-| Keycloak | SSO pour applications |
+| Authentik | SSO pour applications |
 
 ### 3. Réseau
 
@@ -105,11 +105,11 @@ repos:
 
 ## Authentification
 
-### Keycloak SSO
+### Authentik SSO
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   User      │────▶│   Keycloak   │────▶│   Service   │
+│   User      │────▶│   Authentik   │────▶│   Service   │
 │             │     │   (OIDC)     │     │             │
 └─────────────┘     └──────────────┘     └─────────────┘
 ```

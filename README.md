@@ -59,7 +59,7 @@ Personal homelab running on Proxmox VE with Kubernetes (Talos Linux via Omni), m
 | Homepage | https://home.smadja.dev | Dashboard |
 | Grafana | https://grafana.smadja.dev | Monitoring |
 | ArgoCD | https://argocd.smadja.dev | GitOps |
-| Keycloak | https://auth.smadja.dev | SSO |
+| Authentik | https://auth.smadja.dev | SSO |
 
 ## Quick Start
 
@@ -109,7 +109,7 @@ homelab/
 │   ├── apps/             # User applications
 │   ├── infrastructure/   # Cluster infrastructure
 │   └── monitoring/       # Observability stack
-├── docs/                 # Documentation
+├── docs-site/docs/       # Documentation (runbooks, architecture, décisions & limites)
 └── scripts/              # Helper scripts
 ```
 
@@ -123,16 +123,21 @@ homelab/
 | Cloudflare | Free | Unlimited DNS, CDN, Tunnel |
 | GitHub | Free | Unlimited repos |
 
+## Documentation
+
+- **[docs-site/](docs-site/)** — Site Docusaurus : runbooks (incidents, rotation des clés), architecture, décisions & limites (state Terraform, CI/CD, free tiers). C’est la seule source de doc opérationnelle.
+- **[_bmad-output/planning-artifacts/README.md](_bmad-output/planning-artifacts/README.md)** — Livrables BMad (PRD, architecture, epics).
+- **Recréer les secrets** : [docs-site/docs/runbooks/rotate-secrets.md](docs-site/docs/runbooks/rotate-secrets.md). Liste et dépannage : [.github/DEPLOYMENTS.md](.github/DEPLOYMENTS.md).
+
 ## Secrets Management
 
 Secrets are stored in:
-- **GitHub Secrets** - CI/CD credentials
-- **Kubernetes Secrets** - App secrets (via external-secrets later)
+- **GitHub Secrets** — CI/CD credentials (OCI session token, Cloudflare, etc.). See [Rotate secrets](docs-site/docs/runbooks/rotate-secrets.md) and [.github/DEPLOYMENTS.md](.github/DEPLOYMENTS.md).
+- **OCI Vault** (optional) — Terraform-created vault for CI secrets. See [terraform/oracle-cloud/README.md](terraform/oracle-cloud/README.md#oci-vault-secrets-pour-la-ci--free-tier).
+- **Kubernetes Secrets** — App secrets (SOPS + Age, or external-secrets later).
 
 Never commit secrets to the repository!
 
 ## Links
 
-- [Oracle Cloud Free Tier Limits](docs/oracle-free-tier-limits.md)
-- [Cloudflare Free Tier Info](docs/cloudflare-free-tier.md)
-- [Setup OCI CI/CD](docs/setup-oci-cicd.md)
+- [Architecture & décisions / limites](docs-site/docs/advanced/architecture.md) — Vue d’ensemble et [Décisions et limites](docs-site/docs/advanced/decisions-and-limits.md) (free tiers OCI/Cloudflare, state Terraform, CI/CD).

@@ -1,15 +1,15 @@
-# Network Policies for Keycloak Namespace
+# Network Policies for Authentik (identity namespace)
 ---
-# Allow Keycloak to receive traffic from ingress
+# Allow Authentik to receive traffic from ingress / tunnel
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-keycloak-ingress
-  namespace: keycloak
+  name: allow-authentik-ingress
+  namespace: identity
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/name: authentik
   policyTypes:
     - Ingress
   ingress:
@@ -20,7 +20,7 @@ spec:
               kubernetes.io/metadata.name: cloudflared
       ports:
         - protocol: TCP
-          port: 8080
+          port: 9000
     # From other apps needing OIDC
     - from:
         - namespaceSelector:
@@ -28,26 +28,26 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 8080
+          port: 9000
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: argocd
       ports:
         - protocol: TCP
-          port: 8080
+          port: 9000
 
 ---
-# Allow Keycloak to reach its PostgreSQL database
+# Allow Authentik to reach PostgreSQL and Redis
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-keycloak-postgres
-  namespace: keycloak
+  name: allow-authentik-egress
+  namespace: identity
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/name: authentik
   policyTypes:
     - Egress
   egress:
@@ -59,6 +59,14 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # To Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
     # DNS
     - to:
         - namespaceSelector:
@@ -69,12 +77,12 @@ spec:
           port: 53
 
 ---
-# Allow PostgreSQL to receive from Keycloak only
+# Allow PostgreSQL to receive from Authentik only
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-postgres-ingress
-  namespace: keycloak
+  name: allow-postgres-ingress-from-authentik
+  namespace: identity
 spec:
   podSelector:
     matchLabels:
@@ -85,7 +93,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: keycloak
+              app.kubernetes.io/name: authentik
       ports:
         - protocol: TCP
           port: 5432

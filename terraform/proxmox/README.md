@@ -9,12 +9,12 @@ Configuration Terraform pour **Proxmox VE** avec le provider [bpg/proxmox](https
 - **API Token** pour la prod et le CI/CD
 - Ressources : VMs, LXC, fichiers, téléchargements, ACL, etc.
 
-Autres providers (Telmate, Terraform-for-Proxmox) sont moins actifs ou moins complets. Voir [docs/proxmox-terraform-best-practices.md](../docs/proxmox-terraform-best-practices.md) pour la comparaison et les bonnes pratiques.
+Autres providers (Telmate, Terraform-for-Proxmox) sont moins actifs ou moins complets. Bonnes pratiques : [docs-site/docs/advanced/decisions-and-limits.md](../docs-site/docs/advanced/decisions-and-limits.md) (state Terraform).
 
 ## Prérequis
 
 1. **Proxmox VE** installé et accessible (ex. `https://192.168.68.51:8006/`).
-2. **Utilisateur Proxmox dédié** + **API Token** (recommandé) — voir [bonnes pratiques](../docs/proxmox-terraform-best-practices.md#1-authentification).
+2. **Utilisateur Proxmox dédié** + **API Token** (recommandé).
 3. **ZFS** (optionnel) : créer les pools et storages avant ou après avec `scripts/proxmox/setup-zfs.sh`, puis adapter `pm_storage_vm` / `pm_storage_iso` dans les variables.
 
 ## Démarrage
@@ -62,10 +62,10 @@ Le module crée **3 VMs** pour les clusters Talos (voir [architecture-proxmox-om
 
 - **Stockage** : `pm_storage_vm` (ex. `tank-vm`). Pour VMs rapides, utiliser `nvme-vm` et adapter la ressource.
 - **VM IDs** : 100 (dev), 101 (prod-cp), 102 (prod-worker-1) par défaut ; modifiables via `talos_dev_vm_id`, etc.
-- **Premier boot** : définir `talos_iso_file` dans `terraform.tfvars` (ex. `v1.12.2-metal-amd64.iso`) après avoir uploadé l’ISO sur `pm_storage_iso` (ex. tank-iso). Terraform attache l’ISO en CD-ROM et met l’ordre de boot (CD puis disque). Démarrer les VMs, puis suivre [docs/BOOTSTRAP.md](../docs/BOOTSTRAP.md) pour `talosctl apply-config` et récupération du kubeconfig.
-- **Quelle image prendre** (ISO vs qcow2, version, extensions) : voir [docs/proxmox-talos-setup-verification.md](../docs/proxmox-talos-setup-verification.md#6-choix-dimage-talos-et-bonnes-pratiques).
+- **Premier boot** : définir `talos_iso_file` dans `terraform.tfvars` (ex. `v1.12.2-metal-amd64.iso`) après avoir uploadé l’ISO sur `pm_storage_iso` (ex. tank-iso). Terraform attache l’ISO en CD-ROM et met l’ordre de boot (CD puis disque). Démarrer les VMs, puis exécuter `talosctl apply-config` et récupérer le kubeconfig selon la doc Talos.
+- **Quelle image** : ISO Talos metal amd64 sur le storage ISO.
 
 ## Suite
 
-- **Bonnes pratiques** : [docs/proxmox-terraform-best-practices.md](../docs/proxmox-terraform-best-practices.md)
-- **ZFS** : [docs/proxmox-setup-guide.md](../docs/proxmox-setup-guide.md), [scripts/proxmox/setup-zfs-14tb-only.sh](../../scripts/proxmox/setup-zfs-14tb-only.sh)
+- **State Terraform** : [docs-site/docs/advanced/decisions-and-limits.md](../docs-site/docs/advanced/decisions-and-limits.md)
+- **ZFS** : [scripts/proxmox/setup-zfs-14tb-only.sh](../../scripts/proxmox/setup-zfs-14tb-only.sh)

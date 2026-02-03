@@ -110,7 +110,7 @@ spec:
 | argocd | GitOps |
 | monitoring | Prometheus, Grafana, Loki |
 | cert-manager | Certificats |
-| keycloak | Identity |
+| authentik | Identity |
 | velero | Backups |
 | uptime-kuma | Status page |
 | fider | Feedback |

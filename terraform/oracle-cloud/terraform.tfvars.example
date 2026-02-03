@@ -23,6 +23,19 @@ budget_alert_email = "your-email@example.com"
 # Find it: OCI Console → Profile (top right) → User Settings → OCID
 user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
+# -----------------------------------------------------------------------------
+# OCI Vault secrets (optional — create in OCI for CI / scripts)
+# Local: set via .env (TF_VAR_vault_secret_*) or here. Empty = secret not created.
+# CI: vault_secrets_managed_in_ci=true is set in workflow → secrets kept, content
+#     not overwritten when vars are null. Never commit real values.
+# -----------------------------------------------------------------------------
+# vault_secret_cloudflare_api_token = ""
+# vault_secret_tfstate_dev_token    = ""
+# vault_secret_omni_db_user         = ""
+# vault_secret_omni_db_password     = ""
+# vault_secret_omni_db_name         = ""
+# vault_secret_oci_mgmt_ssh_private_key = ""
+
 # Optional: Customize instance sizes (defaults are optimized for Always Free)
 # management_vm = {
 #   name   = "oci-mgmt"

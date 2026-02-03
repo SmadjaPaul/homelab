@@ -126,8 +126,8 @@ homelab/
 │   ├── monitoring/      # Observability
 │   └── apps/            # User apps
 ├── scripts/             # Helpers
-├── docs/                # Documentation source
-├── docs-site/           # Docusaurus
+├── docs-site/docs/      # Documentation (runbooks, architecture, décisions & limites)
+├── docs-site/           # Docusaurus (build du site)
 └── secrets/             # Encrypted secrets
 ```
 

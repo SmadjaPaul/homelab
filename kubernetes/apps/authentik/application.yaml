@@ -1,0 +1,59 @@
+# Authentik - Identity and Access Management
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: authentik
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.goauthentik.io
+    chart: authentik
+    targetRevision: "10"
+    helm:
+      valuesObject:
+        # Secret key (set via existingSecret in production)
+        authentik:
+          secret_key: "" # Use secretKeyRef or ESO in production
+          error_reporting_enabled: false
+          disable_update_check: true
+
+        # Server
+        server:
+          replicas: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          ingress:
+            enabled: false # We use Cloudflare Tunnel
+
+        # PostgreSQL (embedded)
+        postgresql:
+          enabled: true
+          auth:
+            password: "" # Use existingSecret in production
+          primary:
+            persistence:
+              enabled: true
+              size: 1Gi
+
+        # Redis (for cache/celery)
+        redis:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: identity
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

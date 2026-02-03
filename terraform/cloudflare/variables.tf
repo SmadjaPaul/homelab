@@ -39,9 +39,9 @@ variable "homelab_services" {
       internal    = false
       user_facing = true
     }
-    keycloak = {
+    authentik = {
       subdomain   = "auth"
-      description = "Keycloak SSO"
+      description = "Authentik SSO"
       internal    = false
       user_facing = true
     }

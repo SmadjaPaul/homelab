@@ -27,53 +27,36 @@ Oracle Cloud offre des ressources gratuites à vie.
 
 | VM | OCPUs | RAM | Disk | Rôle |
 |----|-------|-----|------|------|
-| oci-mgmt | 1 | 6 GB | 50 GB | Omni, Keycloak |
+| oci-mgmt | 1 | 6 GB | 50 GB | Omni, Authentik |
 | oci-node-1 | 2 | 12 GB | 64 GB | K8s worker |
 | oci-node-2 | 1 | 6 GB | 75 GB | K8s worker |
 | **Total** | **4** | **24 GB** | **189 GB** | ✅ Dans les limites |
 
 ## Terraform
 
-### Configuration
+### Authentification
 
-```hcl
-# terraform/oracle-cloud/main.tf
-provider "oci" {
-  region           = var.region
-  tenancy_ocid     = var.tenancy_ocid
-  user_ocid        = var.user_ocid
-  fingerprint      = var.fingerprint
-  private_key_path = var.private_key_path
-}
-```
+- **En local** : `~/.oci/config` ou variables d'environnement `OCI_CLI_*`.
+- **En CI (GitHub Actions)** : **session token OCI** (court terme) au lieu d'une clé API. Les secrets sont générés par `./scripts/oci-session-auth-to-gh.sh` (navigateur OCI). Voir [Rotate secrets](../runbooks/rotate-secrets.md) et [.github/DEPLOYMENTS.md](https://github.com/SmadjaPaul/homelab/blob/main/.github/DEPLOYMENTS.md) ; détails Terraform : `terraform/oracle-cloud/README.md` à la racine du dépôt.
 
 ### Déploiement
 
 ```bash
 cd terraform/oracle-cloud
-
-# Plan
+terraform init -reconfigure   # Backend OCI Object Storage (state)
 terraform plan
-
-# Apply
 terraform apply
 ```
 
+Le **state** est stocké dans OCI Object Storage (bucket `homelab-tfstate`). Le namespace tenancy est injecté en CI via le secret `OCI_OBJECT_STORAGE_NAMESPACE`.
+
+### OCI Vault (secrets)
+
+Un Vault OCI (KMS, free tier) et des secrets peuvent être créés via Terraform (variables `vault_secret_*`). En CI, les secrets existants ne sont pas détruits ni écrasés (`vault_secrets_managed_in_ci`). Voir `terraform/oracle-cloud/README.md` (section OCI Vault) à la racine du dépôt.
+
 ### Quota Validation
 
-Le Terraform inclut une validation automatique des quotas :
-
-```hcl
-# terraform/oracle-cloud/quota-validation.tf
-resource "null_resource" "quota_check" {
-  lifecycle {
-    precondition {
-      condition     = local.total_ocpus <= 4
-      error_message = "Dépasse le free tier ARM"
-    }
-  }
-}
-```
+Le Terraform inclut une validation des quotas free tier (4 OCPUs, 24 GB RAM ARM). En cas de dépassement, le workflow échoue avant apply.
 
 ## Budget Alerts
 
@@ -119,16 +102,12 @@ Les VMs ARM sont très demandées. Si vous voyez cette erreur :
 ./scripts/oci-capacity-retry.sh
 ```
 
-### Authentication issues
+### Authentication issues (CI)
 
-Vérifier :
-
-1. Fingerprint correspond à la clé uploadée
-2. Clé privée au bon format (PEM)
-3. User OCID correct
-4. Tenancy OCID correct
+En CI, l'authentification utilise un **session token** (pas une clé API). Si le token a expiré (60 min par défaut), relancer :
 
 ```bash
-# Tester l'authentification
-oci iam user get --user-id $USER_OCID
+./scripts/oci-session-auth-to-gh.sh
 ```
+
+En local : vérifier `~/.oci/config` ou les variables `OCI_CLI_*`. Tester avec `oci iam user get --user-id $USER_OCID`.

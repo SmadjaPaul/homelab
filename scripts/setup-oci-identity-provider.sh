@@ -77,6 +77,7 @@ echo ""
 echo -e "${YELLOW}📋 Checking for existing Identity Provider...${NC}"
 EXISTING_IDP=$(oci iam identity-provider list \
   --compartment-id "$TENANCY_OCID" \
+  --protocol SAML2 \
   --query "data[?name=='$IDENTITY_PROVIDER_NAME'].id" \
   --raw-output 2>/dev/null | head -1 || echo "")
 
@@ -93,7 +94,7 @@ else
   "name": "$IDENTITY_PROVIDER_NAME",
   "description": "GitHub Actions OIDC Identity Provider for secure CI/CD authentication",
   "productType": "IDCS",
-  "protocol": "SAML2.0",
+  "protocol": "SAML2",
   "metadataUrl": "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
 }
 EOF
@@ -102,28 +103,42 @@ EOF
   # Create Identity Provider
   IDP_RESPONSE=$(echo "$IDP_JSON" | oci iam identity-provider create \
     --compartment-id "$TENANCY_OCID" \
+    --protocol SAML2 \
     --from-json file:///dev/stdin 2>&1 || echo "")
 
-  if echo "$IDP_RESPONSE" | grep -q "already exists\|duplicate"; then
+  # Check response
+  if echo "$IDP_RESPONSE" | grep -q "ServiceError\|InvalidParameter\|metadata must not be empty"; then
+    echo -e "${YELLOW}⚠️  Identity Provider creation via CLI requires metadata XML.${NC}"
+    echo -e "${YELLOW}📝 For GitHub Actions OIDC, the Identity Provider should be created via OCI Console.${NC}"
+    echo ""
+    echo "To create it manually:"
+    echo "1. Go to: OCI Console → Identity & Security → Domains → Default Domain → Identity Providers"
+    echo "2. Click 'Create Identity Provider'"
+    echo "3. Select 'SAML 2.0' protocol"
+    echo "4. Name: $IDENTITY_PROVIDER_NAME"
+    echo "5. Choose 'Import IdP URL' and enter: https://token.actions.githubusercontent.com/.well-known/openid-configuration"
+    echo "6. Configure group mapping after creation"
+    echo ""
+    echo -e "${YELLOW}⚠️  Continuing with group and policy setup...${NC}"
+    IDP_OCID=""
+  elif echo "$IDP_RESPONSE" | grep -q "already exists\|duplicate"; then
     echo -e "${YELLOW}⚠️  Identity Provider may already exist, checking...${NC}"
     IDP_OCID=$(oci iam identity-provider list \
       --compartment-id "$TENANCY_OCID" \
+      --protocol SAML2 \
       --query "data[?name=='$IDENTITY_PROVIDER_NAME'].id" \
-      --raw-output | head -1)
-  elif echo "$IDP_RESPONSE" | grep -q "id"; then
-    IDP_OCID=$(echo "$IDP_RESPONSE" | jq -r '.data.id // empty' 2>/dev/null || echo "")
+      --raw-output 2>/dev/null | head -1 || echo "")
+    if [ -n "$IDP_OCID" ]; then
+      echo -e "${GREEN}✅ Found existing Identity Provider: $IDP_OCID${NC}"
+    fi
+  elif echo "$IDP_RESPONSE" | jq -e '.data.id' >/dev/null 2>&1; then
+    IDP_OCID=$(echo "$IDP_RESPONSE" | jq -r '.data.id')
+    echo -e "${GREEN}✅ Identity Provider created: $IDP_OCID${NC}"
   else
-    echo -e "${RED}❌ Failed to create Identity Provider:${NC}"
-    echo "$IDP_RESPONSE"
-    exit 1
+    echo -e "${YELLOW}⚠️  Could not create Identity Provider via CLI.${NC}"
+    echo -e "${YELLOW}📝 Please create it manually via OCI Console (see instructions above).${NC}"
+    IDP_OCID=""
   fi
-
-  if [ -z "$IDP_OCID" ]; then
-    echo -e "${RED}❌ Could not determine Identity Provider OCID${NC}"
-    exit 1
-  fi
-
-  echo -e "${GREEN}✅ Identity Provider created: $IDP_OCID${NC}"
 fi
 
 # Step 2: Create IAM Group if it doesn't exist

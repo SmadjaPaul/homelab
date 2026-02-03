@@ -36,7 +36,7 @@ Internet → Cloudflare → Tunnel → cloudflared (K8s) → Service
 | Subdomain | Service | Accès |
 |-----------|---------|-------|
 | home.smadja.dev | Homepage | Public |
-| auth.smadja.dev | Keycloak | Public |
+| auth.smadja.dev | Authentik | Public |
 | status.smadja.dev | Uptime Kuma | Public |
 | feedback.smadja.dev | Fider | Public |
 | grafana.smadja.dev | Grafana | Cloudflare Access |

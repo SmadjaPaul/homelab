@@ -43,7 +43,7 @@ spec:
             # Only user-facing services
             - Applications:
                 - Connexion:
-                    icon: keycloak.svg
+                    icon: authentik.svg
                     href: https://auth.smadja.dev
                     description: Se connecter
             - Support:

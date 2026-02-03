@@ -1,4 +1,4 @@
-# Groups (session-travail-authentik.md §6.1, §6.2)
+# Groups (docs-site/docs/advanced/planning-conclusions.md §4.1, §4.5)
 # admin: access to admin apps only
 # family-validated: validated users; required (with optional app groups) for family apps
 

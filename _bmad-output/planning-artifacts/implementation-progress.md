@@ -45,15 +45,15 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 | Story | Status | Notes |
 |-------|--------|-------|
 | 1.1.1 Install Proxmox VE | ✅ | Installé à 192.168.68.51 |
-| 1.1.2 Configure ZFS Storage | ✅ | **Implémenté** : 2×14 To en miroir. Scripts : `scripts/proxmox/setup-zfs-14tb-only.sh`, `setup-nvme-cache.sh`. Guide : [docs/proxmox-setup-guide.md](../../docs/proxmox-setup-guide.md), [docs/proxmox-zfs-storage.md](../../docs/proxmox-zfs-storage.md) |
+| 1.1.2 Configure ZFS Storage | ✅ | **Implémenté** : 2×14 To en miroir. Scripts : `scripts/proxmox/setup-zfs-14tb-only.sh`, `setup-nvme-cache.sh`. |
 | 1.1.3 Configure GPU Passthrough | ⏳ | Pending |
-| 1.1.4 Setup Terraform Provider | ✅ | **bpg/proxmox** dans `terraform/proxmox/`. Voir [docs/proxmox-terraform-best-practices.md](../../docs/proxmox-terraform-best-practices.md), [docs/proxmox-api-token.md](../../docs/proxmox-api-token.md) |
+| 1.1.4 Setup Terraform Provider | ✅ | **bpg/proxmox** dans `terraform/proxmox/`. Voir `terraform/proxmox/README.md`. |
 
 ### Epic 1.2: Talos Linux DEV Cluster
 
 | Story | Status | Notes |
 |-------|--------|-------|
-| 1.2.1 Create Talos VM via Terraform | ✅ | **talos-vms.tf** : talos-dev (2 vCPU, 4 GB, 50 GB). Premier boot : attacher ISO Talos en CDROM puis `talosctl apply-config`. Voir [docs/proxmox-talos-setup-verification.md](../../docs/proxmox-talos-setup-verification.md) |
+| 1.2.1 Create Talos VM via Terraform | ✅ | **talos-vms.tf** : talos-dev (2 vCPU, 4 GB, 50 GB). Premier boot : attacher ISO Talos en CDROM puis `talosctl apply-config`. Voir `terraform/proxmox/README.md`. |
 | 1.2.2 Bootstrap DEV Cluster | ⏳ | Après ZFS + boot VM : `talosctl apply-config`, bootstrap. Config Talos : `talos/` |
 | 1.2.3 Configure Talos Machine Config | 🟢 Ready | Configs dans `talos/` (controlplane.yaml, worker.yaml). Omni ClusterTemplate à faire après 1.3 |
 
@@ -61,7 +61,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 | Story | Status | Notes |
 |-------|--------|-------|
-| 1.3.1 Provision OCI Management VM | ✅ | **Terraform prêt** : `terraform/oracle-cloud/` — VM 1 OCPU, 6 GB, 50 GB, Ubuntu 24.04, Docker (cloud-init), IP publique réservée, SSH par clé. Bloqué en apply par capacité ARM OCI ; relancer `terraform apply` ou `scripts/oci-capacity-retry.sh`. Voir [docs/oci-management-vm.md](../../docs/oci-management-vm.md) |
+| 1.3.1 Provision OCI Management VM | ✅ | **Terraform prêt** : `terraform/oracle-cloud/` — VM 1 OCPU, 6 GB, 50 GB, Ubuntu 24.04, Docker (cloud-init), IP publique réservée, SSH par clé. Bloqué en apply par capacité ARM OCI ; relancer `terraform apply` ou `scripts/oci-capacity-retry.sh`. Voir `terraform/oracle-cloud/README.md`. |
 | 1.3.2 Deploy Omni Server | 🟢 Ready | Squelette : `docker/oci-mgmt/` (docker-compose Omni + PostgreSQL). À déployer sur la VM OCI après 1.3.1. Voir [docker/oci-mgmt/README.md](../../docker/oci-mgmt/README.md) |
 | 1.3.3 Register DEV Cluster with Omni | ⏳ | Dépend de 1.3.2 |
 | 1.3.4 Configure MachineClasses | ⏳ | Dépend de Omni — `omni/machine-classes/` |
@@ -151,9 +151,9 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Keycloak | ✅ | ArgoCD Application + realm dans `kubernetes/apps/keycloak/` |
-| oauth2-proxy | ⏳ | À déployer avec Keycloak (Tier 1) |
-| Keycloak Clients (OIDC) | 🟢 Ready | Realm `homelab` — à finaliser après déploiement |
+| Authentik | ✅ | ArgoCD Application dans `kubernetes/apps/authentik/` ; config Terraform `terraform/authentik/` |
+| oauth2-proxy | ⏳ | À déployer avec Authentik (Tier 1) |
+| Authentik Clients (OIDC) | 🟢 Ready | Applications/providers dans Terraform — à finaliser après déploiement |
 
 ### Epic 3.4: Cloudflare Tunnel & Zero Trust
 
@@ -170,7 +170,6 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 |------|--------|-------|
 | terraform-oci.yml | ✅ | Plan + Apply |
 | terraform-cloudflare.yml | ✅ | Plan + Apply |
-| terraform-ovhcloud.yml | ✅ | Plan + Apply |
 | security.yml | ✅ | Gitleaks, Trivy, tfsec, Kubescape |
 | Pre-commit hooks | ✅ | `.pre-commit-config.yaml` |
 
@@ -180,7 +179,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 | Epic | Status | Notes |
 |------|--------|-------|
-| 4.1 Critical Services (Nextcloud, Vaultwarden, Baïkal) | ⬜ | Dépend de Phase 3 (CLOUD cluster, Keycloak, Twingate) |
+| 4.1 Critical Services (Nextcloud, Vaultwarden, Baïkal) | ⬜ | Dépend de Phase 3 (CLOUD cluster, Authentik, Twingate) |
 | 4.2 Media (Comet, Navidrome, Lidarr) | ⬜ | Idem |
 | 4.3 Home (Home Assistant, Audiobookshelf, Komga, Romm) | ⬜ | Cluster PROD |
 | 4.4 Dashboard (Glance) | ⬜ | CLOUD |
@@ -213,7 +212,6 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 |--------|----------|--------|
 | Oracle Cloud | `terraform/oracle-cloud/` | ✅ Applied (réseau, bucket, budget — VMs en attente capacité ARM) |
 | Cloudflare | `terraform/cloudflare/` | ✅ Applied |
-| OVHcloud | `terraform/ovhcloud/` | ✅ Applied (Object Storage Paris) |
 | Proxmox | `terraform/proxmox/` | ✅ Prêt (bpg/proxmox, talos-vms.tf) |
 
 ### Kubernetes Manifests
@@ -223,7 +221,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 | ArgoCD | `kubernetes/argocd/` | App-of-apps, install, values |
 | Infrastructure | `kubernetes/infrastructure/` | cert-manager, cloudflared, twingate, reloader, velero, network-policies |
 | Monitoring | `kubernetes/monitoring/` | prometheus, grafana, loki, alertmanager |
-| Apps | `kubernetes/apps/` | homepage, keycloak, uptime-kuma, fider, docusaurus |
+| Apps | `kubernetes/apps/` | homepage, authentik, uptime-kuma, fider, docusaurus |
 
 ### Security & Tooling
 
@@ -240,20 +238,8 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 | Document | Location |
 |----------|----------|
-| Bootstrap | `docs/BOOTSTRAP.md` |
-| Architecture | `docs/architecture-diagram.md` |
-| Cloudflare | `docs/cloudflare-free-tier.md` |
-| Oracle | `docs/oracle-free-tier-limits.md` |
-| Keycloak SSO | `docs/keycloak-sso.md` |
-| Twingate | `docs/twingate-setup.md` |
-| Velero | `docs/velero-backup-restore.md` |
-| User Services | `docs/user-services.md` |
-| OCI CI/CD | `docs/setup-oci-cicd.md` |
-| Proxmox Terraform | `docs/proxmox-terraform-best-practices.md`, `docs/proxmox-api-token.md` |
-| Proxmox ZFS | `docs/proxmox-zfs-storage.md` |
-| Proxmox Setup | `docs/proxmox-setup-guide.md` |
-| Proxmox + Talos | `docs/proxmox-talos-setup-verification.md` |
-| OVHcloud | `docs/setup-ovh-cloud.md` |
+| Architecture & run | `docs-site/docs/advanced/architecture.md`, `docs-site/docs/advanced/decisions-and-limits.md` |
+| Runbooks | `docs-site/docs/runbooks/` (incidents, rotate-secrets, upgrade-cluster) |
 | Secrets | `secrets/README.md` |
 
 ---

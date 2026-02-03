@@ -60,7 +60,7 @@ Ce homelab est une infrastructure hybride combinant :
 | Secrets | SOPS + Age |
 | DNS/CDN | Cloudflare |
 | Monitoring | Prometheus + Grafana + Loki |
-| SSO | Keycloak |
+| SSO | Authentik |
 
 ## Coût mensuel
 
@@ -68,5 +68,4 @@ Ce homelab est une infrastructure hybride combinant :
 |----------|---------|------|
 | Oracle Cloud | VMs ARM | **Gratuit** |
 | Cloudflare | DNS + Tunnel | **Gratuit** |
-| OVHcloud | Domaine | ~10€/an |
 | **Total** | | **~1€/mois** |
