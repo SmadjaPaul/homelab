@@ -32,26 +32,23 @@ resource "cloudflare_record" "www" {
 }
 
 # =============================================================================
-# Homelab Service DNS Records (via Tunnel)
-# These will be CNAMEs pointing to the Tunnel
+# Homelab Service DNS Records
+# When enable_tunnel = false: A records (placeholder)
+# When enable_tunnel = true: CNAMEs are in tunnel.tf (tunnel_cname), not here
 # =============================================================================
 
-# Placeholder records for services - will point to Tunnel later
+# Placeholder A records only when tunnel is disabled (tunnel uses CNAME, can't overwrite A→CNAME)
 resource "cloudflare_record" "homelab_services" {
-  for_each = var.homelab_services
+  for_each = var.enable_tunnel ? {} : var.homelab_services
 
   zone_id         = var.zone_id
   name            = each.value.subdomain
-  content         = "192.0.2.1" # Placeholder - will be Tunnel UUID
+  content         = "192.0.2.1" # Placeholder
   type            = "A"
   proxied         = true
   ttl             = 1
   comment         = each.value.description
-  allow_overwrite = true # Allow overwriting existing records
-
-  lifecycle {
-    ignore_changes = [content, type] # Will be managed by Tunnel later
-  }
+  allow_overwrite = true
 }
 
 # =============================================================================
