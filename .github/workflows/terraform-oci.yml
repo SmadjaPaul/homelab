@@ -56,6 +56,8 @@ jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    # Skip validation for force-unlock and destroy actions
+    if: github.event.inputs.action != 'force-unlock' && github.event.inputs.action != 'destroy'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +83,8 @@ jobs:
   quota-check:
     name: Free Tier Quota Check
     runs-on: ubuntu-latest
+    # Skip quota check for force-unlock and destroy actions
+    if: github.event.inputs.action != 'force-unlock' && github.event.inputs.action != 'destroy'
     outputs:
       quota_ok: ${{ steps.check.outputs.quota_ok }}
     steps:
