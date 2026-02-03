@@ -144,6 +144,7 @@ jobs:
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
       # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
       TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
+      TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -292,6 +293,7 @@ jobs:
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
       # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
       TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
+      TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -502,6 +504,7 @@ jobs:
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
       # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
       TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
+      TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -123,8 +123,9 @@ resource "oci_vault_secret" "oci_mgmt_ssh_private_key" {
 # =============================================================================
 
 # Cloudflare Tunnel Token (for cloudflared on OCI VM)
+# Only created when content is provided; in CI create via scripts/create-oci-mgmt-secrets.sh
 resource "oci_vault_secret" "cloudflare_tunnel_token" {
-  count          = (length(try(var.vault_secret_cloudflare_tunnel_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_cloudflare_tunnel_token, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -141,8 +142,9 @@ resource "oci_vault_secret" "cloudflare_tunnel_token" {
 }
 
 # PostgreSQL password (shared database for Authentik + Omni)
+# Only created when content is provided; in CI create via scripts/create-oci-mgmt-secrets.sh
 resource "oci_vault_secret" "postgres_password" {
-  count          = (length(try(var.vault_secret_postgres_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_postgres_password, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -159,8 +161,9 @@ resource "oci_vault_secret" "postgres_password" {
 }
 
 # Authentik secret key (for session encryption)
+# Only created when content is provided; in CI create via scripts/create-oci-mgmt-secrets.sh
 resource "oci_vault_secret" "authentik_secret_key" {
-  count          = (length(try(var.vault_secret_authentik_secret_key, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_authentik_secret_key, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id

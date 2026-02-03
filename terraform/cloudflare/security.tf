@@ -51,8 +51,29 @@ resource "cloudflare_zone_settings_override" "security" {
 # Bot Fight Mode - Enable via Cloudflare Dashboard
 # Dashboard > Security > Bots > Bot Fight Mode = ON
 
-# WAF Custom Rules - Create via Dashboard (free tier limit: 5 rules)
-# The API token doesn't have WAF permissions, configure manually:
+# =============================================================================
+# Geo-restriction: allow traffic only from allowed countries (e.g. France)
+# =============================================================================
+# Block requests from IPs outside the allowed countries (ip.src.country).
+# Free tier: zone-level custom rulesets are available. Only 5 rules allowed.
+
+resource "cloudflare_ruleset" "geo_restrict" {
+  count = var.enable_geo_restriction && length(var.allowed_countries) > 0 ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "Homelab - Geo restriction (allow ${join(", ", var.allowed_countries)} only)"
+  description = "Block traffic from countries not in allowed list"
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    action      = "block"
+    description = "Block access from outside allowed countries"
+    expression  = length(var.allowed_countries) == 1 ? "(ip.src.country ne \"${var.allowed_countries[0]}\")" : "(not ip.src.country in {${join(" ", formatlist("\"%s\"", var.allowed_countries))}})"
+  }
+}
+
+# WAF Custom Rules - Additional rules can be added via Dashboard (free tier limit: 5 rules)
 # Dashboard > Security > WAF > Custom Rules
 #
 # Recommended rules to add manually:

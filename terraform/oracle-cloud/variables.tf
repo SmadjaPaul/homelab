@@ -119,6 +119,14 @@ variable "enable_ssh_access" {
   default     = true
 }
 
+# Temporary: allow SSH from anywhere (e.g. for CI until runner IPs are in allowlist)
+# Set to true only to unblock deploy-oci-mgmt; then set back to false and use admin_allowed_cidrs or self-hosted runner
+variable "allow_ssh_from_anywhere" {
+  description = "If true, allow SSH (22) from 0.0.0.0/0. Use only temporarily for CI."
+  type        = bool
+  default     = false
+}
+
 # GitHub Actions IP ranges for CI/CD access
 # These are relatively stable but can change - check https://api.github.com/meta
 variable "github_actions_cidrs" {

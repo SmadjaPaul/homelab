@@ -124,8 +124,8 @@ resource "oci_core_security_list" "public" {
 # Both lists are combined for the security rules.
 
 locals {
-  # Combine admin IPs with GitHub Actions IPs
-  all_ssh_allowed_cidrs = concat(
+  # Combine admin IPs + GitHub Actions IPs; or 0.0.0.0/0 if allow_ssh_from_anywhere (temporary)
+  all_ssh_allowed_cidrs = var.allow_ssh_from_anywhere ? ["0.0.0.0/0"] : concat(
     var.admin_allowed_cidrs,
     var.github_actions_cidrs
   )

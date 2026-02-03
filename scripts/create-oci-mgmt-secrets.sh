@@ -13,19 +13,20 @@ TF_DIR="$SCRIPT_DIR/../terraform/oracle-cloud"
 
 echo "=== Fetching Vault configuration from Terraform state ==="
 
-# Get OCIDs from Terraform state
+# Get OCIDs from Terraform state (oracle-cloud module)
 cd "$TF_DIR"
 VAULT_ID=$(terraform output -json vault_secrets 2>/dev/null | jq -r '.vault_id')
 KEY_ID=$(terraform state show oci_kms_key.homelab_secrets_key 2>/dev/null | grep '^\s*id\s*=' | head -1 | awk -F'"' '{print $2}')
-COMPARTMENT_ID=$(terraform output -json vault_secrets 2>/dev/null | jq -r '.vault_id' | cut -d'.' -f5)
+# compartment_id is the tenancy OCID (ocid1.tenancy.oc1..aaaaaa...), from the vault resource
+COMPARTMENT_ID=$(terraform state show oci_kms_vault.homelab_secrets 2>/dev/null | grep '^\s*compartment_id\s*=' | head -1 | awk -F'"' '{print $2}')
 
-# Fallback: use OCI CLI to get compartment (tenancy root)
+# Fallback: tenancy from OCI config
 if [[ -z "$COMPARTMENT_ID" || "$COMPARTMENT_ID" == "null" ]]; then
-    # shellcheck disable=SC2016
-    COMPARTMENT_ID=$(oci iam compartment list --query 'data[?name==`root`].id' --raw-output 2>/dev/null | tr -d '[]" ' || true)
+    COMPARTMENT_ID=$(grep '^tenancy=' ~/.oci/config 2>/dev/null | head -1 | cut -d'=' -f2 | tr -d ' ' || true)
 fi
 if [[ -z "$COMPARTMENT_ID" || "$COMPARTMENT_ID" == "null" ]]; then
-    COMPARTMENT_ID=$(grep 'tenancy' ~/.oci/config 2>/dev/null | head -1 | cut -d'=' -f2 | tr -d ' ' || true)
+    # shellcheck disable=SC2016
+    COMPARTMENT_ID=$(oci iam compartment list --all --query 'data[?name==`root`].id' --raw-output 2>/dev/null | head -1 | tr -d '"')
 fi
 
 if [[ -z "$VAULT_ID" || -z "$KEY_ID" || -z "$COMPARTMENT_ID" ]]; then
@@ -59,11 +60,10 @@ create_secret() {
 
     if [[ -n "$EXISTING" && "$EXISTING" != "null" ]]; then
         echo "  → Secret exists, updating content..."
-        oci vault secret update-secret-content \
+        oci vault secret update-base64 \
             --secret-id "$EXISTING" \
-            --content "$(echo -n "$secret_value" | base64)" \
-            --content-type BASE64 \
-            > /dev/null
+            --secret-content-content "$(echo -n "$secret_value" | base64)" \
+            --force
         echo "  ✓ Updated: $secret_name"
     else
         echo "  → Creating new secret..."
@@ -73,8 +73,7 @@ create_secret() {
             --key-id "$KEY_ID" \
             --secret-name "$secret_name" \
             --secret-content-content "$(echo -n "$secret_value" | base64)" \
-            --description "$description" \
-            > /dev/null
+            --description "$description"
         echo "  ✓ Created: $secret_name"
     fi
 }

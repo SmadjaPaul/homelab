@@ -20,6 +20,20 @@ variable "domain" {
   default     = "smadja.dev"
 }
 
+# Geo-restriction: allow traffic only from these countries (ISO 3166-1 Alpha 2)
+# Empty list = no geo restriction (worldwide)
+variable "allowed_countries" {
+  description = "Allow access only from these country codes (e.g. [\"FR\"] for France only). Empty = no restriction."
+  type        = list(string)
+  default     = ["FR"]
+}
+
+variable "enable_geo_restriction" {
+  description = "Enable WAF rule to block traffic from countries not in allowed_countries"
+  type        = bool
+  default     = true
+}
+
 # Homelab service subdomains
 variable "homelab_services" {
   description = "Homelab services to expose via Cloudflare Tunnel"
