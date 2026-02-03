@@ -144,7 +144,10 @@ jobs:
 
       - name: Copy docker/oci-mgmt to VM
         run: |
-          scp -i ~/.ssh/oci_mgmt.pem -o StrictHostKeyChecking=accept-new -r docker/oci-mgmt ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }}:~/homelab/
+          # Create target directory on VM first
+          ssh -i ~/.ssh/oci_mgmt.pem -o StrictHostKeyChecking=accept-new ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }} 'mkdir -p ~/homelab'
+          # Copy the docker compose files
+          scp -i ~/.ssh/oci_mgmt.pem -r docker/oci-mgmt ubuntu@${{ needs.get-mgmt-ip.outputs.mgmt_ip }}:~/homelab/
 
       - name: Create .env on VM
         env:
