@@ -219,11 +219,8 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         timeout-minutes: 10
         run: |
-          # Pass user_ocid explicitly to avoid interactive prompt
+          # TF_VAR_user_ocid is set as env var, Terraform reads it automatically
           PLAN_ARGS="-out=tfplan -no-color"
-          if [[ -n "$TF_VAR_user_ocid" ]]; then
-            PLAN_ARGS="$PLAN_ARGS -var=\"user_ocid=$TF_VAR_user_ocid\""
-          fi
 
           # Try plan with lock timeout (wait up to 5 minutes for lock to be released)
           # If lock is stale (from failed/cancelled apply), it will timeout and we'll force-unlock
@@ -366,11 +363,8 @@ jobs:
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          # Pass user_ocid explicitly to avoid interactive prompt
+          # TF_VAR_user_ocid is set as env var, Terraform reads it automatically
           APPLY_ARGS="-auto-approve"
-          if [[ -n "$TF_VAR_user_ocid" ]]; then
-            APPLY_ARGS="$APPLY_ARGS -var=\"user_ocid=$TF_VAR_user_ocid\""
-          fi
 
           # Try apply with lock timeout (wait up to 5 minutes for lock to be released)
           # If lock is stale (from failed/cancelled plan), it will timeout and we'll force-unlock
@@ -577,9 +571,5 @@ jobs:
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          # Pass user_ocid explicitly to avoid interactive prompt
-          DESTROY_ARGS="-auto-approve"
-          if [[ -n "$TF_VAR_user_ocid" ]]; then
-            DESTROY_ARGS="$DESTROY_ARGS -var=\"user_ocid=$TF_VAR_user_ocid\""
-          fi
-          terraform destroy $DESTROY_ARGS
+          # TF_VAR_user_ocid is set as env var, Terraform reads it automatically
+          terraform destroy -auto-approve
