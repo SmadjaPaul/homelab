@@ -1,0 +1,82 @@
+---
+# OCI Management Stack — ensure Docker, deploy app, run compose
+
+- name: Ensure Docker is installed
+  block:
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install Docker (get.docker.com) and Compose plugin
+      when: docker_check.rc != 0
+      block:
+        - name: Install Docker
+          ansible.builtin.shell: |
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq ca-certificates curl gnupg
+            curl -fsSL https://get.docker.com | sh
+            usermod -aG docker ubuntu
+            apt-get install -y -qq docker-compose-plugin
+          args:
+            creates: /usr/bin/docker
+          become: true
+
+- name: Ensure application directory exists
+  ansible.builtin.file:
+    path: "{{ oci_mgmt_app_path }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  become: true
+
+- name: Copy docker/oci-mgmt to host
+  ansible.posix.synchronize:
+    src: "{{ project_root | default(playbook_dir + '/../..') }}/docker/oci-mgmt/"
+    dest: "{{ oci_mgmt_app_path }}/"
+    delete: true
+    rsync_opts:
+      - "--exclude=.env"
+  become: true
+
+- name: Fix ownership of deployed files
+  ansible.builtin.file:
+    path: "{{ oci_mgmt_app_path }}"
+    state: directory
+    recurse: true
+    owner: ubuntu
+    group: ubuntu
+  become: true
+
+- name: Deploy .env from template
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ oci_mgmt_app_path }}/.env"
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  become: true
+
+- name: Pull images and start containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ oci_mgmt_app_path }}"
+    state: present
+    pull: always
+  become: true
+  register: compose_up
+
+- name: Show running containers
+  ansible.builtin.command:
+    cmd: docker compose ps
+    chdir: "{{ oci_mgmt_app_path }}"
+  register: compose_ps
+  changed_when: false
+  become: true
+
+- name: Display container status
+  ansible.builtin.debug:
+    msg: "{{ compose_ps.stdout_lines | default([]) }}"
+  when: compose_ps.stdout is defined

@@ -1,0 +1,11 @@
+# Inventory for OCI management VM (Homelab stack)
+# CI: override with -i "oci_mgmt," and -e ansible_host=IP (see workflow).
+# Local: set ansible_host to your VM IP or use a group_vars.
+
+all:
+  children:
+    oci_mgmt:
+      hosts:
+        oci_mgmt:
+          ansible_user: ubuntu
+          # ansible_host: set via -e in CI or group_vars for local

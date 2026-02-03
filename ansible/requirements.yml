@@ -1,0 +1,8 @@
+# Galaxy roles/collections for Ansible
+# Install: ansible-galaxy collection install -r requirements.yml
+
+collections:
+  - name: ansible.posix
+    version: ">=1.5.0"
+  - name: community.docker
+    version: ">=3.0.0"

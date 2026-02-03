@@ -1,0 +1,20 @@
+---
+# Deploy OCI Management Stack (Cloudflared + Authentik + Omni)
+# Run from repo root: ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml -e ansible_host=IP -e "cloudflare_tunnel_token=..." ...
+# CI passes: ansible_host, project_root, and secret vars from OCI Vault.
+
+- name: Deploy OCI management stack
+  hosts: oci_mgmt
+  gather_facts: true
+  vars:
+    # project_root: set by CI (-e project_root=$GITHUB_WORKSPACE) or default from playbook_dir
+    project_root: "{{ project_root | default(playbook_dir + '/../..') }}"
+  tasks:
+    - name: Include oci_mgmt role
+      ansible.builtin.include_role:
+        name: oci_mgmt
+      vars:
+        project_root: "{{ project_root }}"
+        cloudflare_tunnel_token: "{{ cloudflare_tunnel_token }}"
+        postgres_password: "{{ postgres_password }}"
+        authentik_secret_key: "{{ authentik_secret_key }}"

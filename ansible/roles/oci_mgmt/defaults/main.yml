@@ -1,0 +1,3 @@
+# Paths on the target host
+oci_mgmt_app_home: /home/ubuntu/homelab
+oci_mgmt_app_path: "{{ oci_mgmt_app_home }}/oci-mgmt"
