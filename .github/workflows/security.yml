@@ -1,14 +1,22 @@
 # Security Scanning CI/CD
+# Disabled: CodeQL SARIF upload requires GitHub Advanced Security (not available on free plan)
+# Run manually via workflow_dispatch when needed
 name: Security
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    # Run weekly on Sunday at 2am
-    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of scan to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - secrets
+          - trivy
+          - terraform
+          - kubernetes
 
 jobs:
   # =============================================================================
