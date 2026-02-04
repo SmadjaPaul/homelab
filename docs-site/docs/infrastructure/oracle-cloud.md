@@ -91,10 +91,12 @@ Endpoint: https://<namespace>.compat.objectstorage.eu-paris-1.oraclecloud.com
 
 ### "Out of host capacity"
 
-Les VMs ARM sont très demandées. Si vous voyez cette erreur :
+Cette erreur était fréquente auparavant mais n'est plus un problème. Les VMs ARM peuvent maintenant être créées sans difficulté.
 
-1. Le script `scripts/oci-capacity-retry.sh` retente automatiquement
-2. Essayez différents Availability Domains
+Si vous rencontrez encore cette erreur (rare) :
+
+1. Essayez différents Availability Domains
+2. Réessayez après quelques minutes
 3. Essayez aux heures creuses (tôt le matin)
 
 ```bash

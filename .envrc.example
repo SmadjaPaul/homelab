@@ -1,0 +1,13 @@
+# OCI / Omni - for task oci:* and Ansible playbooks
+# Copy to .envrc and run: direnv allow
+export OMNI_URL="https://omni.smadja.dev"
+export CLUSTER_NAME="cloud"
+export TF_OCI_DIR="terraform/oracle-cloud"
+
+# Optional: when registering cluster in Omni (one-shot or for the session)
+# export JOIN_TOKEN="..."
+# export CONTROL_PLANE_IP="1.2.3.4"
+
+# Terraform OCI - set if not using terraform.tfvars
+# export TF_VAR_compartment_ocid="ocid1.compartment.oc1....."
+# export TF_VAR_tenancy_ocid="ocid1.tenancy.oc1....."

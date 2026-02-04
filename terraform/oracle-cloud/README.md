@@ -62,7 +62,7 @@ Provisionne la VM management (Omni, Authentik, Cloudflare Tunnel) et optionnelle
 | VCN + subnet     | Réseau public |
 | VM management    | 1 OCPU, 6 GB RAM, 50 GB — Ubuntu 24.04, Docker + Docker Compose (cloud-init) |
 | IP publique      | IP réservée (statique) pour la VM management |
-| (Optionnel)      | Nœuds K8s (voir `variables.tf` / `k8s_nodes`) |
+| (Optionnel)      | Nœuds K8s — **Talos Linux** au premier boot si `talos_image_id` est défini (voir ci‑dessous) |
 | Budget + alertes | 1 EUR/mois, alertes à 50 %, 80 %, 100 % |
 | Object Storage   | Bucket `homelab-tfstate` (state Terraform), bucket Velero (backups) |
 | OCI Vault        | KMS Vault `homelab-secrets-vault` + secrets (Cloudflare, Omni, SSH, etc.) pour la CI |
@@ -93,6 +93,14 @@ terraform apply
 **En CI** : les workflows définissent `TF_VAR_vault_secrets_managed_in_ci=true`. Le contenu des secrets n'est ni mis à jour ni détruit quand les variables sont vides (`lifecycle { ignore_changes = [secret_content] }`).
 
 **Récupérer les secrets** (CLI OCI) : `terraform output vault_secrets` donne les OCID ; `oci secrets secret-bundle get --secret-id <ocid>` pour le contenu.
+
+## Nœuds K8s avec Talos Linux (Story 3.2.1 / 3.2.2)
+
+Les nœuds `k8s_nodes` (oci-node-1, oci-node-2) démarrent **avec Talos** en utilisant l’**image générée par Omni** (préconfigurée). Télécharge-la depuis l’UI Omni, importe-la dans OCI, définis `talos_image_id`. Les VMs s’enrôlent dans Omni au premier boot. Voir [Zwindler - Omni Talos OCI](https://blog.zwindler.fr/2025/01/04/sideros-omni-talos-oracle-cloud/). Sinon (legacy) : Ubuntu.
+
+1. **Omni** : créer le cluster (ex. « cloud »), télécharger l’**image Oracle** (ex. `oracle-amd64-omni-<nom>-vX.Y.Z.qcow2.xz`), décompresser (`xz -d`).
+2. **OCI** : préparer l’archive (métadonnées + qcow2) comme dans l’article Zwindler, uploader dans un bucket, importer en **Custom Image**, noter l’**OCID**.
+3. **Terraform** : définir `talos_image_id` = cet OCID, puis `terraform apply`. Les instances bootent en Talos et s’enrôlent dans Omni ; les ajouter au cluster depuis l’UI Omni.
 
 ## Suite (Story 1.3.2)
 

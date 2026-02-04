@@ -36,6 +36,9 @@ user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # vault_secret_omni_db_name         = ""
 # vault_secret_oci_mgmt_ssh_private_key = ""
 
+# Network: with Cloudflare Tunnel, set false to avoid opening 80/443 (tunnel-only, recommended)
+# allow_public_http_https = false
+
 # Optional: Customize instance sizes (defaults are optimized for Always Free)
 # management_vm = {
 #   name   = "oci-mgmt"
@@ -44,17 +47,7 @@ user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #   disk   = 50
 # }
 
-# k8s_nodes = [
-#   {
-#     name   = "oci-node-1"
-#     ocpus  = 2
-#     memory = 12
-#     disk   = 64
-#   },
-#   {
-#     name   = "oci-node-2"
-#     ocpus  = 1
-#     memory = 6
-#     disk   = 75
-#   }
-# ]
+# k8s_nodes = [ ... ]  # see variables.tf defaults (oci-node-1, oci-node-2)
+
+# Talos Linux: use image from Omni UI (download Oracle image → import to OCI). See README.
+# talos_image_id = "ocid1.image.oc1.eu-paris-1.xxxxx"

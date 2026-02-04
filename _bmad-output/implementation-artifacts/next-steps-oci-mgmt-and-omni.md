@@ -1,22 +1,32 @@
-# Prochaines étapes : VM OCI + stack docker/oci-mgmt (Stories 1.3.1 & 1.3.2)
+# Prochaines étapes : VM OCI + stack docker/oci-mgmt (Stories 1.3.x)
 
-**Date** : 2026-02-01  
-**Contexte** : Suite à la revue des décisions identité (invitation-only, Cloudflare). Prochaine étape logique = créer la VM management sur Oracle Cloud puis tester l’IaC `docker/oci-mgmt` (Omni).
+**Date** : 2026-02-04 (mis à jour après déploiement CI réussi)  
+**Contexte** : La VM OCI et la stack docker/oci-mgmt (Omni, Authentik, PostgreSQL, Cloudflared) sont déployées via GitHub Actions. Prochaines étapes = accès sécurisé (Tunnel) et enregistrement du cluster DEV dans Omni.
 
 **Références** : Epic 1.3 (Omni Cluster Management), [epics-and-stories-homelab.md](../planning-artifacts/epics-and-stories-homelab.md), [implementation-progress.md](../planning-artifacts/implementation-progress.md).
 
 ---
 
-## 1. Séquence recommandée
+## 1. État actuel (2026-02-04)
+
+| Story | Statut | Détail |
+|-------|--------|--------|
+| **1.3.1** Provision OCI Management VM | ✅ Done | VM créée via Terraform, IP dans state |
+| **1.3.2** Deploy Omni Server | ✅ Done | **CI** : `.github/workflows/deploy-oci-mgmt.yml` — push sur `docker/oci-mgmt/**` ou `ansible/**` déploie la stack (Omni, PostgreSQL, Authentik, Cloudflared) sur la VM |
+
+## 2. Prochaines étapes recommandées
 
 | Étape | Story | Action |
 |-------|--------|--------|
-| **1** | **1.3.1** Provision Oracle Cloud Management VM | Créer la VM avec Terraform `terraform/oracle-cloud/` |
-| **2** | **1.3.2** Deploy Omni Server | Déployer la stack `docker/oci-mgmt/` sur la VM (Omni + PostgreSQL) |
+| **3** | **1.3.3** Register DEV Cluster with Omni | Créer un join token dans Omni, installer l’agent sur le cluster DEV, vérifier dans l’UI Omni |
+| **4** | **1.3.4** Configure MachineClasses | Définir les MachineClasses dans `omni/machine-classes/` |
+| **5** | **3.4.1** Cloudflare Tunnel (accès HTTPS) | Exposer Omni/Authentik en HTTPS via ton domaine (Zero Trust) |
+
+**Tunnel sur OCI** : Quand le tunnel (token Terraform Cloudflare ou manuel) tourne sur la VM OCI, seules les routes **auth** et **omni** (localhost:9000, localhost:8080) sont actives. Les autres hostnames (Grafana, ArgoCD, etc.) pointent vers des services K8s et nécessitent un cloudflared dans le cluster ou un second tunnel.
 
 ---
 
-## 2. Story 1.3.1 — Créer la VM OCI
+## 3. Story 1.3.1 — Créer la VM OCI (référence)
 
 ### Prérequis
 
@@ -35,11 +45,9 @@ terraform plan
 terraform apply
 ```
 
-**Capacité ARM OCI** : En région Always Free (ex. `eu-paris-1`), l’erreur « Out of host capacity » est fréquente. Options :
 
-- Relancer `terraform apply` à intervalles
-- Utiliser le script `scripts/oci-capacity-retry.sh` s’il existe
-- Créer **uniquement** la VM management en mettant `k8s_nodes = []` dans `terraform.tfvars` pour réduire la demande
+**Note** : Les VMs OCI peuvent maintenant être créées sans problème de capacité.
+
 
 ### Après apply réussi
 
@@ -97,16 +105,16 @@ terraform apply
 
 ---
 
-## 4. Suite après 1.3.1 + 1.3.2
+## 4. Suite après 1.3.1 + 1.3.2 (fait)
 
-- **1.3.3** : Enregistrer le cluster DEV dans Omni (join token)
+- **1.3.3** : Enregistrer le cluster DEV dans Omni (join token) — **prochaine action**
 - **1.3.4** : Configurer les MachineClasses dans `omni/machine-classes/`
-- **Epic 3.3** (Authentik) : plus tard, Authentik pourra être ajouté dans `docker/oci-mgmt/` (ou un stack dédié) ; design invitation-only + Cloudflare déjà décidé.
+- **Epic 3.3** (Authentik) : Authentik est déjà dans la stack déployée ; config SSO (SAML pour Omni) et design invitation-only + Cloudflare à faire.
+- **3.4.1** Cloudflare Tunnel : configurer le tunnel pour accéder à Omni/Authentik en HTTPS (Zero Trust).
 
 ---
 
 ## 5. Mise à jour du suivi
 
-Après 1.3.1 réussi : mettre à jour [implementation-progress.md](../planning-artifacts/implementation-progress.md) (1.3.1 = Done, Phase 3 = In Progress si plus bloqué par la capacité OCI).
-
-Après 1.3.2 réussi : 1.3.2 = Done ; passer à 1.3.3 (Register DEV Cluster with Omni).
+- **1.3.1** et **1.3.2** : Done. [implementation-progress.md](../planning-artifacts/implementation-progress.md) et [sprint-status.yaml](sprint-status.yaml) mis à jour (2026-02-04).
+- **Prochaine story** : 1.3.3 Register DEV Cluster with Omni.

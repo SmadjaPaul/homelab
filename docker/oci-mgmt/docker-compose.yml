@@ -1,16 +1,32 @@
-# OCI Management Stack — Cloudflared + Omni + PostgreSQL
-# Zero Trust access via Cloudflare Tunnel
+# OCI Management Stack — Traefik + Cloudflared + Authentik + Omni
+# Single entrypoint: Tunnel → localhost:8080 (Traefik) → routes by hostname
 #
 # Prerequisites:
 # 1. Create tunnel in Cloudflare dashboard or via Terraform
 # 2. Copy tunnel token to .env file
-# 3. Configure DNS in Cloudflare to point to tunnel
+# 3. Tunnel Public Hostnames: auth + omni → http://localhost:8080
 #
 # Deploy: docker compose up -d
 
 services:
   # =========================================================================
-  # Cloudflare Tunnel — Zero Trust access to all services
+  # Traefik — Single reverse proxy (auth + omni + future services / redirects)
+  # =========================================================================
+  traefik:
+    image: traefik:v3.2
+    container_name: oci-mgmt-traefik
+    restart: unless-stopped
+    command: --configFile=/etc/traefik/traefik.yml
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - homelab
+
+  # =========================================================================
+  # Cloudflare Tunnel — Zero Trust access (sends traffic to Traefik)
   # =========================================================================
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -63,9 +79,7 @@ services:
       OMNI_NAME: ${OMNI_NAME:-Homelab Omni}
       # Auth (will integrate with Authentik later)
       OMNI_AUTH_SAML_ENABLED: "false"
-    # Expose on localhost for cloudflared (remotely managed tunnel)
-    ports:
-      - "127.0.0.1:8080:8080"  # HTTP - localhost only
+    # No direct port — reached via Traefik (omni.smadja.dev)
     networks:
       - homelab
 
@@ -110,9 +124,7 @@ services:
     volumes:
       - authentik_media:/media
       - authentik_templates:/templates
-    # Expose on localhost for cloudflared (remotely managed tunnel)
-    ports:
-      - "127.0.0.1:9000:9000"  # HTTP - localhost only
+    # No direct port — reached via Traefik (auth.smadja.dev)
     networks:
       - homelab
 
@@ -137,6 +149,22 @@ services:
       - authentik_media:/media
       - authentik_templates:/templates
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab
+
+  # Authentik Proxy Outpost — Forward Auth for Traefik (Omni + future apps)
+  # Traefik calls /outpost.goauthentik.io/auth/traefik; outpost validates and returns headers
+  authentik-outpost-proxy:
+    image: ghcr.io/goauthentik/proxy:latest
+    container_name: oci-mgmt-authentik-outpost-proxy
+    restart: unless-stopped
+    depends_on:
+      - authentik-server
+    environment:
+      AUTHENTIK_HOST: ${AUTHENTIK_PUBLIC_URL:-https://auth.smadja.dev}
+      AUTHENTIK_TOKEN: ${AUTHENTIK_OUTPOST_TOKEN:-}
+      AUTHENTIK_INSECURE: "false"
+    # No direct port — Traefik routes to this container for Forward Auth
     networks:
       - homelab
 

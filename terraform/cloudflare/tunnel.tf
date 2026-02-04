@@ -50,13 +50,11 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
       }
     }
 
-    # Authentik (auth) - on OCI management VM via localhost
+    # OCI mgmt VM — Traefik single entrypoint (auth + omni + future services)
     ingress_rule {
       hostname = "auth.${var.domain}"
-      service  = "http://localhost:9000"
+      service  = "http://localhost:8080"
     }
-
-    # Omni (Talos management) - on OCI management VM via localhost
     ingress_rule {
       hostname = "omni.${var.domain}"
       service  = "http://localhost:8080"

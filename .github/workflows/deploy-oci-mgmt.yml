@@ -1,6 +1,6 @@
-# Deploy OCI Management Stack (Cloudflared + Authentik + Omni)
-# Déploie docker/oci-mgmt sur la VM management OCI (IP depuis Terraform state).
-# Services exposés via Cloudflare Tunnel (Zero Trust)
+# Deploy OCI Management Stack (Traefik + Cloudflared + Authentik + Omni)
+# Déploie docker/oci-mgmt sur la VM OCI. Point d'entrée unique : Traefik (localhost:8080).
+# Tunnel et Authentik : gérés par Terraform (appliquer séparément si modifié).
 name: Deploy OCI Management Stack
 
 on:
@@ -9,6 +9,10 @@ on:
     paths:
       - 'docker/oci-mgmt/**'
       - 'ansible/**'
+      - 'terraform/cloudflare/tunnel.tf'
+      - 'terraform/authentik/**'
+      - '.taskfiles/Taskfile.oci.yml'
+      - 'Taskfile.yaml'
       - '.github/workflows/deploy-oci-mgmt.yml'
   workflow_dispatch:
     inputs:
@@ -177,6 +181,37 @@ jobs:
         env:
           ANSIBLE_FORCE_COLOR: "1"
           ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/roles
+
+      - name: Verify deployment (containers + Traefik)
+        run: |
+          set -e
+          IP="${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -i $HOME/.ssh/oci_mgmt.pem -l ubuntu"
+          echo "Checking containers..."
+          CONTAINERS=$(ssh $SSH_OPTS "$IP" "cd /home/ubuntu/homelab/oci-mgmt && docker compose ps -a --format '{{.Name}}'")
+          for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres; do
+            if echo "$CONTAINERS" | grep -q "$name"; then
+              echo "  ✓ $name"
+            else
+              echo "  ✗ $name missing"
+              exit 1
+            fi
+          done
+          echo "Checking Traefik + backend (Authentik may take 30-60s to start)..."
+          for i in {1..12}; do
+            CODE=$(ssh $SSH_OPTS "$IP" "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 -H 'Host: auth.smadja.dev' http://127.0.0.1:8080" || echo "000")
+            if [[ "$CODE" =~ ^[23][0-9][0-9]$ ]]; then
+              echo "  ✓ Traefik + backend respond (HTTP $CODE) after ${i} attempt(s)"
+              break
+            fi
+            if [[ $i -eq 12 ]]; then
+              echo "  ✗ Still HTTP $CODE after 12 attempts (Traefik up but backend may still be starting; check https://auth.smadja.dev in 1-2 min)"
+              exit 1
+            fi
+            echo "  Attempt $i/12: HTTP $CODE, retrying in 10s..."
+            sleep 10
+          done
+          echo "Deployment verified."
 
       - name: Remove secrets file
         if: always()

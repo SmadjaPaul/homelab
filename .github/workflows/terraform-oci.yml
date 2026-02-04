@@ -8,11 +8,15 @@ on:
     branches: [main, develop]
     paths:
       - 'terraform/oracle-cloud/**'
+      - '.taskfiles/Taskfile.oci.yml'
+      - 'Taskfile.yaml'
       - '.github/workflows/terraform-oci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'terraform/oracle-cloud/**'
+      - '.taskfiles/Taskfile.oci.yml'
+      - 'Taskfile.yaml'
       - '.github/workflows/terraform-oci.yml'
   workflow_dispatch:
     inputs:
@@ -366,29 +370,15 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -reconfigure
 
-      - name: Terraform Apply
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          # TF_VAR_user_ocid is set as env var, Terraform reads it automatically
-          APPLY_ARGS="-auto-approve"
+      - name: Setup Task (Taskfile)
+        uses: go-task/setup-task@v3
+        with:
+          version: "3.36.0"
 
-          # Try apply with lock timeout (wait up to 5 minutes for lock to be released)
-          # If lock is stale (from failed/cancelled plan), it will timeout and we'll force-unlock
-          if ! terraform apply $APPLY_ARGS -lock-timeout=5m; then
-            # Extract lock ID from error output
-            APPLY_OUTPUT=$(terraform apply $APPLY_ARGS -lock-timeout=0s 2>&1 || true)
-            LOCK_ID=$(echo "$APPLY_OUTPUT" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || true)
-
-            if [[ -n "$LOCK_ID" ]]; then
-              echo "::warning::Found stale lock: $LOCK_ID. Attempting to force-unlock..."
-              terraform force-unlock -force "$LOCK_ID" || echo "::warning::Could not unlock (may already be released)"
-              echo "Retrying apply..."
-              terraform apply $APPLY_ARGS
-            else
-              echo "::error::Apply failed but no lock ID found"
-              exit 1
-            fi
-          fi
+      - name: Terraform Apply (via Taskfile)
+        run: task oci:terraform:apply
+        env:
+          TF_OCI_DIR: ${{ env.TF_WORKING_DIR }}
 
       - name: Output Results
         working-directory: ${{ env.TF_WORKING_DIR }}

@@ -9,6 +9,7 @@ includes:
   terraform: .taskfiles/Taskfile.terraform.yml
   kubernetes: .taskfiles/Taskfile.kubernetes.yml
   talos: .taskfiles/Taskfile.talos.yml
+  oci: .taskfiles/Taskfile.oci.yml
 
 tasks:
   default:

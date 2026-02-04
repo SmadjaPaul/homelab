@@ -20,8 +20,11 @@ Talos Linux is an immutable, secure operating system optimized for Kubernetes. I
 
 ## Files
 
-- `controlplane.yaml` - Control plane node configuration
-- `worker.yaml` - Worker node configuration (template for future expansion)
+- `controlplane.yaml` - Control plane node configuration (DEV, local)
+- `worker.yaml` - Worker node configuration (DEV)
+- `controlplane-cloud.yaml` - Control plane for CLOUD cluster (OCI) — Story 3.2.2
+- `worker-cloud.yaml` - Worker for CLOUD cluster (OCI)
+- `controlplane-omni-example.yaml` - Example Omni integration snippet
 - `patches/` - System extensions and patches
 
 ## Installation Procedure

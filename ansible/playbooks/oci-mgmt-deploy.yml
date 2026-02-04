@@ -18,3 +18,4 @@
         cloudflare_tunnel_token: "{{ cloudflare_tunnel_token }}"
         postgres_password: "{{ postgres_password }}"
         authentik_secret_key: "{{ authentik_secret_key }}"
+        # authentik_public_url / authentik_outpost_token: not passed here; env.j2 uses its own defaults

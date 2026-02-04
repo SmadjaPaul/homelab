@@ -1,0 +1,26 @@
+# Talos Linux Machine Configuration - Control Plane Node with Omni Integration
+# Example configuration showing how to add Omni integration to an existing Talos config
+# Story: 1.3.3 - Register DEV Cluster with Omni
+#
+# This is an EXAMPLE showing the Omni configuration section.
+# To use: Add the 'omni:' section under 'machine:' in your actual controlplane.yaml
+#
+# IMPORTANT: Replace <OMNI_URL> and <JOIN_TOKEN> with actual values from Omni UI
+
+version: v1alpha1
+machine:
+  type: controlplane
+
+  # ... existing machine configuration ...
+
+  # ============================================================================
+  # Omni Integration
+  # ============================================================================
+  # Add this section to enable Omni agent on the node
+  omni:
+    enabled: true
+    url: https://omni.smadja.dev  # Replace with your Omni endpoint
+    joinToken: <JOIN_TOKEN>        # Replace with token from Omni UI
+
+cluster:
+  # ... existing cluster configuration ...

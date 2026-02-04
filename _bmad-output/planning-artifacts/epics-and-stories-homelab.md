@@ -41,14 +41,14 @@ This document breaks down the PRD into implementable epics and user stories, org
 
 ### Implementation Status
 
-Le suivi détaillé (état par story, blocages, next steps) est dans **[implementation-progress.md](implementation-progress.md)**.
+Le suivi détaillé (état par story, next steps) est dans **[implementation-progress.md](implementation-progress.md)**.
 
 | Phase | Impl. Status | Note |
 |-------|--------------|------|
 | 0 | ✅ Complete | Pre-implémentation (domaine, Cloudflare, OCI, Proxmox, outils) |
-| 1 | 🟡 In Progress (~50%) | Proxmox ✅, Terraform Proxmox ✅, Talos VMs ✅, ArgoCD manifests ✅ — ZFS ready, OCI VM 🔴 |
+| 1 | 🟡 In Progress (~50%) | Proxmox ✅, Terraform Proxmox ✅, Talos VMs ✅, ArgoCD manifests ✅ — ZFS ready |
 | 2 | 🟡 In Progress (~60%) | cert-manager, monitoring, SOPS, CI/CD ✅ — ESO, Cilium, ntfy à faire |
-| 3 | 🔴 Blocked (~25%) | OCI ARM "Out of host capacity" — reste Terraform/manifests prêts |
+| 3 | 🟡 In Progress (~25%) | Terraform/manifests prêts — VMs OCI peuvent être créées |
 | 4–6 | ⬜ Not Started | Dépendent de Phase 3 (CLOUD cluster) et Phase 1–2 (DEV/PROD) |
 
 ---
@@ -1727,7 +1727,7 @@ Phase 6: Gaming (depends on Phase 3)
 - **Total Epics**: 23
 - **Total Stories**: 70
 - **Implementation status**: voir [implementation-progress.md](implementation-progress.md)
-- **Next Steps**: Prioriser les stories selon le blocage OCI ; avancer Phase 1 (ZFS, bootstrap DEV) et Phase 2 en parallèle.
+- **Next Steps**: Avancer Phase 1 (bootstrap DEV, Omni, ArgoCD) et Phase 2 en parallèle. Phase 3 (OCI VMs) peut maintenant être démarrée.
 
 ---
 

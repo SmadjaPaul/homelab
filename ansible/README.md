@@ -36,4 +36,27 @@ ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml -e "@vars.yml"
 
 ## CI
 
-Le workflow **Deploy OCI Management Stack** (`deploy-oci-mgmt.yml`) exécute ce playbook après récupération de l’IP (Terraform) et des secrets (OCI Vault).
+Le workflow **Deploy OCI Management Stack** (`deploy-oci-mgmt.yml`) exécute ce playbook après récupération de l'IP (Terraform) et des secrets (OCI Vault).
+
+## Install ArgoCD on DEV Cluster
+
+Pour installer ArgoCD sur le cluster DEV :
+
+```bash
+# Exécuter le playbook
+ansible-playbook ansible/playbooks/install-argocd.yml \
+  -e "namespace=argocd" \
+  -e "argocd_dir=kubernetes/argocd"
+
+# Ou avec un fichier de variables
+ansible-playbook ansible/playbooks/install-argocd.yml \
+  -e "@vars.yml"
+```
+
+Le playbook :
+- Vérifie les prérequis (kubectl, kustomize)
+- Crée le namespace ArgoCD
+- Installe ArgoCD via kustomize
+- Attend que le serveur ArgoCD soit prêt
+- Récupère et affiche le mot de passe admin initial
+- Affiche les instructions pour accéder à l'UI

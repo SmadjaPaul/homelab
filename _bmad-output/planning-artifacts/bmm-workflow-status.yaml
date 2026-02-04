@@ -137,7 +137,7 @@ workflow_status:
 # Phase 1: Foundation 🟡 IN PROGRESS (40%)
 #   - Proxmox installed
 #   - ZFS waiting for HDD delivery
-#   - OCI VMs blocked on capacity
+#   - OCI VMs can now be created
 #
 # Phase 2: Core Infrastructure 🟡 IN PROGRESS (60%)
 #   - Terraform: OCI + Cloudflare ready
@@ -146,9 +146,9 @@ workflow_status:
 #   - CI/CD: GitHub Actions workflows ready
 #   - Security: Pre-commit, Gitleaks, Trivy, tfsec
 #
-# Phase 3: PROD + Oracle Cloud 🔴 BLOCKED (20%)
-#   - OCI ARM "Out of host capacity"
-#   - Retry script running: scripts/oci-capacity-retry.sh
+# Phase 3: PROD + Oracle Cloud 🟡 IN PROGRESS (25%)
+#   - OCI VMs can now be created
+#   - Terraform ready for deployment
 #
 # NEXT STEPS:
 #   1. Wait for OCI ARM capacity (script retrying every 5 min)

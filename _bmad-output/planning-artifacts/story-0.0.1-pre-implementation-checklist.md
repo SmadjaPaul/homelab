@@ -368,7 +368,7 @@ See: `implementation-progress.md` for detailed tracking.
 
 | Component | Status |
 |-----------|--------|
-| Terraform OCI | ✅ Ready (blocked on ARM capacity) |
+| Terraform OCI | ✅ Ready |
 | Terraform Cloudflare | ✅ Applied |
 | K8s Manifests | ✅ All ready |
 | CI/CD Workflows | ✅ GitHub Actions |

@@ -1,0 +1,44 @@
+# Talos Linux - Worker for CLOUD cluster (Oracle Cloud)
+# Story: 3.2.2 - Bootstrap CLOUD Cluster
+# For OCI + Omni: use the image from Omni UI (see controlplane-cloud.yaml comment).
+# This file is reference only. Replace WORKER_IP with node private IP (e.g. 10.0.1.11).
+# Replace <JOIN_TOKEN> with token from Omni (cluster name: cloud)
+
+version: v1alpha1
+machine:
+  type: worker
+
+  network:
+    hostname: oci-node-2
+    interfaces:
+      - interface: eth0
+        addresses:
+          - 10.0.1.11/24  # Replace with actual private IP from OCI
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.0.1.1
+        mtu: 1500
+    nameservers:
+      - 1.1.1.1
+      - 8.8.8.8
+
+  install:
+    disk: /dev/sda
+    image: ghcr.io/siderolabs/installer:v1.12.1
+    bootloader: true
+    wipe: false
+
+  time:
+    servers:
+      - time.cloudflare.com
+      - pool.ntp.org
+
+  omni:
+    enabled: true
+    url: https://omni.smadja.dev
+    joinToken: <JOIN_TOKEN>
+
+  kubelet:
+    extraArgs:
+      max-pods: "110"
+      node-ip: "10.0.1.11"  # Match worker IP above

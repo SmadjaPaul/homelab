@@ -1,6 +1,6 @@
 # Story 1.1.3: Configure GPU Passthrough
 
-Status: ready-for-dev
+Status: backlog (low priority - to be implemented later)
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

@@ -1,5 +1,16 @@
 # Déploiements GitHub Actions
 
+**Tous les déploiements passent par la CI GitHub Actions.** En local, les mêmes commandes peuvent être reproduites via le **Taskfile** (namespace `oci:`), qui est aussi utilisé dans certains workflows pour garder une seule source de vérité.
+
+## Taskfile et CI
+
+| Contexte | Usage |
+|----------|--------|
+| **CI (canonique)** | Chaque workflow déclenche Terraform, Ansible, etc. ; le workflow **Terraform Oracle Cloud** utilise `task oci:terraform:apply` pour l’apply. |
+| **Local** | `task oci:phase-a`, `task oci:terraform:plan`, `task oci:terraform:apply`, etc. (voir `task oci:--list-all`). Variables optionnelles : `.envrc` (direnv) ou `OMNI_URL`, `CLUSTER_NAME`, `TF_VAR_*`. |
+
+Les workflows qui utilisent Task installent **go-task** via l’action `go-task/setup-task` et exécutent les tâches depuis la racine du repo (les variables d’environnement sont fournies par les secrets/vars du job).
+
 ## Environnements
 
 | Environnement | Usage | Déclencheur |
@@ -174,13 +185,14 @@ Les déploiements "Failed" viennent en général d’un **échec du job** (pas s
 4. **Erreur Terraform**
    - Token Cloudflare invalide ou expiré.
    - Quota OCI dépassé ou erreur API OCI (ex. "Out of capacity").
-   - Regarder les logs du step **Terraform Apply** (ou **Terraform Plan**) dans l’exécution du workflow.
+   - Regarder les logs du step **Terraform Apply (via Taskfile)** ou **Terraform Plan** dans l’exécution du workflow.
+   - **State lock** : l’apply utilise `-lock-timeout=5m`. Si le job échoue à cause d’un lock, lancer manuellement **Terraform Oracle Cloud** → Run workflow → action **force-unlock** avec le `lock_id` indiqué dans l’erreur.
 
 ## Workflow manuel
 
 - **Cloudflare** : Actions → "Cloudflare Infrastructure" → Run workflow → choisir `plan` (development) ou `apply` (production).
-- **OCI** : Actions → "Terraform Oracle Cloud" → Run workflow → choisir `plan` / `apply` / `destroy` et l’environnement cible.
-- **OCI Management Stack (Omni)** : Actions → "Deploy OCI Management Stack" → Run workflow. Déploie `docker/oci-mgmt` sur la VM management (IP depuis Terraform state). Déclenché aussi sur push `main` si `docker/oci-mgmt/**` change.
+- **OCI** : Actions → "Terraform Oracle Cloud" → Run workflow → choisir `plan` / `apply` / `destroy` et l’environnement cible. L’**apply** exécute `task oci:terraform:apply` (Taskfile).
+- **OCI Management Stack (Omni)** : Actions → "Deploy OCI Management Stack" → Run workflow. Déploie `docker/oci-mgmt` sur la VM management (IP depuis Terraform state). Déclenché aussi sur push `main` si `docker/oci-mgmt/**`, `ansible/**` ou `Taskfile*` changent.
 ## Branches
 
 - **main** : déploiement **production** (apply Cloudflare et OCI sur push si les paths concernés changent).

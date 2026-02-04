@@ -1,0 +1,67 @@
+# Dynamic routes — auth + omni (Forward Auth for omni)
+# Domain: smadja.dev (auth.smadja.dev, omni.smadja.dev)
+# Middleware fix-proto: force HTTPS for Authentik (tunnel → Traefik is HTTP)
+
+http:
+  routers:
+    # Authentik — no Forward Auth (login page)
+    auth:
+      rule: "Host(`auth.smadja.dev`)"
+      entryPoints: [web]
+      middlewares: [fix-proto]
+      service: authentik
+
+    # Omni — outpost path must reach the outpost (callbacks, ping)
+    omni-outpost:
+      rule: "Host(`omni.smadja.dev`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      entryPoints: [web]
+      middlewares: [fix-proto]
+      service: authentik-outpost
+      priority: 100
+
+    # Omni — app behind Forward Auth
+    omni:
+      rule: "Host(`omni.smadja.dev`)"
+      entryPoints: [web]
+      middlewares: [forward-auth-omni]
+      service: omni
+
+  services:
+    authentik:
+      loadBalancer:
+        servers:
+          - url: "http://authentik-server:9000"
+        passHostHeader: true
+
+    authentik-outpost:
+      loadBalancer:
+        servers:
+          - url: "http://authentik-outpost-proxy:9000"
+        passHostHeader: true
+
+    omni:
+      loadBalancer:
+        servers:
+          - url: "http://omni:8080"
+        passHostHeader: true
+
+  middlewares:
+    fix-proto:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+    forward-auth-omni:
+      forwardAuth:
+        address: "http://authentik-outpost-proxy:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid
+          - X-authentik-jwt
+          - X-authentik-meta-outpost
+          - X-authentik-meta-provider
+          - X-authentik-meta-app
+          - X-authentik-meta-version

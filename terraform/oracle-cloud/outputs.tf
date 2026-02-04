@@ -21,12 +21,12 @@ output "management_vm" {
 }
 
 output "k8s_nodes" {
-  description = "Kubernetes nodes details"
+  description = "Kubernetes nodes details (public IP from VNIC for bootstrap)"
   value = [
     for idx, node in oci_core_instance.k8s_node : {
       id         = node.id
       name       = node.display_name
-      public_ip  = node.public_ip
+      public_ip  = length(data.oci_core_vnic.k8s_node) > idx ? data.oci_core_vnic.k8s_node[idx].public_ip_address : null
       private_ip = node.private_ip
     }
   ]
@@ -37,8 +37,11 @@ output "ssh_connection_commands" {
   value = {
     management = data.oci_core_vnic.management.public_ip_address != null ? "ssh -i ~/.ssh/oci-homelab ubuntu@${data.oci_core_vnic.management.public_ip_address}" : "Management VM not yet created"
     k8s_nodes = [
-      for node in oci_core_instance.k8s_node :
-      node.public_ip != null ? "ssh -i ~/.ssh/oci-homelab ubuntu@${node.public_ip}" : "Node ${node.display_name} not yet created"
+      for idx, node in oci_core_instance.k8s_node : (
+        length(data.oci_core_vnic.k8s_node) > idx && data.oci_core_vnic.k8s_node[idx].public_ip_address != null
+        ? "ssh -i ~/.ssh/oci-homelab ubuntu@${data.oci_core_vnic.k8s_node[idx].public_ip_address}"
+        : "Node ${node.display_name} not yet created"
+      )
     ]
   }
 }

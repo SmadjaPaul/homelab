@@ -2,7 +2,7 @@
 date: 2026-01-30
 project: homelab
 status: in-progress
-lastUpdated: 2026-01-30
+lastUpdated: 2026-02-04
 sourceOfTruth: epics-and-stories-homelab.md (v1.1 — 23 epics, 70 stories)
 ---
 
@@ -17,7 +17,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 | Phase 0: Pre-Implementation | ✅ Complete | 100% |
 | Phase 1: Foundation | 🟡 In Progress | 50% |
 | Phase 2: Core Infrastructure | 🟡 In Progress | 60% |
-| Phase 3: PROD + Oracle Cloud | 🔴 Blocked (OCI capacity) | 25% |
+| Phase 3: PROD + Oracle Cloud | 🟡 In Progress | 25% |
 | Phase 4: Services MVP | ⬜ Not Started | 0% |
 | Phase 5: Optional Services | ⬜ Not Started | 0% |
 | Phase 6: Gaming | ⬜ Not Started | 0% |
@@ -46,7 +46,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 |-------|--------|-------|
 | 1.1.1 Install Proxmox VE | ✅ | Installé à 192.168.68.51 |
 | 1.1.2 Configure ZFS Storage | ✅ | **Implémenté** : 2×14 To en miroir. Scripts : `scripts/proxmox/setup-zfs-14tb-only.sh`, `setup-nvme-cache.sh`. |
-| 1.1.3 Configure GPU Passthrough | ⏳ | Pending |
+| 1.1.3 Configure GPU Passthrough | ⏳ | **Backlog (low priority)** - À traiter en dernier. Script préparé : `scripts/proxmox/configure-gpu-passthrough.sh` |
 | 1.1.4 Setup Terraform Provider | ✅ | **bpg/proxmox** dans `terraform/proxmox/`. Voir `terraform/proxmox/README.md`. |
 
 ### Epic 1.2: Talos Linux DEV Cluster
@@ -61,16 +61,16 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 | Story | Status | Notes |
 |-------|--------|-------|
-| 1.3.1 Provision OCI Management VM | ✅ | **Terraform prêt** : `terraform/oracle-cloud/` — VM 1 OCPU, 6 GB, 50 GB, Ubuntu 24.04, Docker (cloud-init), IP publique réservée, SSH par clé. Bloqué en apply par capacité ARM OCI ; relancer `terraform apply` ou `scripts/oci-capacity-retry.sh`. Voir `terraform/oracle-cloud/README.md`. |
-| 1.3.2 Deploy Omni Server | 🟢 Ready | Squelette : `docker/oci-mgmt/` (docker-compose Omni + PostgreSQL). À déployer sur la VM OCI après 1.3.1. Voir [docker/oci-mgmt/README.md](../../docker/oci-mgmt/README.md) |
-| 1.3.3 Register DEV Cluster with Omni | ⏳ | Dépend de 1.3.2 |
-| 1.3.4 Configure MachineClasses | ⏳ | Dépend de Omni — `omni/machine-classes/` |
+| 1.3.1 Provision OCI Management VM | ✅ | **Terraform** : `terraform/oracle-cloud/` — VM oci-mgmt (1 OCPU, 6 GB). Apply via CI (`task oci:terraform:apply`) ou local. Voir `terraform/oracle-cloud/README.md`. |
+| 1.3.2 Deploy Omni Server | ✅ | **Déployé via CI** : workflow `.github/workflows/deploy-oci-mgmt.yml`. Stack : Omni, PostgreSQL, Authentik, Cloudflared. Voir [docker/oci-mgmt/README.md](../../docker/oci-mgmt/README.md). |
+| 1.3.3 Register DEV Cluster with Omni | 🟡 In Progress | **CLOUD** : image Omni (créer cluster dans UI, télécharger image Oracle, import OCI, `talos_image_id`). **DEV** : config Omni dans talos/*.yaml + talosctl apply-config. Docs : `docs/omni-register-cluster.md`, `docs/omni-automation.md`. |
+| 1.3.4 Configure MachineClasses | 🟢 Ready | **Story** : `1-3-4-configure-machineclasses.md`. Specs dans `omni/machine-classes/README.md` (control-plane, worker, gpu-worker). Création des classes dans l’UI Omni ou via API. |
 
 ### Epic 1.4: ArgoCD GitOps Setup
 
 | Story | Status | Notes |
 |-------|--------|-------|
-| 1.4.1 Install ArgoCD on DEV Cluster | 🟢 Ready | Manifests dans `kubernetes/argocd/` (install.yaml, app-of-apps.yaml) |
+| 1.4.1 Install ArgoCD on DEV Cluster | 🟡 Ready | **Ansible playbook créé** : `ansible/playbooks/install-argocd.yml`, rôle `ansible/roles/argocd_install/`. Manifests dans `kubernetes/argocd/` (install.yaml, app-of-apps.yaml). Prêt pour installation. |
 | 1.4.2 Configure Repository Connection | ⏳ | À faire au bootstrap (deploy key / token) |
 | 1.4.3 Create Root Application | ✅ | App-of-apps dans `kubernetes/argocd/app-of-apps.yaml` |
 | 1.4.4 Configure Sync Waves | 🟢 Ready | Applications avec annotations wave (infra, monitoring, apps) |
@@ -142,10 +142,10 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 ### Epic 3.2: Oracle Cloud Kubernetes Cluster
 
-| Item | Status | Notes |
-|------|--------|-------|
-| OCI Terraform (réseau, stockage, budget) | ✅ | `terraform/oracle-cloud/` — VCN, subnets, Object Storage (Velero), budget |
-| Compute Instances (management + 2 nœuds K8s) | 🔴 | **Blocked** : "Out of host capacity" (ARM). Retry : `scripts/oci-capacity-retry.sh` ou `terraform apply` périodique |
+| Story | Status | Notes |
+|-------|--------|-------|
+| 3.2.1 Provision OCI Compute via Terraform | 🟢 Ready | **Terraform** : `compute.tf` (oci-node-1 : 2 OCPU, 12 GB, 64 GB ; oci-node-2 : 1 OCPU, 6 GB, 75 GB). Outputs `k8s_nodes` (VNIC public IP). Apply via CI ou `task oci:terraform:apply`. Story : `3-2-1-provision-oci-compute-via-terraform.md`. |
+| 3.2.2 Bootstrap CLOUD Cluster | 🟢 Ready | **Talos** : `talos/controlplane-cloud.yaml`, `talos/worker-cloud.yaml` (OCI 10.0.1.x, Omni). Story : `3-2-2-bootstrap-cloud-cluster.md`. Bootstrap manuel puis enregistrement Omni (1.3.3). |
 
 ### Epic 3.3: Identity & Access
 
@@ -246,26 +246,37 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 
 ## Blocking Issues
 
-### 1. Oracle Cloud ARM Capacity
-- **Status**: 🔴 Blocked
-- **Impact**: VMs management + 2 nœuds K8s non créées
-- **Mitigation**: `scripts/oci-capacity-retry.sh` ou `terraform apply` périodique
-- **ETA**: Inconnu (dépend Oracle)
+### ~~Oracle Cloud ARM Capacity~~
+- **Status**: ✅ Résolu — Les VMs OCI peuvent maintenant être créées
 
-### 2. ~~Proxmox Storage~~
+### ~~Proxmox Storage~~
 - **Status**: ✅ Disques reçus — **2×14 To** (miroir) ; **2×2 To** optionnels ; NVMe cache : `scripts/proxmox/setup-nvme-cache.sh`
 - **Next**: Exécuter ZFS (ex. `scripts/proxmox/setup-zfs-14tb-only.sh`) puis cache NVMe si besoin.
 
 ---
 
-## Next Steps (Priority)
+## Next Steps (Priority - OCI-First Strategy)
 
-1. **Proxmox — ZFS** : Configurer le pool (2×14 To) avec les scripts existants.
-2. **Oracle — VMs** : Relancer `terraform apply` quand capacité ARM disponible.
-3. **DEV cluster** : Boot Talos sur la VM DEV (1.2.2), puis installer ArgoCD (1.4.1).
-4. **Omni** : Dès OCI VM créée — déployer Omni, enregistrer DEV (1.3.x).
-5. **PROD cluster** : Bootstrap PROD (3.1.2), puis services Phase 4.
+**Stratégie** : Finaliser OCI avant le local pour sécuriser avant d'exposer le réseau local.
+
+### Phase OCI (Priorité 1)
+
+1. **3.2.1** : Créer VMs K8s sur OCI via Terraform (`terraform/oracle-cloud/`)
+2. **3.2.2** : Bootstrapper cluster CLOUD Talos sur OCI
+3. **1.3.3** : Enregistrer cluster CLOUD dans Omni (via `omnictl` ou UI manuel)
+4. **1.3.4** : Configurer MachineClasses dans Omni
+5. **3.4.1** : Finaliser Cloudflare Tunnel (routes pour Omni/Authentik)
+6. **3.3.2** + **3.3.3** : Déployer oauth2-proxy et configurer Authentik
+
+### Phase Local (Après OCI sécurisé)
+
+7. **3.4.2** : Déployer Twingate Connector sur CLOUD (accès sécurisé au local)
+8. **1.2.2** : Bootstrapper cluster DEV sur Proxmox local
+9. **1.3.3** : Enregistrer cluster DEV local dans Omni (via Twingate)
+10. **1.4.1** : Installer ArgoCD sur DEV cluster
+
+Voir [oci-first-roadmap.md](oci-first-roadmap.md) pour le plan détaillé.
 
 ---
 
-*Dernière mise à jour : 2026-01-30 — Aligné avec epics-and-stories-homelab.md v1.1 (23 epics, 70 stories).*
+*Dernière mise à jour : 2026-02-04 — Stratégie OCI-first adoptée. Voir [oci-first-roadmap.md](oci-first-roadmap.md) pour le plan détaillé.*

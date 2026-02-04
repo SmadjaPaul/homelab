@@ -1,0 +1,8 @@
+# Inventory for localhost (for playbooks that run locally)
+# Used for tasks that interact with local Kubernetes cluster or files
+
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

@@ -43,7 +43,7 @@ development_status:  # Epic and story statuses (backlog | ready-for-dev | in-pro
   epic-1-1: in-progress
   1-1-1-install-proxmox-ve: done
   1-1-2-configure-zfs-storage-pool: done
-  1-1-3-configure-gpu-passthrough: ready-for-dev
+  1-1-3-configure-gpu-passthrough: backlog
   1-1-4-setup-terraform-provider: done
   epic-1-1-retrospective: optional
 
@@ -55,13 +55,13 @@ development_status:  # Epic and story statuses (backlog | ready-for-dev | in-pro
 
   epic-1-3: in-progress
   1-3-1-provision-oracle-cloud-management-vm: done
-  1-3-2-deploy-omni-server: ready-for-dev
-  1-3-3-register-dev-cluster-with-omni: backlog
-  1-3-4-configure-machineclasses: backlog
+  1-3-2-deploy-omni-server: done
+  1-3-3-register-dev-cluster-with-omni: in-progress
+  1-3-4-configure-machineclasses: ready-for-dev
   epic-1-3-retrospective: optional
 
   epic-1-4: backlog
-  1-4-1-install-argocd-on-dev-cluster: backlog
+  1-4-1-install-argocd-on-dev-cluster: ready-for-dev
   1-4-2-configure-repository-connection: backlog
   1-4-3-create-root-application: backlog
   1-4-4-configure-sync-waves: backlog
@@ -112,8 +112,8 @@ development_status:  # Epic and story statuses (backlog | ready-for-dev | in-pro
   epic-3-1-retrospective: optional
 
   epic-3-2: backlog
-  3-2-1-provision-oci-compute-via-terraform: backlog
-  3-2-2-bootstrap-cloud-cluster: backlog
+  3-2-1-provision-oci-compute-via-terraform: ready-for-dev
+  3-2-2-bootstrap-cloud-cluster: ready-for-dev
   epic-3-2-retrospective: optional
 
   epic-3-3: backlog

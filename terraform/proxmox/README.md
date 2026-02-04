@@ -54,6 +54,8 @@ terraform apply
 
 Le module crée **3 VMs** pour les clusters Talos (voir [architecture-proxmox-omni.md](../../_bmad-output/planning-artifacts/architecture-proxmox-omni.md)) :
 
+**Premier boot** : aujourd’hui les VMs sont créées avec un disque vide et (si `talos_iso_file` est défini) un CD-ROM Talos. Il faut démarrer sur l’ISO, puis `talosctl apply-config` pour installer Talos sur le disque. Pour un **boot direct en Talos** (sans étape ISO), il faudrait utiliser l’image disque Talos (ex. `qemu-amd64.raw`) comme disque principal de la VM au lieu de l’ISO — à mettre en place dans le module si besoin.
+
 | VM | Rôle | vCPU | RAM | Disque |
 |----|------|------|-----|--------|
 | **talos-dev** | DEV single-node (control-plane + worker) | 2 | 4 GB | 50 GB |

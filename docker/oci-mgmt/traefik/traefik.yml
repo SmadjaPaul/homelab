@@ -1,0 +1,19 @@
+# Traefik static configuration — OCI Management Stack
+# Single entrypoint for Cloudflare Tunnel (localhost:8080)
+
+api:
+  dashboard: false
+
+entryPoints:
+  web:
+    address: ":8080"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+
+accessLog: {}

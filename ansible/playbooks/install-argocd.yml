@@ -1,0 +1,26 @@
+---
+# Install ArgoCD on DEV Cluster
+# Story: 1.4.1 - Install ArgoCD on DEV Cluster
+# Run from repo root: ansible-playbook ansible/playbooks/install-argocd.yml -e namespace=argocd
+# This playbook runs locally (localhost) to install ArgoCD on Kubernetes cluster
+
+- name: Install ArgoCD on DEV cluster
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    # project_root: set by CI or default from playbook_dir
+    project_root: "{{ project_root | default(playbook_dir + '/../..') }}"
+    # ArgoCD configuration
+    argocd_dir: "{{ argocd_dir | default(project_root + '/kubernetes/argocd') }}"
+    namespace: "{{ namespace | default('argocd') }}"
+    wait_timeout: "{{ wait_timeout | default(300) }}"
+  tasks:
+    - name: Include argocd_install role
+      ansible.builtin.include_role:
+        name: argocd_install
+      vars:
+        project_root: "{{ project_root }}"
+        argocd_dir: "{{ argocd_dir }}"
+        namespace: "{{ namespace }}"
+        wait_timeout: "{{ wait_timeout }}"

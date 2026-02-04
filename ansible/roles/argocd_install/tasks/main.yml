@@ -1,0 +1,195 @@
+---
+# ArgoCD Install Role — Install ArgoCD on Kubernetes cluster
+# Tasks run locally to install ArgoCD using kustomize
+
+- name: Verify prerequisites
+  block:
+    - name: Check kubectl is available
+      ansible.builtin.command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+      failed_when: kubectl_check.rc != 0
+      msg: "kubectl is required but not found"
+
+    - name: Verify cluster access
+      ansible.builtin.command: kubectl cluster-info
+      register: cluster_info
+      changed_when: false
+      failed_when: cluster_info.rc != 0
+
+    - name: Display cluster context
+      ansible.builtin.debug:
+        msg: "Cluster context: {{ cluster_info.stdout_lines[0] | default('unknown') }}"
+
+    - name: Check if kustomize is available
+      ansible.builtin.command: kubectl kustomize --help
+      register: kustomize_check
+      changed_when: false
+      failed_when: kustomize_check.rc != 0
+      msg: "kubectl kustomize is required (kubectl 1.14+)"
+
+- name: Verify ArgoCD directory exists
+  ansible.builtin.stat:
+    path: "{{ argocd_dir }}"
+  register: argocd_dir_stat
+  failed_when: not argocd_dir_stat.stat.exists
+  msg: "ArgoCD directory not found: {{ argocd_dir }}"
+
+- name: Check if ArgoCD is already installed
+  block:
+    - name: Check if namespace exists
+      ansible.builtin.command: kubectl get namespace "{{ namespace }}"
+      register: namespace_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if ArgoCD server deployment exists
+      ansible.builtin.command: kubectl get deployment argocd-server -n "{{ namespace }}"
+      register: argocd_check
+      changed_when: false
+      failed_when: false
+      when: namespace_check.rc == 0
+
+    - name: Warn if ArgoCD already installed
+      ansible.builtin.debug:
+        msg: "ArgoCD appears to be already installed in namespace {{ namespace }}"
+      when: namespace_check.rc == 0 and argocd_check.rc == 0
+
+    - name: Prompt to continue
+      ansible.builtin.pause:
+        prompt: "Continue with installation anyway? (y/N)"
+      register: continue_prompt
+      when: namespace_check.rc == 0 and argocd_check.rc == 0
+
+    - name: Exit if user declined
+      ansible.builtin.fail:
+        msg: "Installation cancelled by user"
+      when: namespace_check.rc == 0 and argocd_check.rc == 0 and continue_prompt.user_input | default('n') | lower != 'y'
+
+- name: Create namespace
+  ansible.builtin.command: kubectl apply -f "{{ argocd_dir }}/namespace.yaml"
+  register: namespace_create
+  changed_when: "'created' in namespace_create.stdout or 'unchanged' in namespace_create.stdout"
+  failed_when: namespace_create.rc != 0
+
+- name: Install ArgoCD using kustomize
+  block:
+    - name: Apply ArgoCD manifests with kustomize
+      ansible.builtin.command: kubectl apply -k "{{ argocd_dir }}"
+      register: argocd_apply
+      changed_when: true
+
+    - name: Display apply result
+      ansible.builtin.debug:
+        msg: "{{ argocd_apply.stdout_lines | default([]) }}"
+
+- name: Wait for ArgoCD server to be ready
+  block:
+    - name: Wait for ArgoCD server pod
+      ansible.builtin.command: >
+        kubectl wait --for=condition=ready pod
+        -l app.kubernetes.io/name=argocd-server
+        -n {{ namespace }}
+        --timeout={{ wait_timeout }}s
+      register: wait_result
+      changed_when: false
+      failed_when: wait_result.rc != 0
+      ignore_errors: true
+
+    - name: Display wait result
+      ansible.builtin.debug:
+        msg: "{{ 'ArgoCD server is ready' if wait_result.rc == 0 else 'ArgoCD server not ready within timeout - check status manually' }}"
+
+- name: Verify installation
+  block:
+    - name: Check namespace
+      ansible.builtin.command: kubectl get namespace "{{ namespace }}"
+      register: namespace_verify
+      changed_when: false
+
+    - name: Display namespace status
+      ansible.builtin.debug:
+        msg: "✓ Namespace {{ namespace }} exists"
+
+    - name: Get ArgoCD pods
+      ansible.builtin.command: kubectl get pods -n "{{ namespace }}"
+      register: pods_status
+      changed_when: false
+
+    - name: Display pods status
+      ansible.builtin.debug:
+        msg: "{{ pods_status.stdout_lines | default([]) }}"
+
+    - name: Get ArgoCD deployments
+      ansible.builtin.command: kubectl get deployments -n "{{ namespace }}"
+      register: deployments_status
+      changed_when: false
+
+    - name: Display deployments status
+      ansible.builtin.debug:
+        msg: "{{ deployments_status.stdout_lines | default([]) }}"
+
+    - name: Get ArgoCD version
+      ansible.builtin.command: kubectl exec -n "{{ namespace }}" deployment/argocd-server -- argocd version 2>/dev/null | head -1
+      register: argocd_version
+      changed_when: false
+      failed_when: false
+
+    - name: Display ArgoCD version
+      ansible.builtin.debug:
+        msg: "{{ argocd_version.stdout | default('Version check failed - server may still be starting') }}"
+      when: argocd_version.stdout is defined
+
+- name: Get initial admin password
+  block:
+    - name: Retrieve initial admin password secret
+      ansible.builtin.command: >
+        kubectl -n {{ namespace }} get secret argocd-initial-admin-secret
+        -o jsonpath="{.data.password}"
+      register: password_secret
+      changed_when: false
+      failed_when: false
+
+    - name: Decode password
+      ansible.builtin.set_fact:
+        initial_password: "{{ password_secret.stdout | b64decode }}"
+      when: password_secret.stdout is defined and password_secret.stdout != ""
+
+    - name: Display credentials and next steps
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "ArgoCD installation complete!"
+          - "=========================================="
+          - ""
+          - "Initial admin credentials:"
+          - "  Username: admin"
+          - "  Password: {{ initial_password | default('Could not retrieve - check manually') }}"
+          - ""
+          - "⚠️  IMPORTANT: Change the admin password after first login!"
+          - ""
+          - "To access ArgoCD UI:"
+          - "  1. Port-forward: kubectl port-forward svc/argocd-server -n {{ namespace }} 8080:443"
+          - "  2. Open browser: https://localhost:8080"
+          - "  3. Accept self-signed certificate"
+          - "  4. Login with admin / {{ initial_password | default('(get from secret)') }}"
+          - ""
+          - "To change admin password:"
+          - "  argocd account update-password --account admin"
+          - "  (or use UI: User Info → Update Password)"
+          - ""
+          - "Next steps:"
+          - "1. Access ArgoCD UI via port-forward"
+          - "2. Change admin password"
+          - "3. Configure repository connection (Story 1.4.2)"
+          - "4. Deploy App of Apps (Story 1.4.3 - already configured)"
+          - ""
+      when: password_secret.stdout is defined
+
+    - name: Display manual password retrieval instructions
+      ansible.builtin.debug:
+        msg:
+          - "Could not retrieve initial admin password automatically"
+          - "Retrieve manually with:"
+          - "  kubectl -n {{ namespace }} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+      when: password_secret.stdout is not defined or password_secret.stdout == ""

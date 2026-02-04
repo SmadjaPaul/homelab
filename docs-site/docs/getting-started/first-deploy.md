@@ -38,7 +38,7 @@ Ressources créées :
 - Budget alerts
 
 :::info Capacité ARM
-Si vous voyez "Out of host capacity", le script `scripts/oci-capacity-retry.sh` retente automatiquement.
+Les VMs ARM peuvent maintenant être créées sans problème de capacité. Si vous rencontrez encore l'erreur "Out of host capacity" (rare), réessayez après quelques minutes.
 :::
 
 ## Kubernetes

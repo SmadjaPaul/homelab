@@ -38,8 +38,10 @@ resource "oci_core_route_table" "public" {
 # =============================================================================
 # Security List - Zero Trust Configuration
 # =============================================================================
-# Philosophy: No ports open to the world except HTTP/HTTPS (for Cloudflare Tunnel)
-# All admin access goes through Twingate VPN or restricted IP whitelist
+# With Cloudflare Tunnel, traffic is outbound-only; no need to open 80/443
+# unless you run a direct reverse proxy on the VM. Set allow_public_http_https = false
+# for tunnel-only (recommended). SSH is controlled by admin_ssh security list.
+# Ref: https://dev.to/yoursunny/how-to-host-a-website-in-oracle-cloud-free-tier-5hca
 # =============================================================================
 
 resource "oci_core_security_list" "public" {
@@ -55,32 +57,36 @@ resource "oci_core_security_list" "public" {
   }
 
   # ==========================================================================
-  # PUBLIC ACCESS (Cloudflare Tunnel only)
+  # PUBLIC HTTP/HTTPS (optional — not needed when using Cloudflare Tunnel only)
   # ==========================================================================
 
-  # Ingress - HTTP (for Cloudflare Tunnel / Let's Encrypt)
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "HTTP - Cloudflare Tunnel"
+  dynamic "ingress_security_rules" {
+    for_each = var.allow_public_http_https ? [1] : []
+    content {
+      protocol    = "6" # TCP
+      source      = "0.0.0.0/0"
+      stateless   = false
+      description = "HTTP - direct access (disable for tunnel-only)"
 
-    tcp_options {
-      min = 80
-      max = 80
+      tcp_options {
+        min = 80
+        max = 80
+      }
     }
   }
 
-  # Ingress - HTTPS (for Cloudflare Tunnel)
-  ingress_security_rules {
-    protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
-    stateless   = false
-    description = "HTTPS - Cloudflare Tunnel"
+  dynamic "ingress_security_rules" {
+    for_each = var.allow_public_http_https ? [1] : []
+    content {
+      protocol    = "6" # TCP
+      source      = "0.0.0.0/0"
+      stateless   = false
+      description = "HTTPS - direct access (disable for tunnel-only)"
 
-    tcp_options {
-      min = 443
-      max = 443
+      tcp_options {
+        min = 443
+        max = 443
+      }
     }
   }
 
