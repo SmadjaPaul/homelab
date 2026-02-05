@@ -12,8 +12,8 @@ tasks:
   phase-a:
     desc: "[OCI-First] Phase A - Terraform OCI (VMs). CLOUD nodes use Omni image (talos_image_id)."
     cmds:
-      - task: oci:terraform:apply
-      - echo "Next: create cluster in Omni UI, download Oracle image, import to OCI, set talos_image_id, apply again if needed. See terraform/oracle-cloud/README.md"
+      - 'task oci:terraform:apply'
+      - 'echo "Next: create cluster in Omni UI, download Oracle image, import to OCI, set talos_image_id, apply again if needed. See terraform/oracle-cloud/README.md"'
 
   phase-a:terraform:
     desc: "[Phase A] Create OCI VMs via Terraform"
@@ -27,24 +27,24 @@ tasks:
   phase-b:
     desc: "[OCI-First] Phase B - Cloudflare Tunnel + oauth2-proxy + Authentik"
     cmds:
-      - echo "Phase B: 3.4.1 Cloudflare Tunnel | 3.3.2 oauth2-proxy | 3.3.3 Authentik"
-      - echo "Docs: docs/oci-config-management.md | _bmad-output/planning-artifacts/oci-first-roadmap.md"
+      - 'echo "Phase B: 3.4.1 Cloudflare Tunnel | 3.3.2 oauth2-proxy | 3.3.3 Authentik"'
+      - 'echo "Docs: docs/oci-config-management.md | _bmad-output/planning-artifacts/oci-first-roadmap.md"'
 
   phase-b:tunnel:
     desc: "[Phase B] 3.4.1 - Cloudflare Tunnel (routes Omni/Authentik)"
     cmds:
-      - echo "Configure tunnel routes in terraform/cloudflare/ or Cloudflare dashboard"
-      - echo "See: terraform/cloudflare/tunnel.tf"
+      - 'echo "Configure tunnel routes in terraform/cloudflare/ or Cloudflare dashboard"'
+      - 'echo "See: terraform/cloudflare/tunnel.tf"'
 
   phase-b:oauth2-proxy:
     desc: "[Phase B] 3.3.2 - Deploy oauth2-proxy (K8s/ArgoCD)"
     cmds:
-      - echo "Deploy oauth2-proxy manifests or Helm via ArgoCD when cluster CLOUD is ready"
+      - 'echo "Deploy oauth2-proxy manifests or Helm via ArgoCD when cluster CLOUD is ready"'
 
   phase-b:authentik:
     desc: "[Phase B] 3.3.3 - Configure Authentik (applications/providers)"
     cmds:
-      - echo "Apply Authentik Terraform: cd terraform/authentik && terraform plan && terraform apply"
+      - 'echo "Apply Authentik Terraform: cd terraform/authentik && terraform plan && terraform apply"'
 
   # ---------- Terraform OCI ----------
   terraform:init:
@@ -75,5 +75,5 @@ tasks:
   deploy-mgmt:
     desc: Deploy OCI management stack via Ansible (Omni, Authentik, etc.)
     cmds:
-      - echo "Run with: ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml -e ansible_host=IP -e ..."
-      - echo "See ansible/README.md"
+      - 'echo "Run with: ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml -e ansible_host=IP -e ..."'
+      - 'echo "See ansible/README.md"'

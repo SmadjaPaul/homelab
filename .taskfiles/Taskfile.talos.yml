@@ -1,0 +1,9 @@
+# Stub so root Taskfile can load. Add Talos/Omni tasks here when needed.
+# https://taskfile.dev
+version: '3'
+
+tasks:
+  default:
+    desc: Talos/Omni tasks (stub)
+    cmds:
+      - task --list-all

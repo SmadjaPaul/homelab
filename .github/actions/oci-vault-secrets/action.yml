@@ -62,8 +62,11 @@ outputs:
     description: 'Omni DB Name'
     value: ${{ steps.fetch.outputs.omni_db_name }}
   oci_mgmt_ssh_private_key:
-    description: 'OCI Management SSH Private Key'
+    description: 'OCI Management SSH Private Key (prefer oci_mgmt_ssh_private_key_file for multiline PEM)'
     value: ${{ steps.fetch.outputs.oci_mgmt_ssh_private_key }}
+  oci_mgmt_ssh_private_key_file:
+    description: 'Path to PEM file (use this to avoid env newline issues)'
+    value: ${{ steps.fetch.outputs.oci_mgmt_ssh_private_key_file }}
   # OCI Management Stack secrets
   cloudflare_tunnel_token:
     description: 'Cloudflare Tunnel Token for cloudflared'
@@ -210,9 +213,24 @@ runs:
           # Mask the secret in logs
           echo "::add-mask::$DECODED"
 
+          # SSH key: always write to workspace file so workflow step sees it (RUNNER_TEMP can be step-scoped)
+          if [[ "$secret_key" == "oci_mgmt_ssh_private_key" ]]; then
+            SSH_KEY_DIR="${GITHUB_WORKSPACE}/.tmp"
+            mkdir -p "$SSH_KEY_DIR"
+            SSH_KEY_FILE="${SSH_KEY_DIR}/oci_mgmt_ssh_key.pem"
+            # If PEM is single-line (e.g. stored with literal \n), expand to real newlines
+            if echo "$DECODED" | grep -q $'\n'; then
+              printf '%s\n' "$DECODED" | tr -d '\r' > "$SSH_KEY_FILE"
+            else
+              echo "$DECODED" | sed 's/\\n/\'$'\n''/g' | tr -d '\r' > "$SSH_KEY_FILE"
+            fi
+            chmod 600 "$SSH_KEY_FILE"
+            echo "oci_mgmt_ssh_private_key_file=$SSH_KEY_FILE" >> "$GITHUB_OUTPUT"
+          fi
+
           # Check if secret contains newlines (multiline secret like SSH keys)
           if echo "$DECODED" | grep -q $'\n'; then
-            # Multiline secret: use heredoc format
+            # Also output heredoc for consumers that read the output directly (may be collapsed in env)
             {
               echo "${secret_key}<<EOF_${secret_key}"
               echo "$DECODED"

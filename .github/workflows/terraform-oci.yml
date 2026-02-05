@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Action to perform'
+        description: 'Action to perform (choose "apply" + "production" to run Terraform Apply)'
         required: true
         default: 'plan'
         type: choice
@@ -31,7 +31,7 @@ on:
           - destroy
           - force-unlock
       environment:
-        description: 'Target environment'
+        description: 'Target environment (use "production" to run Apply when action=apply)'
         required: true
         default: 'development'
         type: choice
@@ -277,6 +277,7 @@ jobs:
             });
 
   # ==================== Apply ====================
+  # Runs on: push to main, OR manual run with action=apply AND environment=production
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest

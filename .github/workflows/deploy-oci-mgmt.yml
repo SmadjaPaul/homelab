@@ -1,6 +1,7 @@
 # Deploy OCI Management Stack (Traefik + Cloudflared + Authentik + Omni)
-# Déploie docker/oci-mgmt sur la VM OCI. Point d'entrée unique : Traefik (localhost:8080).
-# Tunnel et Authentik : gérés par Terraform (appliquer séparément si modifié).
+# Déploie docker/oci-mgmt sur la VM OCI management uniquement (Ubuntu, pas Talos).
+# SSH cible : oci_core_instance.management (Ubuntu). Les 2 nœuds Talos (k8s_node) ne sont jamais utilisés par ce workflow.
+# Point d'entrée unique : Traefik (localhost:8080). Tunnel et Authentik : gérés par Terraform.
 name: Deploy OCI Management Stack
 
 on:
@@ -124,6 +125,7 @@ jobs:
             echo "Management VM IP: $IP"
           fi
 
+  # SSH target = management VM only (Ubuntu, user ubuntu). Talos nodes have no SSH.
   deploy:
     name: Deploy Omni stack on VM
     runs-on: ubuntu-latest
@@ -149,11 +151,46 @@ jobs:
           oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Setup SSH key
+        env:
+          OCI_MGMT_SSH_KEY: ${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}" > ~/.ssh/oci_mgmt.pem
+          # Use file from action when set (preserves multiline PEM); fallback to env for backward compat
+          KEY_FILE="${{ steps.secrets.outputs.oci_mgmt_ssh_private_key_file }}"
+          if [[ -n "$KEY_FILE" && -f "$KEY_FILE" ]]; then
+            cp "$KEY_FILE" ~/.ssh/oci_mgmt.pem
+          else
+            printf '%s\n' "$OCI_MGMT_SSH_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
+          fi
           chmod 600 ~/.ssh/oci_mgmt.pem
+          KEY_LINES=$(wc -l < ~/.ssh/oci_mgmt.pem)
+          if [[ "$KEY_LINES" -lt 2 ]]; then
+            echo "::error::SSH key in OCI Vault has too few lines ($KEY_LINES). In OCI Vault, store the full PEM with real newlines (or as base64 of the multiline PEM). Same key pair as Terraform SSH_PUBLIC_KEY."
+            exit 1
+          fi
+          if ! ssh-keygen -y -f ~/.ssh/oci_mgmt.pem >/dev/null 2>&1; then
+            echo "::error::Invalid SSH private key in OCI Vault (homelab-oci-mgmt-ssh-private-key). Check PEM format and line endings."
+            exit 1
+          fi
           ssh-keyscan -H ${{ needs['get-mgmt-ip'].outputs.mgmt_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Debug SSH connectivity
+        run: |
+          set +e
+          IP="${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}"
+          echo "=== SSH debug (target: ubuntu@$IP) ==="
+          echo "Key file: $(wc -l < ~/.ssh/oci_mgmt.pem) lines, first line: $(head -1 ~/.ssh/oci_mgmt.pem), last line: $(tail -1 ~/.ssh/oci_mgmt.pem)"
+          echo "Testing SSH (verbose tail)..."
+          SSH_ERR=$(ssh -v -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=no -i ~/.ssh/oci_mgmt.pem ubuntu@"$IP" "echo OK" 2>&1)
+          SSH_EXIT=$?
+          echo "--- Last 40 lines of SSH output ---"
+          echo "$SSH_ERR" | tail -40
+          echo "--- SSH exit code: $SSH_EXIT ---"
+          if [[ $SSH_EXIT -ne 0 ]]; then
+            echo "::warning::SSH test failed (exit $SSH_EXIT). If you see 'Permission denied (publickey)': the key in OCI Vault must be the PRIVATE key of the same pair as Terraform SSH_PUBLIC_KEY. If you see 'Connection refused' or timeout: check firewall (e.g. ALLOW_SSH_FROM_ANYWHERE or ADMIN_ALLOWED_CIDRS for GitHub IPs)."
+          else
+            echo "SSH test OK."
+          fi
 
       - name: Install Ansible and collections
         run: |
@@ -171,13 +208,16 @@ jobs:
 
       - name: Run Ansible playbook (deploy OCI management stack)
         run: |
-          ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml \
+          if ! ansible-playbook ansible/playbooks/oci-mgmt-deploy.yml \
             -i "oci_mgmt," \
             -e "ansible_host=${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}" \
             -e "ansible_user=ubuntu" \
             -e "ansible_ssh_private_key_file=$HOME/.ssh/oci_mgmt.pem" \
             -e "project_root=${{ github.workspace }}" \
-            -e "@/tmp/oci-mgmt-ansible-vars.yml"
+            -e "@/tmp/oci-mgmt-ansible-vars.yml"; then
+            echo "::error::SSH failed. If 'Permission denied (publickey)': the key in OCI Vault (homelab-oci-mgmt-ssh-private-key) must be the PRIVATE key of the same key pair whose PUBLIC key is in Terraform (SSH_PUBLIC_KEY). Same pair = VM authorized_keys was set by Terraform with that public key."
+            exit 1
+          fi
         env:
           ANSIBLE_FORCE_COLOR: "1"
           ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/roles

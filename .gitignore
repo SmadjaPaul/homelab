@@ -35,6 +35,9 @@ tfplan
 *.retry
 .vault_pass
 
+# CI temp (e.g. OCI Vault SSH key file)
+.tmp/
+
 # Secrets
 *.pem
 *.key

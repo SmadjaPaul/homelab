@@ -1,0 +1,9 @@
+# Stub so root Taskfile can load. Add k8s tasks here when needed.
+# https://taskfile.dev
+version: '3'
+
+tasks:
+  default:
+    desc: Kubernetes tasks (stub)
+    cmds:
+      - task --list-all
