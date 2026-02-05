@@ -8,7 +8,9 @@ variable "domain" {
   default     = "smadja.dev"
 }
 
-# Note: data.authentik_flow.default_invalidation est défini dans data.tf
+data "authentik_flow" "default_invalidation" {
+  slug = "default-provider-invalidation-flow"
+}
 
 resource "authentik_provider_proxy" "omni" {
   name               = "omni-proxy"
@@ -26,19 +28,6 @@ resource "authentik_application" "omni" {
   policy_engine_mode = "any" # Allow if user matches any bound policy
 }
 
-# Group binding: users in group "admin" can access Omni (visible in "Mes applications")
-resource "authentik_policy_binding" "omni_admin" {
-  target = authentik_application.omni.uuid
-  group  = authentik_group.admin.id
-  order  = 0
-}
-
-# Embedded outpost: assign omni-proxy so Forward Auth works for omni.smadja.dev.
-# First time only: import the existing outpost (Admin → Outposts → copy UUID from URL or API):
-#   terraform import authentik_outpost.embedded <OUTPOST_UUID>
-resource "authentik_outpost" "embedded" {
-  name               = "authentik Embedded Outpost"
-  type               = "proxy"
-  protocol_providers = [authentik_provider_proxy.omni.id]
-  # service_connection: leave unset so import keeps existing (embedded) connection
-}
+# Assign group "admin" to Omni in Authentik UI:
+# Applications → Omni → Policy / Group / User Bindings → Add group "admin"
+# (Provider goauthentik/authentik may not expose policy_group in this version)

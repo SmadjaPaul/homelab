@@ -4,7 +4,7 @@
 terraform {
   backend "oci" {
     bucket    = "homelab-tfstate"
-    namespace = "axnvxxurxefp" # Remplacer par ton namespace tenancy (voir README) ; CI : injecté par le workflow
+    namespace = "YOUR_TENANCY_NAMESPACE" # CI: injected by workflow; Local: replace manually
     key       = "proxmox/terraform.tfstate"
     region    = "eu-paris-1"
   }

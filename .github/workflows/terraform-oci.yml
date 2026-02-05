@@ -371,7 +371,7 @@ jobs:
         run: terraform init -reconfigure
 
       - name: Setup Task (Taskfile)
-        uses: go-task/setup-task@v1
+        uses: go-task/setup-task@v3
         with:
           version: "3.36.0"
 
