@@ -1,0 +1,9 @@
+# Kubernetes / ArgoCD tasks
+# Used by root Taskfile.yaml. CI uses oci/terraform only; this file is for local k8s/ArgoCD operations.
+version: '3'
+
+tasks:
+  default:
+    desc: Kubernetes tasks (ArgoCD, kubectl, etc.)
+    cmds:
+      - task --list-all
