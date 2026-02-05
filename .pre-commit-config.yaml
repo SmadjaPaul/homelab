@@ -59,7 +59,13 @@ repos:
         args: [--maxkb=1000]
       - id: detect-private-key
         name: 🔑 Detect private keys
-        exclude: docs/.*\.md$  # Docs contain example keys
+        exclude: |
+          (?x)^(
+            docs/.*\.md$|
+            \.github/actions/oci-vault-secrets/action\.yml|
+            \.github/workflows/deploy-oci-mgmt\.yml|
+            scripts/update-oci-vault-ssh-key\.sh
+          )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings
 
   # =============================================================================
   # Shell Scripts

@@ -224,6 +224,10 @@ runs:
             else
               echo "$DECODED" | sed 's/\\n/\'$'\n''/g' | tr -d '\r' > "$SSH_KEY_FILE"
             fi
+            # OCI Vault / API sometimes returns secret without first line (-----BEGIN ...-----); restore it
+            if ! head -1 "$SSH_KEY_FILE" | grep -q -- '-----BEGIN'; then
+              { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat "$SSH_KEY_FILE"; } > "${SSH_KEY_FILE}.tmp" && mv "${SSH_KEY_FILE}.tmp" "$SSH_KEY_FILE"
+            fi
             chmod 600 "$SSH_KEY_FILE"
             echo "oci_mgmt_ssh_private_key_file=$SSH_KEY_FILE" >> "$GITHUB_OUTPUT"
           fi

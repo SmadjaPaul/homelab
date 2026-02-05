@@ -19,5 +19,8 @@ paths = [
   '''_bmad.*''',
   # Documentation contains example keys (not real)
   '''docs/.*\.md$''',
+  # PEM header only (repair logic), no real key
+  '''\.github/workflows/deploy-oci-mgmt\.yml$''',
+  '''scripts/update-oci-vault-ssh-key\.sh$''',
   # Terraform: secret_key = var.xxx (variable reference, not literal secret),
 ]

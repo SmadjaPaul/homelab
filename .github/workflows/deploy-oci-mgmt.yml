@@ -136,6 +136,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache OCI CLI
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.home }}/lib/oracle-cli
+            ${{ runner.home }}/bin
+          key: oci-cli-${{ runner.os }}-v3
+
+      - name: Add OCI CLI to PATH
+        run: echo "${{ runner.home }}/bin" >> $GITHUB_PATH
+
       - name: Fetch secrets from OCI Vault
         id: secrets
         uses: ./.github/actions/oci-vault-secrets
@@ -153,23 +164,35 @@ jobs:
       - name: Setup SSH key
         env:
           OCI_MGMT_SSH_KEY: ${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}
+          OCI_MGMT_SSH_PRIVATE_KEY: ${{ secrets.OCI_MGMT_SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          # Use file from action when set (preserves multiline PEM); fallback to env for backward compat
-          KEY_FILE="${{ steps.secrets.outputs.oci_mgmt_ssh_private_key_file }}"
-          if [[ -n "$KEY_FILE" && -f "$KEY_FILE" ]]; then
-            cp "$KEY_FILE" ~/.ssh/oci_mgmt.pem
+          # Prefer GitHub secret so the key is guaranteed to match SSH_PUBLIC_KEY
+          if [[ -n "$OCI_MGMT_SSH_PRIVATE_KEY" ]]; then
+            echo "Using GitHub secret OCI_MGMT_SSH_PRIVATE_KEY."
+            printf '%s\n' "$OCI_MGMT_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
           else
-            printf '%s\n' "$OCI_MGMT_SSH_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
+            KEY_FILE="${{ steps.secrets.outputs.oci_mgmt_ssh_private_key_file }}"
+            if [[ -n "$KEY_FILE" && -f "$KEY_FILE" ]]; then
+              cp "$KEY_FILE" ~/.ssh/oci_mgmt.pem
+            else
+              printf '%s\n' "$OCI_MGMT_SSH_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
+            fi
           fi
           chmod 600 ~/.ssh/oci_mgmt.pem
           KEY_LINES=$(wc -l < ~/.ssh/oci_mgmt.pem)
           if [[ "$KEY_LINES" -lt 2 ]]; then
-            echo "::error::SSH key in OCI Vault has too few lines ($KEY_LINES). In OCI Vault, store the full PEM with real newlines (or as base64 of the multiline PEM). Same key pair as Terraform SSH_PUBLIC_KEY."
+            echo "::error::SSH key invalid (too few lines). Set repo secret OCI_MGMT_SSH_PRIVATE_KEY with the full PEM (same pair as SSH_PUBLIC_KEY)."
             exit 1
           fi
+          if ! head -1 ~/.ssh/oci_mgmt.pem | grep -q -- '-----BEGIN'; then
+            echo "Prepending missing -----BEGIN OPENSSH PRIVATE KEY----- line."
+            { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat ~/.ssh/oci_mgmt.pem; } > ~/.ssh/oci_mgmt.pem.new
+            mv ~/.ssh/oci_mgmt.pem.new ~/.ssh/oci_mgmt.pem
+            chmod 600 ~/.ssh/oci_mgmt.pem
+          fi
           if ! ssh-keygen -y -f ~/.ssh/oci_mgmt.pem >/dev/null 2>&1; then
-            echo "::error::Invalid SSH private key in OCI Vault (homelab-oci-mgmt-ssh-private-key). Check PEM format and line endings."
+            echo "::error::Invalid SSH private key. Check OCI_MGMT_SSH_PRIVATE_KEY: full PEM with -----BEGIN and -----END, same pair as SSH_PUBLIC_KEY."
             exit 1
           fi
           ssh-keyscan -H ${{ needs['get-mgmt-ip'].outputs.mgmt_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true

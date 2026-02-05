@@ -42,6 +42,11 @@ on:
         description: 'Lock ID (for action: force-unlock). Copy from the CI error message.'
         required: false
         type: string
+      rotate_ssh_key:
+        description: 'Generate new SSH key and update Vault + GitHub secrets before apply (only with action=apply)'
+        required: false
+        default: false
+        type: boolean
 
 # Une seule exécution à la fois pour éviter deux runs qui verrouillent le même state (lock conflict)
 concurrency:
@@ -129,11 +134,128 @@ jobs:
             exit 1
           fi
 
+  # ==================== Rotate SSH key (optional) ====================
+  # When rotate_ssh_key=true (workflow_dispatch): generate key, update OCI Vault + GitHub secrets, pass key to plan/apply via artifact.
+  # Otherwise: upload "use_secret" so plan/apply use secrets.SSH_PUBLIC_KEY.
+  rotate-ssh-key:
+    name: Rotate SSH key (or use existing)
+    runs-on: ubuntu-latest
+    needs: [validate, quota-check]
+    if: needs.quota-check.outputs.quota_ok == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_WORKING_DIR: terraform/oracle-cloud
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate key and update secrets (when requested)
+        id: rotate
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "rotated=true" >> $GITHUB_OUTPUT
+          ssh-keygen -t ed25519 -f ./oci_mgmt_key -N "" -C "oci-mgmt-ci"
+          chmod 600 ./oci_mgmt_key
+          echo "key_path=./oci_mgmt_key" >> $GITHUB_OUTPUT
+          echo "pub_path=./oci_mgmt_key.pub" >> $GITHUB_OUTPUT
+
+      - name: Cache OCI CLI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true'
+        uses: actions/cache@v4
+        id: oci-cache
+        with:
+          path: |
+            ${{ runner.home }}/lib/oracle-cli
+            ${{ runner.home }}/bin
+          key: oci-cli-${{ runner.os }}-v3
+
+      - name: Add OCI CLI to PATH
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true'
+        run: echo "${{ runner.home }}/bin" >> $GITHUB_PATH
+
+      - name: Install OCI CLI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true' && steps.oci-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          oci --version
+
+      - name: Authenticate to OCI (for rotate)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true'
+        id: oci-auth-rotate
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
+
+      - name: Configure OCI and get secret OCID (for rotate)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.rotate_ssh_key == 'true'
+        run: |
+          mkdir -p ~/.oci
+          AUTH="${{ steps.oci-auth-rotate.outputs.auth_method }}"
+          if [[ "$AUTH" == "oidc" && -n "${{ steps.oci-auth-rotate.outputs.oci_session_token }}" ]]; then
+            printf '%s\n' "${{ steps.oci-auth-rotate.outputs.oci_session_token }}" > ~/.oci/session_token
+            printf '%s\n' "${{ steps.oci-auth-rotate.outputs.oci_session_key }}" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+            printf '%s\n' "[DEFAULT]\nauth=security_token\nuser=${{ secrets.OCI_CLI_USER }}\nfingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}\ntenancy=${{ secrets.OCI_CLI_TENANCY }}\nregion=${{ secrets.OCI_CLI_REGION }}\nsecurity_token_file=${HOME}/.oci/session_token\nkey_file=${HOME}/.oci/session_key.pem" > ~/.oci/config
+          else
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            printf '%s\n' "[DEFAULT]\nuser=${{ secrets.OCI_CLI_USER }}\nfingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}\ntenancy=${{ secrets.OCI_CLI_TENANCY }}\nregion=${{ secrets.OCI_CLI_REGION }}\nkey_file=${HOME}/.oci/oci_api_key.pem" > ~/.oci/config
+          fi
+          cd ${{ env.TF_WORKING_DIR }}
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+          terraform init -reconfigure -input=false
+          SECRET_ID=$(terraform output -json vault_secrets 2>/dev/null | jq -r '.secrets.oci_mgmt_ssh_private_key // empty')
+          if [[ -z "$SECRET_ID" || "$SECRET_ID" == "null" ]]; then
+            COMP="${{ secrets.OCI_COMPARTMENT_ID }}"
+            [[ -z "$COMP" ]] && COMP="${{ secrets.OCI_CLI_TENANCY }}"
+            SECRET_ID=$(oci vault secret list --compartment-id "$COMP" --name "homelab-oci-mgmt-ssh-private-key" --lifecycle-state ACTIVE --query 'data[0].id' --raw-output 2>/dev/null || true)
+          fi
+          if [[ -n "$SECRET_ID" && "$SECRET_ID" != "null" ]]; then
+            KEY_FILE="$GITHUB_WORKSPACE/oci_mgmt_key"
+            if base64 --help 2>/dev/null | grep -q '\-w'; then
+              B64=$(base64 -w 0 < "$KEY_FILE")
+            else
+              B64=$(base64 < "$KEY_FILE" | tr -d '\n')
+            fi
+            oci vault secret update-base64 --secret-id "$SECRET_ID" --secret-content-content "$B64" --force
+            echo "✓ OCI Vault secret updated."
+          fi
+          if [[ -n "${{ secrets.GH_TOKEN }}" ]]; then
+            gh secret set SSH_PUBLIC_KEY < "$GITHUB_WORKSPACE/oci_mgmt_key.pub"
+            gh secret set OCI_MGMT_SSH_PRIVATE_KEY < "$GITHUB_WORKSPACE/oci_mgmt_key"
+            echo "✓ GitHub secrets updated."
+          fi
+
+      - name: Upload SSH key artifact
+        run: |
+          mkdir -p ssh-public-key
+          if [[ -f oci_mgmt_key.pub ]]; then
+            cp oci_mgmt_key.pub ssh-public-key/key.pub
+          else
+            echo "secret" > ssh-public-key/source
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-public-key
+          path: ssh-public-key/
+
   # ==================== Plan ====================
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    needs: [validate, quota-check]
+    needs: [validate, quota-check, rotate-ssh-key]
     if: needs.quota-check.outputs.quota_ok == 'true'
     environment: development
     permissions:
@@ -142,16 +264,46 @@ jobs:
       id-token: write  # Required for OIDC token exchange
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
-      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
-      # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
       TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
       TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download SSH key artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssh-public-key
+
+      - name: Set SSH public key for Terraform
+        env:
+          SSH_PUBLIC_KEY_SECRET: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          if [[ -f ssh-public-key/key.pub ]]; then
+            echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
+            cat ssh-public-key/key.pub >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "TF_VAR_ssh_public_key<<ENDOFSSHKEY" >> $GITHUB_ENV
+            printf '%s\n' "$SSH_PUBLIC_KEY_SECRET" >> $GITHUB_ENV
+            echo "ENDOFSSHKEY" >> $GITHUB_ENV
+          fi
+
+      - name: Validate SSH_PUBLIC_KEY
+        run: |
+          KEY="${{ env.TF_VAR_ssh_public_key }}"
+          if echo "$KEY" | grep -q -- '-----BEGIN'; then
+            echo "::error::SSH_PUBLIC_KEY must be the PUBLIC key (one line). Use workflow_dispatch with rotate_ssh_key=true or run 'Rotate OCI SSH key'."
+            exit 1
+          fi
+          if ! echo "$KEY" | grep -qE '^ssh-(ed25519|rsa|dss|ecdsa) '; then
+            echo "::error::SSH_PUBLIC_KEY must be one line starting with ssh-ed25519 or ssh-rsa."
+            exit 1
+          fi
+          echo "SSH_PUBLIC_KEY format OK."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -281,7 +433,7 @@ jobs:
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    needs: [validate, quota-check, plan]
+    needs: [validate, quota-check, plan, rotate-ssh-key]
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' && github.event.inputs.environment == 'production')
@@ -292,16 +444,46 @@ jobs:
       id-token: write  # Required for OIDC token exchange
     env:
       TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
-      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_vault_secrets_managed_in_ci: "true"
       TF_VAR_budget_alert_email: "smadjapaul02@gmail.com"
       TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER }}
-      # Security: Empty = SSH only via Twingate/VPN. Set ADMIN_ALLOWED_CIDRS secret to whitelist IPs.
       TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
       TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download SSH key artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssh-public-key
+
+      - name: Set SSH public key for Terraform
+        env:
+          SSH_PUBLIC_KEY_SECRET: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          if [[ -f ssh-public-key/key.pub ]]; then
+            echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
+            cat ssh-public-key/key.pub >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "TF_VAR_ssh_public_key<<ENDOFSSHKEY" >> $GITHUB_ENV
+            printf '%s\n' "$SSH_PUBLIC_KEY_SECRET" >> $GITHUB_ENV
+            echo "ENDOFSSHKEY" >> $GITHUB_ENV
+          fi
+
+      - name: Validate SSH_PUBLIC_KEY
+        run: |
+          KEY="${{ env.TF_VAR_ssh_public_key }}"
+          if echo "$KEY" | grep -q -- '-----BEGIN'; then
+            echo "::error::SSH_PUBLIC_KEY must be the PUBLIC key (one line). Use workflow_dispatch with rotate_ssh_key=true."
+            exit 1
+          fi
+          if ! echo "$KEY" | grep -qE '^ssh-(ed25519|rsa|dss|ecdsa) '; then
+            echo "::error::SSH_PUBLIC_KEY must be one line starting with ssh-ed25519 or ssh-rsa."
+            exit 1
+          fi
+          echo "SSH_PUBLIC_KEY format OK."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

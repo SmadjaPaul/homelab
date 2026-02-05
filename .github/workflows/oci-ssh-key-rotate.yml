@@ -1,0 +1,169 @@
+# Generate a new SSH key pair and update GitHub + OCI Vault secrets.
+# Guarantees SSH_PUBLIC_KEY (public) and OCI_MGMT_SSH_PRIVATE_KEY + OCI Vault (private) stay in sync.
+#
+# Run: Actions → "Rotate OCI SSH key" → Run workflow.
+# After run: trigger "Terraform Oracle Cloud" with action=apply so VMs get the new public key.
+name: Rotate OCI SSH key
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: oci-ssh-key-rotate
+  cancel-in-progress: false
+
+env:
+  TF_WORKING_DIR: terraform/oracle-cloud
+
+jobs:
+  rotate:
+    name: Generate key and update secrets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate SSH key pair
+        id: keygen
+        run: |
+          ssh-keygen -t ed25519 -f ./oci_mgmt_key -N "" -C "oci-mgmt-ci"
+          chmod 600 ./oci_mgmt_key
+          echo "Public key (first line):"
+          head -1 ./oci_mgmt_key.pub
+          echo "private_key_path=./oci_mgmt_key" >> $GITHUB_OUTPUT
+          echo "public_key_path=./oci_mgmt_key.pub" >> $GITHUB_OUTPUT
+
+      - name: Cache OCI CLI
+        uses: actions/cache@v4
+        id: oci-cache
+        with:
+          path: |
+            ${{ runner.home }}/lib/oracle-cli
+            ${{ runner.home }}/bin
+          key: oci-cli-${{ runner.os }}-v3
+
+      - name: Add OCI CLI to PATH
+        run: echo "${{ runner.home }}/bin" >> $GITHUB_PATH
+
+      - name: Install OCI CLI
+        if: steps.oci-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "${{ runner.home }}/bin" >> $GITHUB_PATH
+          oci --version
+
+      - name: Authenticate to OCI
+        id: oci-auth
+        uses: ./.github/actions/oci-oidc-auth
+        with:
+          oci_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_user_ocid: ${{ secrets.OCI_CLI_USER }}
+          oci_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_api_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
+
+      - name: Configure OCI Authentication
+        shell: bash
+        env:
+          OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+          OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+          AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
+        run: |
+          mkdir -p ~/.oci
+          if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+            printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+            printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+            chmod 600 ~/.oci/session_key.pem
+            printf '%s\n' "[DEFAULT]\nauth=security_token\nuser=${{ secrets.OCI_CLI_USER }}\nfingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}\ntenancy=${{ secrets.OCI_CLI_TENANCY }}\nregion=${{ secrets.OCI_CLI_REGION }}\nsecurity_token_file=${HOME}/.oci/session_token\nkey_file=${HOME}/.oci/session_key.pem" > ~/.oci/config
+          else
+            printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+            chmod 600 ~/.oci/oci_api_key.pem
+            printf '%s\n' "[DEFAULT]\nuser=${{ secrets.OCI_CLI_USER }}\nfingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}\ntenancy=${{ secrets.OCI_CLI_TENANCY }}\nregion=${{ secrets.OCI_CLI_REGION }}\nkey_file=${HOME}/.oci/oci_api_key.pem" > ~/.oci/config
+          fi
+
+      - name: Setup Terraform (for secret OCID from state)
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.4"
+
+      - name: Inject backend namespace and Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+          terraform init -reconfigure -input=false
+        env:
+          TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+
+      - name: Get OCI Vault secret OCID
+        id: vault
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          SECRET_ID=$(terraform output -json vault_secrets 2>/dev/null | jq -r '.secrets.oci_mgmt_ssh_private_key // empty')
+          if [[ -z "$SECRET_ID" || "$SECRET_ID" == "null" ]]; then
+            COMPARTMENT_ID="${{ secrets.OCI_COMPARTMENT_ID }}"
+            [[ -z "$COMPARTMENT_ID" ]] && COMPARTMENT_ID="${{ secrets.OCI_CLI_TENANCY }}"
+            SECRET_ID=$(oci vault secret list \
+              --compartment-id "$COMPARTMENT_ID" \
+              --name "homelab-oci-mgmt-ssh-private-key" \
+              --lifecycle-state ACTIVE \
+              --query 'data[0].id' \
+              --raw-output 2>/dev/null || true)
+          fi
+          if [[ -z "$SECRET_ID" || "$SECRET_ID" == "null" ]]; then
+            echo "::error::Secret homelab-oci-mgmt-ssh-private-key not found. Run Terraform OCI apply once (action=apply, env=production) to create the Vault and secret."
+            exit 1
+          fi
+          echo "secret_id=$SECRET_ID" >> $GITHUB_OUTPUT
+
+      - name: Update OCI Vault secret (private key)
+        run: |
+          KEY_FILE="${{ steps.keygen.outputs.private_key_path }}"
+          SECRET_ID="${{ steps.vault.outputs.secret_id }}"
+          if base64 --help 2>/dev/null | grep -q '\-w'; then
+            BASE64_CONTENT=$(base64 -w 0 < "$KEY_FILE")
+          else
+            BASE64_CONTENT=$(base64 < "$KEY_FILE" | tr -d '\n')
+          fi
+          oci vault secret update-base64 \
+            --secret-id "$SECRET_ID" \
+            --secret-content-content "$BASE64_CONTENT" \
+            --force
+          echo "✓ OCI Vault secret homelab-oci-mgmt-ssh-private-key updated."
+
+      - name: Set GitHub secret SSH_PUBLIC_KEY
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          PUB="${{ steps.keygen.outputs.public_key_path }}"
+          if [[ -n "$GH_TOKEN" ]]; then
+            gh secret set SSH_PUBLIC_KEY < "$PUB"
+            echo "✓ GitHub secret SSH_PUBLIC_KEY updated (public key, one line)."
+          else
+            echo "::warning::Add secret GH_TOKEN (PAT with admin:repo) to allow updating secrets from this workflow. For now, set SSH_PUBLIC_KEY manually: copy the output of 'cat $PUB' in the Generate step."
+          fi
+
+      - name: Set GitHub secret OCI_MGMT_SSH_PRIVATE_KEY
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          KEY="${{ steps.keygen.outputs.private_key_path }}"
+          if [[ -n "$GH_TOKEN" ]]; then
+            gh secret set OCI_MGMT_SSH_PRIVATE_KEY < "$KEY"
+            echo "✓ GitHub secret OCI_MGMT_SSH_PRIVATE_KEY updated (private PEM)."
+          else
+            echo "::warning::Set OCI_MGMT_SSH_PRIVATE_KEY manually with the private key, or add GH_TOKEN and re-run."
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Next steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Terraform Apply**: Run **Terraform Oracle Cloud** with **Action: apply**, **Environment: production** so VMs get the new public key in \`authorized_keys\`." >> $GITHUB_STEP_SUMMARY
+          echo "2. **Deploy**: Run **Deploy OCI Management Stack** if needed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To have this workflow set GitHub secrets automatically, add repository secret **GH_TOKEN** (GitHub PAT with \`admin:repo\` or \`repository` → Secrets: write)." >> $GITHUB_STEP_SUMMARY
