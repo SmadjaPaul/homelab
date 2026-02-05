@@ -127,10 +127,10 @@ runs:
         # Try to get from OCI API first (more reliable in CI)
         echo "Fetching Vault and Key OCIDs from OCI API..."
 
-        # Get vault by name (try multiple name variations)
+        # Get vault by name
         VAULT_ID=$(oci kms vault list \
           --compartment-id "$COMPARTMENT_ID" \
-          --query 'data[?display_name==`homelab-secrets` || display_name==`homelab-secrets-vault`].id' \
+          --query 'data[?display_name==`homelab-secrets`].id' \
           --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
 
         if [[ -z "$VAULT_ID" ]]; then
@@ -143,32 +143,12 @@ runs:
         fi
 
         if [[ -n "$VAULT_ID" ]]; then
-          # Get vault details to retrieve management endpoint
-          VAULT_MGMT_ENDPOINT=$(oci kms vault get \
+          # Get key from vault
+          KEY_ID=$(oci kms management key list \
+            --compartment-id "$COMPARTMENT_ID" \
             --vault-id "$VAULT_ID" \
-            --query 'data."management-endpoint"' \
-            --raw-output 2>/dev/null | tr -d '"' || echo "")
-
-          if [[ -n "$VAULT_MGMT_ENDPOINT" ]]; then
-            echo "Found vault management endpoint: ${VAULT_MGMT_ENDPOINT:0:50}..."
-            # Get key from vault using management endpoint
-            KEY_ID=$(oci kms management key list \
-              --compartment-id "$COMPARTMENT_ID" \
-              --endpoint "$VAULT_MGMT_ENDPOINT" \
-              --query 'data[?display_name==`homelab-secrets-master-key` || display_name==`homelab-secrets-key`].id' \
-              --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
-
-            # If not found by name, get the first key
-            if [[ -z "$KEY_ID" ]]; then
-              KEY_ID=$(oci kms management key list \
-                --compartment-id "$COMPARTMENT_ID" \
-                --endpoint "$VAULT_MGMT_ENDPOINT" \
-                --query 'data[0].id' \
-                --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
-            fi
-          else
-            echo "::warning::Could not retrieve vault management endpoint"
-          fi
+            --query 'data[0].id' \
+            --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
         fi
 
         # Fallback: try Terraform state if API failed

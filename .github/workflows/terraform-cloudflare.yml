@@ -127,31 +127,8 @@ jobs:
           EOF
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Force unlock stale Terraform state lock
-        uses: ./.github/actions/terraform-force-unlock
-        continue-on-error: true
-        with:
-          working_directory: ${{ env.TF_WORKING_DIR }}
-          timeout_minutes: '30'
-
       - name: Terraform Plan
-        run: |
-          # Try plan with lock timeout (wait up to 5 minutes for lock to be released)
-          if ! terraform plan -no-color -out=tfplan -lock-timeout=5m; then
-            # If plan fails due to lock, try to unlock and retry
-            echo "::warning::Plan failed, attempting to unlock stale lock..."
-            PLAN_OUTPUT=$(terraform plan -no-color -out=tfplan -lock-timeout=0s 2>&1 || true)
-            LOCK_ID=$(echo "$PLAN_OUTPUT" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || echo "")
-            if [ -n "$LOCK_ID" ]; then
-              echo "::warning::Force unlocking stale lock: $LOCK_ID"
-              terraform force-unlock -force "$LOCK_ID" || true
-              echo "Retrying plan..."
-              terraform plan -no-color -out=tfplan
-            else
-              echo "::error::Plan failed but no lock ID found"
-              exit 1
-            fi
-          fi
+        run: terraform plan -no-color -out=tfplan
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -232,31 +209,8 @@ jobs:
           EOF
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Force unlock stale Terraform state lock
-        uses: ./.github/actions/terraform-force-unlock
-        continue-on-error: true
-        with:
-          working_directory: ${{ env.TF_WORKING_DIR }}
-          timeout_minutes: '30'
-
       - name: Terraform Apply
-        run: |
-          # Try apply with lock timeout (wait up to 5 minutes for lock to be released)
-          if ! terraform apply -auto-approve -lock-timeout=5m; then
-            # If apply fails due to lock, try to unlock and retry
-            echo "::warning::Apply failed, attempting to unlock stale lock..."
-            APPLY_OUTPUT=$(terraform apply -auto-approve -lock-timeout=0s 2>&1 || true)
-            LOCK_ID=$(echo "$APPLY_OUTPUT" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || echo "")
-            if [ -n "$LOCK_ID" ]; then
-              echo "::warning::Force unlocking stale lock: $LOCK_ID"
-              terraform force-unlock -force "$LOCK_ID" || true
-              echo "Retrying apply..."
-              terraform apply -auto-approve
-            else
-              echo "::error::Apply failed but no lock ID found"
-              exit 1
-            fi
-          fi
+        run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

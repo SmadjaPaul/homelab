@@ -53,18 +53,10 @@ runs:
         JWT_EXPIRY: ${{ inputs.jwt_expiry_seconds }}
       run: |
         # Check inputs
-        if [ -z "$CLIENT_ID" ]; then
-          echo "::error::client_id is required"
+        if [ -z "$CLIENT_ID" ] || [ -z "$PRIVATE_KEY_PEM" ]; then
+          echo "::error::client_id and private_key_pem are required"
           echo "token_source=static" >> $GITHUB_OUTPUT
           exit 1
-        fi
-
-        # Check if private key is provided (may be empty if secret doesn't exist yet)
-        if [ -z "$PRIVATE_KEY_PEM" ]; then
-          echo "::warning::private_key_pem is empty. Secret 'homelab-authentik-private-key-pem' may not exist in OCI Vault yet."
-          echo "::notice::Run 'Deploy Authentik JWKS' workflow first to generate and store the private key."
-          echo "token_source=static" >> $GITHUB_OUTPUT
-          exit 0  # Exit successfully to allow fallback
         fi
 
         # Mask private key in logs
