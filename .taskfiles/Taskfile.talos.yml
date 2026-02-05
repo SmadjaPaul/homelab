@@ -1,9 +1,0 @@
-# Talos / Omni tasks
-# Used by root Taskfile.yaml. CI uses oci/terraform only; this file is for local Talos/Omni operations.
-version: '3'
-
-tasks:
-  default:
-    desc: Talos/Omni tasks
-    cmds:
-      - task --list-all

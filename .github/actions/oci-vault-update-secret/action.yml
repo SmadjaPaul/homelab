@@ -118,282 +118,72 @@ runs:
           } > ~/.oci/config
         fi
 
-        # Fix permissions to avoid warnings
-        chmod 600 ~/.oci/config
-        if [[ -f ~/.oci/oci_api_key.pem ]]; then
-          chmod 600 ~/.oci/oci_api_key.pem
-        fi
-        if [[ -f ~/.oci/session_key.pem ]]; then
-          chmod 600 ~/.oci/session_key.pem
-        fi
-
-        # Suppress file permissions warning
-        export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True
-
-    - name: Install jq
-      shell: bash
-      run: |
-        if ! command -v jq &> /dev/null; then
-          sudo apt-get update && sudo apt-get install -y jq || true
-        fi
-
     - name: Get Vault and Key OCIDs
       id: vault-config
       shell: bash
       env:
         COMPARTMENT_ID: ${{ inputs.oci_cli_tenancy }}
-        OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: True
       run: |
-        # Install jq if not available
-        if ! command -v jq &> /dev/null; then
-          sudo apt-get update && sudo apt-get install -y jq || true
-        fi
+        # Try to get from OCI API first (more reliable in CI)
+        echo "Fetching Vault and Key OCIDs from OCI API..."
 
-        # Try Terraform state first (most reliable if available)
-        echo "Trying Terraform state first..."
-        VAULT_ID=""
-        KEY_ID=""
+        # Get vault by name (try multiple name variations)
+        VAULT_ID=$(oci kms vault list \
+          --compartment-id "$COMPARTMENT_ID" \
+          --query 'data[?display_name==`homelab-secrets` || display_name==`homelab-secrets-vault`].id' \
+          --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
 
-        # Try to find terraform directory
-        TF_DIR=""
-        for dir in terraform/oracle-cloud ../../terraform/oracle-cloud .; do
-          if [[ -f "$dir/terraform.tfstate" ]] || [[ -f "$dir/.terraform/terraform.tfstate" ]]; then
-            TF_DIR="$dir"
-            break
-          fi
-        done
-
-        if [[ -n "$TF_DIR" ]]; then
-          echo "Found Terraform directory: $TF_DIR"
-          cd "$TF_DIR" || true
-
-          # Try to get from Terraform outputs
-          if command -v terraform &> /dev/null; then
-            VAULT_OUTPUT=$(terraform output -json vault_secrets 2>/dev/null || echo "")
-            if [[ -n "$VAULT_OUTPUT" ]]; then
-              VAULT_ID=$(echo "$VAULT_OUTPUT" | jq -r '.vault_id // empty' 2>/dev/null || echo "")
-              KEY_ID=$(echo "$VAULT_OUTPUT" | jq -r '.key_id // empty' 2>/dev/null || echo "")
-
-              # key_id is not in vault_secrets output, need to get from state or resource
-              if [[ -z "$KEY_ID" || "$KEY_ID" == "null" ]]; then
-                # Try terraform state show
-                KEY_STATE=$(terraform state show oci_kms_key.homelab_secrets_key 2>/dev/null || echo "")
-                if [[ -n "$KEY_STATE" ]]; then
-                  KEY_ID=$(echo "$KEY_STATE" | grep '^\s*id\s*=' | head -1 | awk -F'"' '{print $2}' || echo "")
-                fi
-
-                # If still not found, try reading state file directly
-                if [[ -z "$KEY_ID" || "$KEY_ID" == "null" ]]; then
-                  if [[ -f terraform.tfstate ]]; then
-                    KEY_ID=$(jq -r '.resources[]? | select(.type == "oci_kms_key" and (.name == "homelab_secrets_key" or .name == "homelab-secrets-key")) | .instances[0].attributes.id // empty' terraform.tfstate 2>/dev/null | head -1 || echo "")
-                  fi
-                fi
-              fi
-            fi
-          fi
-
-          # Try reading from state file directly
-          if [[ -z "$VAULT_ID" || "$VAULT_ID" == "null" ]]; then
-            if [[ -f terraform.tfstate ]]; then
-              VAULT_ID=$(jq -r '.resources[]? | select(.type == "oci_kms_vault") | .instances[0].attributes.id // empty' terraform.tfstate 2>/dev/null | head -1 || echo "")
-              KEY_ID=$(jq -r '.resources[]? | select(.type == "oci_kms_key") | .instances[0].attributes.id // empty' terraform.tfstate 2>/dev/null | head -1 || echo "")
-            fi
-          fi
-        fi
-
-        # Fallback: try OCI API if Terraform state failed
-        if [[ -z "$VAULT_ID" || -z "$KEY_ID" || "$VAULT_ID" == "null" || "$KEY_ID" == "null" ]]; then
-          echo "::notice::Terraform state not available, trying OCI API..."
-
-          # Test OCI CLI authentication first
-          echo "Testing OCI CLI authentication..."
-          OCI_TEST=$(oci iam region list --raw-output 2>&1) || true
-          if echo "$OCI_TEST" | grep -q "Usage:\|error\|Error\|401\|403"; then
-            echo "::error::OCI CLI authentication failed. Check credentials."
-            echo "Test output: ${OCI_TEST:0:300}..."
-            exit 1
-          fi
-
-          # Get vault by name (try multiple name variations)
-          echo "Listing vaults in compartment $COMPARTMENT_ID..."
-          # Suppress warnings and separate stderr from stdout
-          # Try to get clean JSON first (stderr redirected)
-          VAULT_LIST_OUTPUT=$(oci kms management vault list \
+        if [[ -z "$VAULT_ID" ]]; then
+          echo "::warning::Vault 'homelab-secrets' not found, trying alternative methods..."
+          # Try to get any vault in compartment
+          VAULT_ID=$(oci kms vault list \
             --compartment-id "$COMPARTMENT_ID" \
-            --all \
-            --raw-output 2>/dev/null || echo "")
-          VAULT_LIST_EXIT=$?
+            --query 'data[0].id' \
+            --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
+        fi
 
-          # If that failed or output is empty, try with stderr included and filter warnings
-          if [[ "$VAULT_LIST_EXIT" -ne 0 ]] || [[ -z "$VAULT_LIST_OUTPUT" ]]; then
-            VAULT_LIST_OUTPUT=$(oci kms management vault list \
+        if [[ -n "$VAULT_ID" ]]; then
+          # Get vault details to retrieve management endpoint
+          VAULT_MGMT_ENDPOINT=$(oci kms vault get \
+            --vault-id "$VAULT_ID" \
+            --query 'data."management-endpoint"' \
+            --raw-output 2>/dev/null | tr -d '"' || echo "")
+
+          if [[ -n "$VAULT_MGMT_ENDPOINT" ]]; then
+            echo "Found vault management endpoint: ${VAULT_MGMT_ENDPOINT:0:50}..."
+            # Get key from vault using management endpoint
+            KEY_ID=$(oci kms management key list \
               --compartment-id "$COMPARTMENT_ID" \
-              --all \
-              --raw-output 2>&1 | grep -v "^WARNING:" | grep -v "^To fix" | grep -v "^Alternatively" | grep -v "^export OCI_CLI" | grep -v "^oci setup repair" || true)
-            VAULT_LIST_EXIT=$?
-          fi
+              --endpoint "$VAULT_MGMT_ENDPOINT" \
+              --query 'data[?display_name==`homelab-secrets-master-key` || display_name==`homelab-secrets-key`].id' \
+              --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
 
-          # Extract JSON from output (find the JSON object, remove any leading warnings)
-          VAULT_LIST_JSON=$(echo "$VAULT_LIST_OUTPUT" | grep -E '^\s*\{' -A 1000 | head -100 | jq -c '.' 2>/dev/null || echo "$VAULT_LIST_OUTPUT" | jq -c '.' 2>/dev/null || echo "")
-
-          # If still empty, try to find JSON anywhere in output
-          if [[ -z "$VAULT_LIST_JSON" ]]; then
-            VAULT_LIST_JSON=$(echo "$VAULT_LIST_OUTPUT" | jq -c '.' 2>/dev/null || echo "")
-          fi
-
-          # Check if command succeeded (look for JSON structure)
-          if [[ "$VAULT_LIST_EXIT" -eq 0 ]] && echo "$VAULT_LIST_JSON" | jq -e '.data' > /dev/null 2>&1; then
-            # Parse vault ID from JSON using jq
-            VAULT_ID=$(echo "$VAULT_LIST_JSON" | jq -r '.data[]? | select(."display-name" == "homelab-secrets" or ."display-name" == "homelab-secrets-vault") | .id' 2>/dev/null | head -1 || echo "")
-
-            if [[ -z "$VAULT_ID" || "$VAULT_ID" == "null" ]]; then
-              echo "::warning::Vault 'homelab-secrets' not found by name, trying first vault in compartment..."
-              VAULT_ID=$(echo "$VAULT_LIST_JSON" | jq -r '.data[0].id // empty' 2>/dev/null || echo "")
-            fi
-
-            if [[ -n "$VAULT_ID" && "$VAULT_ID" != "null" ]]; then
-              echo "Found vault ID: ${VAULT_ID:0:50}..."
-
-              # Get vault details to retrieve management endpoint
-              # Try to get clean JSON first (stderr redirected)
-              VAULT_JSON_RAW=$(oci kms management vault get \
-                --vault-id "$VAULT_ID" \
-                --raw-output 2>/dev/null || echo "")
-              VAULT_GET_EXIT=$?
-
-              # If that failed or output is empty, try with stderr included and filter warnings
-              if [[ "$VAULT_GET_EXIT" -ne 0 ]] || [[ -z "$VAULT_JSON_RAW" ]]; then
-                VAULT_JSON_RAW=$(oci kms management vault get \
-                  --vault-id "$VAULT_ID" \
-                  --raw-output 2>&1 | grep -v "^WARNING:" | grep -v "^To fix" | grep -v "^Alternatively" | grep -v "^export OCI_CLI" | grep -v "^oci setup repair" || true)
-                VAULT_GET_EXIT=$?
-              fi
-
-              # Extract JSON from output (find the JSON object)
-              VAULT_JSON=$(echo "$VAULT_JSON_RAW" | grep -E '^\s*\{' -A 1000 | head -100 | jq -c '.' 2>/dev/null || echo "$VAULT_JSON_RAW" | jq -c '.' 2>/dev/null || echo "")
-
-              # If still empty, try to find JSON anywhere in output
-              if [[ -z "$VAULT_JSON" ]]; then
-                VAULT_JSON=$(echo "$VAULT_JSON_RAW" | jq -c '.' 2>/dev/null || echo "")
-              fi
-
-              if [[ "$VAULT_GET_EXIT" -eq 0 ]] && echo "$VAULT_JSON" | jq -e '.data' > /dev/null 2>&1; then
-                VAULT_MGMT_ENDPOINT=$(echo "$VAULT_JSON" | jq -r '.data."management-endpoint" // empty' 2>/dev/null || echo "")
-
-                if [[ -n "$VAULT_MGMT_ENDPOINT" && "$VAULT_MGMT_ENDPOINT" != "null" && "$VAULT_MGMT_ENDPOINT" != "" ]]; then
-                  echo "Found vault management endpoint: ${VAULT_MGMT_ENDPOINT:0:50}..."
-                  # Get key from vault using management endpoint
-                  # Try to get clean JSON first (stderr redirected)
-                  KEY_LIST_OUTPUT_RAW=$(oci kms management key list \
-                    --compartment-id "$COMPARTMENT_ID" \
-                    --endpoint "$VAULT_MGMT_ENDPOINT" \
-                    --all \
-                    --raw-output 2>/dev/null || echo "")
-                  KEY_LIST_EXIT=$?
-
-                  # If that failed or output is empty, try with stderr included and filter warnings
-                  if [[ "$KEY_LIST_EXIT" -ne 0 ]] || [[ -z "$KEY_LIST_OUTPUT_RAW" ]]; then
-                    KEY_LIST_OUTPUT_RAW=$(oci kms management key list \
-                      --compartment-id "$COMPARTMENT_ID" \
-                      --endpoint "$VAULT_MGMT_ENDPOINT" \
-                      --all \
-                      --raw-output 2>&1 | grep -v "^WARNING:" | grep -v "^To fix" | grep -v "^Alternatively" | grep -v "^export OCI_CLI" | grep -v "^oci setup repair" || true)
-                    KEY_LIST_EXIT=$?
-                  fi
-
-                  # Extract JSON from output (find the JSON object)
-                  KEY_LIST_OUTPUT=$(echo "$KEY_LIST_OUTPUT_RAW" | grep -E '^\s*\{' -A 1000 | head -100 | jq -c '.' 2>/dev/null || echo "$KEY_LIST_OUTPUT_RAW" | jq -c '.' 2>/dev/null || echo "")
-
-                  # If still empty, try to find JSON anywhere in output
-                  if [[ -z "$KEY_LIST_OUTPUT" ]]; then
-                    KEY_LIST_OUTPUT=$(echo "$KEY_LIST_OUTPUT_RAW" | jq -c '.' 2>/dev/null || echo "")
-                  fi
-
-                  if [[ "$KEY_LIST_EXIT" -eq 0 ]] && echo "$KEY_LIST_OUTPUT" | jq -e '.data' > /dev/null 2>&1; then
-                    KEY_ID=$(echo "$KEY_LIST_OUTPUT" | jq -r '.data[]? | select(."display-name" == "homelab-secrets-master-key" or ."display-name" == "homelab-secrets-key") | .id' 2>/dev/null | head -1 || echo "")
-
-                    if [[ -z "$KEY_ID" || "$KEY_ID" == "null" ]]; then
-                      KEY_ID=$(echo "$KEY_LIST_OUTPUT" | jq -r '.data[0].id // empty' 2>/dev/null || echo "")
-                    fi
-                  else
-                    echo "::warning::Failed to list keys (exit code: $KEY_LIST_EXIT). Output: ${KEY_LIST_OUTPUT_RAW:0:300}..."
-                    # Try to extract JSON even if there are warnings
-                    EXTRACTED_KEY_JSON=$(echo "$KEY_LIST_OUTPUT_RAW" | grep -E '^\s*\{' -A 1000 | head -100 || echo "$KEY_LIST_OUTPUT_RAW" | tail -n +1)
-                    if echo "$EXTRACTED_KEY_JSON" | jq -e '.data' > /dev/null 2>&1; then
-                      echo "::notice::JSON found in key list output, retrying parsing..."
-                      KEY_ID=$(echo "$EXTRACTED_KEY_JSON" | jq -r '.data[]? | select(."display-name" == "homelab-secrets-master-key" or ."display-name" == "homelab-secrets-key") | .id' 2>/dev/null | head -1 || echo "")
-                      if [[ -z "$KEY_ID" || "$KEY_ID" == "null" ]]; then
-                        KEY_ID=$(echo "$EXTRACTED_KEY_JSON" | jq -r '.data[0].id // empty' 2>/dev/null || echo "")
-                      fi
-                      if [[ -n "$KEY_ID" && "$KEY_ID" != "null" ]]; then
-                        echo "::notice::Successfully extracted key ID: ${KEY_ID:0:50}..."
-                      fi
-                    fi
-                  fi
-                else
-                  echo "::warning::Could not retrieve vault management endpoint from vault details"
-                  echo "Vault JSON (first 500 chars): ${VAULT_JSON:0:500}..."
-                fi
-              else
-                echo "::warning::Failed to get vault details (exit code: $VAULT_GET_EXIT). Output: ${VAULT_JSON_RAW:0:300}..."
-                # Try to extract JSON even if there are warnings
-                EXTRACTED_VAULT_JSON=$(echo "$VAULT_JSON_RAW" | grep -E '^\s*\{' -A 1000 | head -100 || echo "$VAULT_JSON_RAW" | tail -n +1)
-                if echo "$EXTRACTED_VAULT_JSON" | jq -e '.data' > /dev/null 2>&1; then
-                  echo "::notice::JSON found in vault details output, retrying parsing..."
-                  VAULT_MGMT_ENDPOINT=$(echo "$EXTRACTED_VAULT_JSON" | jq -r '.data."management-endpoint" // empty' 2>/dev/null || echo "")
-                  if [[ -n "$VAULT_MGMT_ENDPOINT" && "$VAULT_MGMT_ENDPOINT" != "null" && "$VAULT_MGMT_ENDPOINT" != "" ]]; then
-                    echo "::notice::Successfully extracted management endpoint: ${VAULT_MGMT_ENDPOINT:0:50}..."
-                    # Continue with this endpoint
-                  fi
-                fi
-              fi
-            else
-              echo "::warning::No vault found in compartment"
-              echo "Vault list output (first 500 chars): ${VAULT_LIST_JSON:0:500}..."
+            # If not found by name, get the first key
+            if [[ -z "$KEY_ID" ]]; then
+              KEY_ID=$(oci kms management key list \
+                --compartment-id "$COMPARTMENT_ID" \
+                --endpoint "$VAULT_MGMT_ENDPOINT" \
+                --query 'data[0].id' \
+                --raw-output 2>/dev/null | head -1 | tr -d '"' || echo "")
             fi
           else
-            echo "::error::Failed to list vaults via OCI API (exit code: $VAULT_LIST_EXIT)"
-            echo "Command output (first 1000 chars):"
-            echo "${VAULT_LIST_OUTPUT:0:1000}"
-            echo ""
-            echo "Attempting to extract JSON from output..."
-            # Try to extract JSON even if there are warnings
-            EXTRACTED_JSON=$(echo "$VAULT_LIST_OUTPUT" | grep -E '^\s*\{' -A 1000 | head -100 || echo "$VAULT_LIST_OUTPUT" | tail -n +1)
-            if echo "$EXTRACTED_JSON" | jq -e '.data' > /dev/null 2>&1; then
-              echo "::notice::JSON found in output, retrying parsing..."
-              VAULT_ID=$(echo "$EXTRACTED_JSON" | jq -r '.data[]? | select(."display-name" == "homelab-secrets" or ."display-name" == "homelab-secrets-vault") | .id' 2>/dev/null | head -1 || echo "")
-              if [[ -z "$VAULT_ID" || "$VAULT_ID" == "null" ]]; then
-                VAULT_ID=$(echo "$EXTRACTED_JSON" | jq -r '.data[0].id // empty' 2>/dev/null || echo "")
-              fi
-              if [[ -n "$VAULT_ID" && "$VAULT_ID" != "null" ]]; then
-                echo "::notice::Successfully extracted vault ID: ${VAULT_ID:0:50}..."
-                # Continue with this vault ID
-              else
-                echo "::error::Could not extract vault ID from JSON"
-              fi
-            else
-              echo "::error::No valid JSON found in output"
-              echo ""
-              echo "::error::This might be due to:"
-              echo "  1. Missing permissions (need KMS vault read permissions)"
-              echo "  2. Invalid compartment ID: $COMPARTMENT_ID"
-              echo "  3. OCI CLI authentication issue"
-              echo ""
-              echo "::error::To debug locally, run:"
-              echo "  cd .github/actions/oci-vault-update-secret"
-              echo "  ./test-local.sh"
-              echo ""
-              echo "::error::Or test manually:"
-              echo "  oci kms management vault list --compartment-id $COMPARTMENT_ID"
-            fi
+            echo "::warning::Could not retrieve vault management endpoint"
           fi
         fi
 
-        if [[ -z "$VAULT_ID" || -z "$KEY_ID" || "$VAULT_ID" == "null" || "$KEY_ID" == "null" ]]; then
+        # Fallback: try Terraform state if API failed
+        if [[ -z "$VAULT_ID" || -z "$KEY_ID" ]]; then
+          echo "::notice::Trying Terraform state as fallback..."
+          cd terraform/oracle-cloud 2>/dev/null || cd ../../terraform/oracle-cloud 2>/dev/null || true
+
+          if [[ -f terraform.tfstate ]] || command -v terraform &> /dev/null; then
+            VAULT_ID=$(terraform output -json vault_secrets 2>/dev/null | jq -r '.vault_id // empty' || echo "")
+            KEY_ID=$(terraform state show oci_kms_key.homelab_secrets_key 2>/dev/null | grep '^\s*id\s*=' | head -1 | awk -F'"' '{print $2}' || echo "")
+          fi
+        fi
+
+        if [[ -z "$VAULT_ID" || -z "$KEY_ID" ]]; then
           echo "::error::Could not determine Vault ID or Key ID."
-          echo "::error::Tried:"
-          echo "  1. Terraform state (directory: ${TF_DIR:-not found})"
-          echo "  2. OCI API (compartment: $COMPARTMENT_ID)"
           echo "::error::Make sure the vault 'homelab-secrets' exists in OCI or Terraform state is accessible."
           exit 1
         fi
@@ -413,7 +203,6 @@ runs:
         VAULT_ID: ${{ steps.vault-config.outputs.vault_id }}
         KEY_ID: ${{ steps.vault-config.outputs.key_id }}
         COMPARTMENT_ID: ${{ steps.vault-config.outputs.compartment_id }}
-        OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: True
       run: |
         if [[ -z "$SECRET_VALUE" ]]; then
           echo "::warning::Secret value is empty, skipping update"
