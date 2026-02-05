@@ -128,6 +128,13 @@ docker compose exec postgres pg_isready -U homelab
 docker compose logs authentik-server
 ```
 
+### Omni renvoie HTTP 500
+
+1. **Logs Omni** : `docker compose logs omni` — erreurs de migration ou de connexion DB.
+2. **Base Omni** : la DB `omni` est créée par `init-db/01-create-databases.sql`. Vérifier `OMNI_DB_URL` dans `.env` (user/host/db=omni) et que postgres est healthy.
+3. **Redémarrage** : après la première création des DB, `docker compose restart omni` peut être nécessaire.
+4. **Config Omni en IaC** : voir [omni/README.md](../../omni/README.md) (MachineClasses, clusters via omnictl).
+
 ### Services inaccessibles via le tunnel (502 Bad Gateway)
 
 1. **Routes du tunnel** : auth et omni doivent pointer vers **localhost:8080** (Traefik). Vérifier dans Cloudflare Zero Trust ou dans `terraform/cloudflare/tunnel.tf`.

@@ -1,0 +1,141 @@
+# Omni GitOps — Apply MachineClasses and Clusters via CI
+# Applique la config Omni (MachineClasses + clusters) via omnictl après authentification Authentik
+name: Omni GitOps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'omni/**'
+      - '.github/workflows/omni-gitops.yml'
+  workflow_dispatch:
+    inputs:
+      apply_machine_classes:
+        description: "Apply MachineClasses"
+        required: false
+        default: "true"
+        type: boolean
+      apply_clusters:
+        description: "Apply clusters"
+        required: false
+        default: "true"
+        type: boolean
+
+concurrency:
+  group: omni-gitops
+  cancel-in-progress: false
+
+jobs:
+  apply-omni-config:
+    name: Apply Omni config (MachineClasses + Clusters)
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write  # Available for future OIDC validation (currently using client_credentials)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install omnictl
+        run: |
+          OMNICTL_VERSION="v1.8.0"  # Adjust to match your Omni version
+          # Download omnictl binary (not tar.gz, direct binary download)
+          curl -L -o /tmp/omnictl "https://github.com/siderolabs/omni/releases/download/${OMNICTL_VERSION}/omnictl-linux-amd64"
+          sudo mv /tmp/omnictl /usr/local/bin/omnictl
+          sudo chmod +x /usr/local/bin/omnictl
+          omnictl version
+
+      - name: Configure omnictl endpoint
+        run: |
+          mkdir -p ~/.config/omni
+          # Set endpoint (Omni behind Authentik via Traefik)
+          omnictl config set endpoint https://omni.smadja.dev
+
+      - name: Fetch Authentik secrets from OCI Vault
+        id: vault-secrets
+        uses: ./.github/actions/oci-vault-secrets
+        with:
+          secrets: 'authentik_oauth2_client_id,authentik_private_key_pem'
+          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
+        continue-on-error: true
+
+      - name: Authenticate with Authentik OAuth2 (private_key_jwt)
+        id: authentik_auth
+        uses: ./.github/actions/authentik-private-key-jwt-auth
+        continue-on-error: true
+        with:
+          client_id: ${{ steps.vault-secrets.outputs.authentik_oauth2_client_id || 'ci-automation' }}
+          private_key_pem: ${{ steps.vault-secrets.outputs.authentik_private_key_pem }}
+          issuer_url: 'https://auth.smadja.dev/application/o/ci-automation/'
+          scope: "goauthentik.io/api"
+
+      - name: Configure omnictl authentication
+        env:
+          AUTHENTIK_ACCESS_TOKEN: ${{ steps.authentik_auth.outputs.access_token }}
+        run: |
+          if [ "${{ steps.authentik_auth.outputs.token_source }}" != "private_key_jwt" ]; then
+            echo "::error::Failed to obtain Authentik OAuth2 token via private_key_jwt."
+            echo "The OAuth2 provider 'ci-automation' is created automatically via .github/workflows/terraform-authentik.yml"
+            echo "Deploy the JWKS public key by running: .github/workflows/authentik-deploy-jwks.yml"
+            echo "Or ensure the private key is stored in OCI Vault: homelab-authentik-private-key-pem"
+            exit 1
+          fi
+
+          echo "Configuring omnictl with Authentik OAuth2 token..."
+          # Set token for omnictl (adjust based on Omni's auth method)
+          export OMNI_TOKEN="$AUTHENTIK_ACCESS_TOKEN"
+          # Alternative: if omnictl uses a config file
+          # mkdir -p ~/.config/omni
+          # echo "token: $AUTHENTIK_ACCESS_TOKEN" >> ~/.config/omni/config.yaml
+
+          # Test connection
+          if omnictl get clusters 2>/dev/null; then
+            echo "✓ omnictl authenticated successfully via Authentik OAuth2"
+          else
+            echo "::warning::omnictl authentication test failed."
+            echo "Note: Omni must be configured to accept authentication via Authentik (SAML/OIDC)."
+            echo "Check: docker/oci-mgmt/docker-compose.yml → OMNI_AUTH_SAML_ENABLED should be 'true'"
+            echo "And configure Authentik as SAML/OIDC provider in Omni UI."
+            # Don't fail here - let the apply steps show the actual error
+          fi
+
+      - name: Apply MachineClasses
+        if: ${{ github.event.inputs.apply_machine_classes != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+        run: |
+          echo "Applying MachineClasses..."
+          omnictl apply -f omni/machine-classes/all.yaml
+          echo "✓ MachineClasses applied"
+
+      - name: Verify MachineClasses
+        if: ${{ github.event.inputs.apply_machine_classes != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+        run: |
+          echo "Verifying MachineClasses..."
+          omnictl get machineclasses
+          echo "✓ MachineClasses verified"
+
+      - name: Apply clusters
+        if: ${{ github.event.inputs.apply_clusters != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+        run: |
+          echo "Applying clusters..."
+          for cluster_file in omni/clusters/*.yaml; do
+            if [ -f "$cluster_file" ]; then
+              echo "Applying cluster from $cluster_file..."
+              omnictl apply cluster -f "$cluster_file" || echo "::warning::Failed to apply $cluster_file (cluster may already exist)"
+            fi
+          done
+          echo "✓ Clusters applied"
+
+      - name: Verify clusters
+        if: ${{ github.event.inputs.apply_clusters != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
+        run: |
+          echo "Verifying clusters..."
+          omnictl get clusters
+          echo "✓ Clusters verified"

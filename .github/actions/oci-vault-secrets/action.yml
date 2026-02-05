@@ -74,6 +74,18 @@ outputs:
   authentik_secret_key:
     description: 'Authentik secret key for session encryption'
     value: ${{ steps.fetch.outputs.authentik_secret_key }}
+  authentik_token:
+    description: 'Authentik API token (bootstrap)'
+    value: ${{ steps.fetch.outputs.authentik_token }}
+  authentik_oauth2_client_id:
+    description: 'Authentik OAuth2 client_id (CI automation)'
+    value: ${{ steps.fetch.outputs.authentik_oauth2_client_id }}
+  authentik_oauth2_client_secret:
+    description: 'Authentik OAuth2 client_secret (CI automation) - DEPRECATED: Use private_key_jwt'
+    value: ${{ steps.fetch.outputs.authentik_oauth2_client_secret }}
+  authentik_private_key_pem:
+    description: 'Authentik RSA private key PEM (for private_key_jwt)'
+    value: ${{ steps.fetch.outputs.authentik_private_key_pem }}
 
 runs:
   using: 'composite'
@@ -155,6 +167,11 @@ runs:
           ["cloudflare_tunnel_token"]="homelab-cloudflare-tunnel-token"
           ["postgres_password"]="homelab-postgres-password"
           ["authentik_secret_key"]="homelab-authentik-secret-key"
+          # Authentik CI/CD OAuth2 secrets
+          ["authentik_token"]="homelab-authentik-token"
+          ["authentik_oauth2_client_id"]="homelab-authentik-oauth2-client-id"
+          ["authentik_oauth2_client_secret"]="homelab-authentik-oauth2-client-secret"
+          ["authentik_private_key_pem"]="homelab-authentik-private-key-pem"
         )
 
         # Compartment ID (tenancy root)

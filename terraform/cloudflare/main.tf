@@ -17,7 +17,7 @@ terraform {
   # Requires Terraform 1.11.0+ for native OCI backend support
   backend "oci" {
     bucket    = "homelab-tfstate"
-    namespace = "YOUR_TENANCY_NAMESPACE" # CI: injected by workflow; Local: replace manually
+    namespace = "axnvxxurxefp" # Remplacer par ton namespace tenancy (voir README) ; CI : injecté par le workflow
     key       = "cloudflare/terraform.tfstate"
     region    = "eu-paris-1"
   }

@@ -1,0 +1,12 @@
+# MachineClass: control-plane — apply with: omnictl apply -f omni/machine-classes/control-plane.yaml
+# Requires: omnictl configured (omnictl get config) with endpoint https://omni.smadja.dev and auth
+#
+# Specs (reference): 2 CPU, 4 GB RAM (DEV) ; 2 OCPU, 12 GB (CLOUD OCI)
+# Use in ClusterTemplate: kind: ControlPlane / machineClass: { name: control-plane, size: 1 }
+
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: control-plane
+spec:
+  matchlabels: []

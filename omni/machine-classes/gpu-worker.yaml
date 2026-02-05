@@ -1,0 +1,9 @@
+# MachineClass: gpu-worker — for future GPU passthrough nodes
+# apply with: omnictl apply -f omni/machine-classes/gpu-worker.yaml
+
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: gpu-worker
+spec:
+  matchlabels: []

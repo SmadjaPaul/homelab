@@ -48,6 +48,23 @@ Les **secrets d'authentification OCI** (session token, private key, etc.) resten
 | `homelab-omni-db-password` | Mot de passe PostgreSQL Omni |
 | `homelab-omni-db-name` | Nom de la base Omni |
 | `homelab-oci-mgmt-ssh-private-key` | Clé privée SSH pour VM management |
+| `homelab-authentik-token` | Token API Authentik (bootstrap) |
+| `homelab-authentik-oauth2-client-id` | OAuth2 client_id pour CI/CD (générique) |
+| `homelab-authentik-oauth2-client-secret` | OAuth2 client_secret pour CI/CD (générique) |
+
+**Secrets Authentik (stockés dans OCI Vault, fallback GitHub Secrets) :**
+
+| Secret OCI Vault | Usage | Comment l'obtenir |
+|------------------|-------|-------------------|
+| `homelab-authentik-token` | Token API Authentik (bootstrap uniquement) | Authentik UI → Directory → Tokens & App passwords → Create token (expiration: 1 an). **Bootstrap uniquement** : nécessaire pour créer le premier provider OAuth2. Ensuite, tous les workflows utilisent OAuth2. |
+| `homelab-authentik-oauth2-client-id` | OAuth2 client_id générique pour CI/CD | Terraform output `ci_automation_oauth2_client_id` après le premier `terraform apply`. **Utilisé par tous les workflows** : Omni GitOps, Terraform Authentik, ArgoCD, etc. |
+| `homelab-authentik-oauth2-client-secret` | OAuth2 client_secret générique pour CI/CD | Terraform output `ci_automation_oauth2_client_secret` (sensitive). **Utilisé par tous les workflows**. |
+
+**Fallback GitHub Secrets** (utilisés uniquement si OCI Vault est indisponible) :
+- `AUTHENTIK_TOKEN` : Token API Authentik (bootstrap)
+- `CI_AUTOMATION_AUTHENTIK_CLIENT_ID` : OAuth2 client_id
+- `CI_AUTOMATION_AUTHENTIK_CLIENT_SECRET` : OAuth2 client_secret
+- `AUTHENTIK_URL` : URL Authentik (optionnel, défaut: `https://auth.smadja.dev`)
 
 **Peupler les secrets OCI Vault :**
 

@@ -1,0 +1,89 @@
+# Composite action to generate RSA keypair for private_key_jwt authentication
+# Generates a 2048-bit RSA keypair and outputs private key (PEM) and public key (JWK)
+# Usage:
+#   - uses: ./.github/actions/generate-rsa-keypair
+#     id: keypair
+#   - run: echo "${{ steps.keypair.outputs.private_key_pem }}"
+#
+name: 'Generate RSA Keypair'
+description: 'Generates RSA keypair for private_key_jwt authentication (2048-bit)'
+
+outputs:
+  private_key_pem:
+    description: 'RSA private key in PEM format (to store in OCI Vault/GitHub Secrets)'
+    value: ${{ steps.generate.outputs.private_key_pem }}
+  public_key_pem:
+    description: 'RSA public key in PEM format'
+    value: ${{ steps.generate.outputs.public_key_pem }}
+  public_key_jwk:
+    description: 'RSA public key in JWK format (for Authentik JWKS)'
+    value: ${{ steps.generate.outputs.public_key_jwk }}
+  key_id:
+    description: 'Key ID (kid) for the JWK'
+    value: ${{ steps.generate.outputs.key_id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate RSA Keypair
+      id: generate
+      shell: bash
+      run: |
+        # Install jq and python3-cryptography if not available
+        if ! command -v jq &> /dev/null; then
+          sudo apt-get update && sudo apt-get install -y jq || true
+        fi
+        if ! python3 -c "import cryptography" 2>/dev/null; then
+          sudo apt-get update && sudo apt-get install -y python3-pip || true
+          pip3 install cryptography || true
+        fi
+
+        # Generate 2048-bit RSA keypair
+        echo "Generating RSA keypair (2048-bit)..."
+        openssl genrsa -out /tmp/private_key.pem 2048
+        openssl rsa -in /tmp/private_key.pem -pubout -out /tmp/public_key.pem
+
+        # Read keys
+        PRIVATE_KEY=$(cat /tmp/private_key.pem)
+        PUBLIC_KEY=$(cat /tmp/public_key.pem)
+
+        # Mask private key in logs
+        echo "::add-mask::$PRIVATE_KEY"
+
+        # Generate key ID (kid) - SHA-256 hash of public key
+        KEY_ID=$(echo -n "$PUBLIC_KEY" | openssl dgst -sha256 -binary | base64 | tr -d '=' | tr '/+' '_-' | cut -c1-16)
+
+        # Convert public key to JWK format using Python (more reliable)
+        # Extract modulus (n) and exponent (e) from RSA public key
+        export KEY_ID
+        python3 -c 'import json,base64,os;from cryptography.hazmat.primitives import serialization;from cryptography.hazmat.backends import default_backend;key_id=os.environ.get("KEY_ID","");f=open("/tmp/public_key.pem","rb");public_key=serialization.load_pem_public_key(f.read(),backend=default_backend());f.close();public_numbers=public_key.public_numbers();int_to_base64url=lambda n:base64.urlsafe_b64encode(n.to_bytes((n.bit_length()+7)//8,"big")).decode("utf-8").rstrip("=");jwk={"kty":"RSA","use":"sig","kid":key_id,"alg":"RS256","n":int_to_base64url(public_numbers.n),"e":int_to_base64url(public_numbers.e)};print(json.dumps(jwk))' > /tmp/jwk.json
+        JWK=$(cat /tmp/jwk.json)
+
+        # Output private key (PEM)
+        {
+          echo "private_key_pem<<EOF_PRIVATE_KEY"
+          echo "$PRIVATE_KEY"
+          echo "EOF_PRIVATE_KEY"
+        } >> $GITHUB_OUTPUT
+
+        # Output public key (PEM)
+        {
+          echo "public_key_pem<<EOF_PUBLIC_KEY"
+          echo "$PUBLIC_KEY"
+          echo "EOF_PUBLIC_KEY"
+        } >> $GITHUB_OUTPUT
+
+        # Output public key (JWK)
+        {
+          echo "public_key_jwk<<EOF_JWK"
+          echo "$JWK"
+          echo "EOF_JWK"
+        } >> $GITHUB_OUTPUT
+
+        # Output key ID
+        echo "key_id=$KEY_ID" >> $GITHUB_OUTPUT
+
+        echo "✓ RSA keypair generated (kid: $KEY_ID)"
+
+        # Cleanup
+        rm -f /tmp/private_key.pem /tmp/public_key.pem
