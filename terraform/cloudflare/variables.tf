@@ -34,6 +34,12 @@ variable "enable_geo_restriction" {
   default     = true
 }
 
+variable "enable_authentik_api_access" {
+  description = "Enable WAF rule to allow Authentik API access from CI/CD (skip challenge for requests with Authorization header)"
+  type        = bool
+  default     = true
+}
+
 # Homelab service subdomains
 variable "homelab_services" {
   description = "Homelab services to expose via Cloudflare Tunnel"

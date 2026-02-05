@@ -60,11 +60,13 @@ Les **secrets d'authentification OCI** (session token, private key, etc.) resten
 | `homelab-authentik-oauth2-client-id` | OAuth2 client_id générique pour CI/CD | Terraform output `ci_automation_oauth2_client_id` après le premier `terraform apply`. **Utilisé par tous les workflows** : Omni GitOps, Terraform Authentik, ArgoCD, etc. |
 | `homelab-authentik-oauth2-client-secret` | OAuth2 client_secret générique pour CI/CD | Terraform output `ci_automation_oauth2_client_secret` (sensitive). **Utilisé par tous les workflows**. |
 
-**Fallback GitHub Secrets** (utilisés uniquement si OCI Vault est indisponible) :
-- `AUTHENTIK_TOKEN` : Token API Authentik (bootstrap)
+**Fallback GitHub Secrets** (utilisés si OCI Vault est indisponible ou pour le bootstrap) :
+- `AUTHENTIK_TOKEN` : Token API Authentik (bootstrap). **Requis en CI si** `auth.smadja.dev` est derrière Cloudflare : les runners reçoivent « Just a moment... » au lieu de l’API. Ajouter ce secret (Authentik → Directory → Tokens) pour que Terraform et les workflows fonctionnent.
 - `CI_AUTOMATION_AUTHENTIK_CLIENT_ID` : OAuth2 client_id
 - `CI_AUTOMATION_AUTHENTIK_CLIENT_SECRET` : OAuth2 client_secret
 - `AUTHENTIK_URL` : URL Authentik (optionnel, défaut: `https://auth.smadja.dev`)
+
+**Cloudflare et CI (auth.smadja.dev)** : Si la pipeline Authentik échoue avec des réponses HTML « Just a moment... », Cloudflare bloque les appels API des runners. Deux options : (1) Ajouter le secret GitHub `AUTHENTIK_TOKEN` (recommandé) ; (2) Dans Cloudflare → Security → WAF, ajouter une règle pour ne pas défier les requêtes dont l’URI commence par `/api/v3/` ou `/application/o/` (et éventuellement avec en-tête `Authorization`).
 
 **Peupler les secrets OCI Vault :**
 

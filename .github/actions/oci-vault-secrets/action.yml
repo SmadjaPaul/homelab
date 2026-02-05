@@ -81,11 +81,8 @@ outputs:
     description: 'Authentik OAuth2 client_id (CI automation)'
     value: ${{ steps.fetch.outputs.authentik_oauth2_client_id }}
   authentik_oauth2_client_secret:
-    description: 'Authentik OAuth2 client_secret (CI automation) - DEPRECATED: Use private_key_jwt'
+    description: 'Authentik OAuth2 client_secret (CI automation, client_credentials flow)'
     value: ${{ steps.fetch.outputs.authentik_oauth2_client_secret }}
-  authentik_private_key_pem:
-    description: 'Authentik RSA private key PEM (for private_key_jwt)'
-    value: ${{ steps.fetch.outputs.authentik_private_key_pem }}
 
 runs:
   using: 'composite'
@@ -171,7 +168,6 @@ runs:
           ["authentik_token"]="homelab-authentik-token"
           ["authentik_oauth2_client_id"]="homelab-authentik-oauth2-client-id"
           ["authentik_oauth2_client_secret"]="homelab-authentik-oauth2-client-secret"
-          ["authentik_private_key_pem"]="homelab-authentik-private-key-pem"
         )
 
         # Compartment ID (tenancy root)

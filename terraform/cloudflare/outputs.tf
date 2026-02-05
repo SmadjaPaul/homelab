@@ -35,11 +35,13 @@ output "dns_records" {
 output "security_settings" {
   description = "Security settings applied"
   value = {
-    ssl_mode         = "strict"
-    min_tls_version  = "1.2"
-    always_use_https = true
-    hsts_enabled     = true
-    waf_rules        = "Configure manually in dashboard (5 free rules)"
+    ssl_mode                = "strict"
+    min_tls_version         = "1.2"
+    always_use_https        = true
+    hsts_enabled            = true
+    waf_rules               = "Configured via Terraform (geo_restrict, allow_authentik_api)"
+    authentik_api_allowed   = var.enable_authentik_api_access
+    geo_restriction_enabled = var.enable_geo_restriction
   }
 }
 
