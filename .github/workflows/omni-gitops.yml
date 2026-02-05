@@ -56,7 +56,7 @@ jobs:
         id: vault-secrets
         uses: ./.github/actions/oci-vault-secrets
         with:
-          secrets: 'authentik_token,authentik_oauth2_client_id,authentik_oauth2_client_secret'
+          secrets: 'authentik_oauth2_client_id,authentik_private_key_pem'
           oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci_cli_user: ${{ secrets.OCI_CLI_USER }}
           oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
@@ -67,40 +67,48 @@ jobs:
           oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
         continue-on-error: true
 
-      - name: Authenticate with Authentik (OAuth2 client_credentials or static token)
+      - name: Authenticate with Authentik OAuth2 (private_key_jwt)
         id: authentik_auth
-        uses: ./.github/actions/authentik-oauth2-auth
+        uses: ./.github/actions/authentik-private-key-jwt-auth
+        continue-on-error: true
         with:
-          client_id: ${{ steps.vault-secrets.outputs.authentik_oauth2_client_id }}
-          client_secret: ${{ steps.vault-secrets.outputs.authentik_oauth2_client_secret }}
+          client_id: ${{ steps.vault-secrets.outputs.authentik_oauth2_client_id || 'ci-automation' }}
+          private_key_pem: ${{ steps.vault-secrets.outputs.authentik_private_key_pem }}
           issuer_url: 'https://auth.smadja.dev/application/o/ci-automation/'
           scope: "goauthentik.io/api"
 
       - name: Configure omnictl authentication
         env:
-          OMNI_TOKEN: ${{ steps.authentik_auth.outputs.token_source == 'oauth2' && steps.authentik_auth.outputs.access_token || '' }}
-          AUTHENTIK_TOKEN: ${{ steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
+          AUTHENTIK_ACCESS_TOKEN: ${{ steps.authentik_auth.outputs.access_token }}
         run: |
-          if [ -z "$OMNI_TOKEN" ]; then
-            OMNI_TOKEN="$AUTHENTIK_TOKEN"
-          fi
-          if [ -z "$OMNI_TOKEN" ]; then
-            echo "::error::No Authentik token. Store OAuth2 client_id/secret in OCI Vault or add GitHub secret AUTHENTIK_TOKEN."
+          if [ "${{ steps.authentik_auth.outputs.token_source }}" != "private_key_jwt" ]; then
+            echo "::error::Failed to obtain Authentik OAuth2 token via private_key_jwt."
+            echo "The OAuth2 provider 'ci-automation' is created automatically via .github/workflows/terraform-authentik.yml"
+            echo "Deploy the JWKS public key by running: .github/workflows/authentik-deploy-jwks.yml"
+            echo "Or ensure the private key is stored in OCI Vault: homelab-authentik-private-key-pem"
             exit 1
           fi
-          echo "OMNI_TOKEN is set"
-          export OMNI_TOKEN
 
+          echo "Configuring omnictl with Authentik OAuth2 token..."
+          # Set token for omnictl (adjust based on Omni's auth method)
+          export OMNI_TOKEN="$AUTHENTIK_ACCESS_TOKEN"
+          # Alternative: if omnictl uses a config file
+          # mkdir -p ~/.config/omni
+          # echo "token: $AUTHENTIK_ACCESS_TOKEN" >> ~/.config/omni/config.yaml
+
+          # Test connection
           if omnictl get clusters 2>/dev/null; then
-            echo "✓ omnictl authenticated successfully"
+            echo "✓ omnictl authenticated successfully via Authentik OAuth2"
           else
-            echo "::warning::omnictl authentication test failed. Omni may require SAML/OIDC; check Authentik provider configuration."
+            echo "::warning::omnictl authentication test failed."
+            echo "Note: Omni must be configured to accept authentication via Authentik (SAML/OIDC)."
+            echo "Check: docker/oci-mgmt/docker-compose.yml → OMNI_AUTH_SAML_ENABLED should be 'true'"
+            echo "And configure Authentik as SAML/OIDC provider in Omni UI."
+            # Don't fail here - let the apply steps show the actual error
           fi
 
       - name: Apply MachineClasses
         if: ${{ github.event.inputs.apply_machine_classes != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
-        env:
-          OMNI_TOKEN: ${{ steps.authentik_auth.outputs.token_source == 'oauth2' && steps.authentik_auth.outputs.access_token || steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
         run: |
           echo "Applying MachineClasses..."
           omnictl apply -f omni/machine-classes/all.yaml
@@ -108,8 +116,6 @@ jobs:
 
       - name: Verify MachineClasses
         if: ${{ github.event.inputs.apply_machine_classes != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
-        env:
-          OMNI_TOKEN: ${{ steps.authentik_auth.outputs.token_source == 'oauth2' && steps.authentik_auth.outputs.access_token || steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
         run: |
           echo "Verifying MachineClasses..."
           omnictl get machineclasses
@@ -117,8 +123,6 @@ jobs:
 
       - name: Apply clusters
         if: ${{ github.event.inputs.apply_clusters != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
-        env:
-          OMNI_TOKEN: ${{ steps.authentik_auth.outputs.token_source == 'oauth2' && steps.authentik_auth.outputs.access_token || steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
         run: |
           echo "Applying clusters..."
           for cluster_file in omni/clusters/*.yaml; do
@@ -131,8 +135,6 @@ jobs:
 
       - name: Verify clusters
         if: ${{ github.event.inputs.apply_clusters != 'false' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
-        env:
-          OMNI_TOKEN: ${{ steps.authentik_auth.outputs.token_source == 'oauth2' && steps.authentik_auth.outputs.access_token || steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
         run: |
           echo "Verifying clusters..."
           omnictl get clusters

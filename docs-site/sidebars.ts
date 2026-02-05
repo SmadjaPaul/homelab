@@ -49,7 +49,6 @@ const sidebars: SidebarsConfig = {
             'advanced/network',
             'advanced/security',
             'advanced/disaster-recovery',
-            'advanced/cloudflare-architecture-improvements',
           ],
         },
         {

@@ -1,0 +1,165 @@
+# Deploy JWKS Public Key to Authentik
+# This workflow generates an initial RSA keypair and deploys the public key to Authentik
+# Triggered manually or on first setup
+name: Deploy Authentik JWKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_regenerate:
+        description: 'Force regenerate keys even if they exist'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: authentik-jwks-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-jwks:
+    name: Deploy JWKS to Authentik
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Authentik secrets from OCI Vault
+        id: vault-secrets
+        uses: ./.github/actions/oci-vault-secrets
+        with:
+          secrets: 'authentik_token,authentik_private_key_pem'
+          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
+        continue-on-error: true
+
+      - name: Generate RSA Keypair
+        id: keypair
+        if: steps.vault-secrets.outputs.authentik_private_key_pem == '' || github.event.inputs.force_regenerate == 'true'
+        uses: ./.github/actions/generate-rsa-keypair
+        continue-on-error: false
+
+      - name: Store Private Key in OCI Vault
+        if: steps.keypair.outputs.private_key_pem != ''
+        uses: ./.github/actions/oci-vault-update-secret
+        with:
+          secret_name: 'homelab-authentik-private-key-pem'
+          secret_value: ${{ steps.keypair.outputs.private_key_pem }}
+          oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci_cli_user: ${{ secrets.OCI_CLI_USER }}
+          oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci_cli_tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci_cli_region: ${{ secrets.OCI_CLI_REGION }}
+          oci_domain_url: ${{ secrets.OCI_DOMAIN_URL }}
+          oci_client_id: ${{ secrets.OCI_OIDC_CLIENT_ID }}
+          oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
+
+      - name: Configure OCI for Terraform backend
+        env:
+          OCI_CLI_KEY: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        run: |
+          mkdir -p ~/.oci
+          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          {
+            echo "[DEFAULT]"
+            echo "user=${{ secrets.OCI_CLI_USER }}"
+            echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}"
+            echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}"
+            echo "region=${{ secrets.OCI_CLI_REGION }}"
+            echo "key_file=${HOME}/.oci/oci_api_key.pem"
+          } > ~/.oci/config
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.14.4'
+
+      - name: Inject backend namespace (CI)
+        working-directory: terraform/authentik
+        run: |
+          if [ -f backend.tf ]; then
+            # Replace any namespace value (including YOUR_TENANCY_NAMESPACE placeholder or existing value)
+            # This ensures CI always uses the secret namespace, allowing shared state between local and CI
+            sed -i.bak "s/namespace = \"[^\"]*\"/namespace = \"${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}\"/g" backend.tf
+          fi
+
+      - name: Terraform Init
+        working-directory: terraform/authentik
+        run: terraform init -reconfigure
+
+      - name: Get OAuth Source UUID from Terraform
+        id: terraform-source
+        working-directory: terraform/authentik
+        run: |
+          SOURCE_UUID=$(terraform output -raw ci_automation_oauth_source_uuid 2>/dev/null || echo "")
+          if [ -z "$SOURCE_UUID" ] || [ "$SOURCE_UUID" == "null" ]; then
+            echo "::error::Could not get OAuth Source UUID from Terraform. Make sure terraform/authentik/oauth_source_ci_automation.tf is applied."
+            exit 1
+          fi
+          echo "source_uuid=$SOURCE_UUID" >> $GITHUB_OUTPUT
+          echo "::notice::OAuth Source UUID: $SOURCE_UUID"
+
+      - name: Update Authentik OAuth Source with JWKS
+        if: steps.keypair.outputs.public_key_jwk != ''
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
+          AUTHENTIK_TOKEN: ${{ steps.vault-secrets.outputs.authentik_token || secrets.AUTHENTIK_TOKEN }}
+          SOURCE_UUID: ${{ steps.terraform-source.outputs.source_uuid }}
+          PUBLIC_KEY_JWK: ${{ steps.keypair.outputs.public_key_jwk }}
+        run: |
+          if [ -z "$AUTHENTIK_TOKEN" ]; then
+            echo "::error::AUTHENTIK_TOKEN not available"
+            exit 1
+          fi
+
+          if [ -z "$PUBLIC_KEY_JWK" ] || [ "$PUBLIC_KEY_JWK" == "null" ]; then
+            echo "::error::Public key JWK not available. Make sure the keypair generation step succeeded."
+            exit 1
+          fi
+
+          # Check if keypair step actually ran (it might be skipped if key already exists)
+          if [ "${{ steps.keypair.outcome }}" == "skipped" ]; then
+            echo "::warning::Keypair generation was skipped (key may already exist)."
+            echo "::warning::If you want to regenerate, use 'force_regenerate: true' input."
+            echo "::notice::Skipping JWKS update - using existing key."
+            exit 0
+          fi
+
+          # Create JWKS structure
+          JWKS=$(echo "$PUBLIC_KEY_JWK" | jq '{keys: [.]}')
+
+          echo "Updating Authentik OAuth Source with JWKS..."
+          echo "JWKS: $JWKS"
+
+          # Update OAuth Source via Authentik API
+          # Endpoint: PATCH /api/v3/sources/oauth/{id}/
+          RESPONSE=$(curl -s -X PATCH \
+            "${AUTHENTIK_URL}/api/v3/sources/oauth/${SOURCE_UUID}/" \
+            -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"jwks\": ${JWKS}}")
+
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            ERROR=$(echo "$RESPONSE" | jq -r '.error // "unknown"')
+            echo "::error::Failed to update OAuth Source: $ERROR"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+
+          echo "✓ JWKS updated in Authentik OAuth Source"
+          echo "::notice::Public key deployed to Authentik. Workflows can now use private_key_jwt authentication."
+          echo ""
+          echo "::notice::Next steps:"
+          echo "1. Run 'terraform apply' in terraform/authentik/ to configure the provider (grant types and OAuth Source linking)"
+          echo "2. Or configure manually in Authentik UI: Applications → Providers → ci-automation → Edit → OAuth Source → Select 'ci-automation-jwks'"
+          echo "3. Test authentication with 'Test Authentik JWT Authentication' workflow"

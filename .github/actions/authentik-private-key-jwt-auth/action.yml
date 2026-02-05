@@ -1,0 +1,145 @@
+# Composite action to authenticate with Authentik using private_key_jwt
+# Signs a JWT with RSA private key and uses it for client_credentials flow
+# Usage:
+#   - uses: ./.github/actions/authentik-private-key-jwt-auth
+#     id: authentik-auth
+#     with:
+#       client_id: 'ci-automation'
+#       private_key_pem: ${{ secrets.AUTHENTIK_PRIVATE_KEY_PEM }}
+#       issuer_url: 'https://auth.smadja.dev/application/o/ci-automation/'
+#
+name: 'Authentik Private Key JWT Authentication'
+description: 'Obtains Authentik OAuth2 access token via private_key_jwt (client_credentials)'
+
+inputs:
+  client_id:
+    description: 'OAuth2 client_id (from OCI Vault or GitHub Secrets)'
+    required: true
+  private_key_pem:
+    description: 'RSA private key in PEM format (from OCI Vault or GitHub Secrets)'
+    required: true
+  issuer_url:
+    description: 'Authentik OAuth2 issuer URL (token endpoint)'
+    required: false
+    default: 'https://auth.smadja.dev/application/o/ci-automation/'
+  scope:
+    description: 'OAuth2 scope to request'
+    required: false
+    default: 'goauthentik.io/api'
+  jwt_expiry_seconds:
+    description: 'JWT expiration time in seconds (default: 60)'
+    required: false
+    default: '60'
+
+outputs:
+  access_token:
+    description: 'Authentik OAuth2 access token'
+    value: ${{ steps.auth.outputs.access_token }}
+  token_source:
+    description: 'Source of token: private_key_jwt or static'
+    value: ${{ steps.auth.outputs.token_source }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate with Authentik using private_key_jwt
+      id: auth
+      shell: bash
+      env:
+        CLIENT_ID: ${{ inputs.client_id }}
+        PRIVATE_KEY_PEM: ${{ inputs.private_key_pem }}
+        ISSUER_URL: ${{ inputs.issuer_url }}
+        SCOPE: ${{ inputs.scope }}
+        JWT_EXPIRY: ${{ inputs.jwt_expiry_seconds }}
+      run: |
+        # Check inputs
+        if [ -z "$CLIENT_ID" ]; then
+          echo "::error::client_id is required"
+          echo "token_source=static" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        # Check if private key is provided (may be empty if secret doesn't exist yet)
+        if [ -z "$PRIVATE_KEY_PEM" ]; then
+          echo "::warning::private_key_pem is empty. Secret 'homelab-authentik-private-key-pem' may not exist in OCI Vault yet."
+          echo "::notice::Run 'Deploy Authentik JWKS' workflow first to generate and store the private key."
+          echo "token_source=static" >> $GITHUB_OUTPUT
+          exit 0  # Exit successfully to allow fallback
+        fi
+
+        # Mask private key in logs
+        echo "::add-mask::$PRIVATE_KEY_PEM"
+
+        # Install jq if not available
+        if ! command -v jq &> /dev/null; then
+          sudo apt-get update && sudo apt-get install -y jq || true
+        fi
+
+        # Write private key to temp file
+        echo "$PRIVATE_KEY_PEM" > /tmp/private_key.pem
+        chmod 600 /tmp/private_key.pem
+
+        # Generate JWT ID (jti) - random UUID
+        JTI=$(openssl rand -hex 16)
+
+        # Get current timestamp
+        NOW=$(date +%s)
+        EXP=$(($NOW + $JWT_EXPIRY))
+
+        # Create JWT header
+        HEADER=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 -w0 | tr -d '=' | tr '/+' '_-')
+
+        # Create JWT payload
+        # According to RFC 7523, the client assertion must include:
+        # - iss: client_id
+        # - sub: client_id
+        # - aud: token endpoint URL
+        # - exp: expiration time
+        # - iat: issued at time
+        # - jti: JWT ID (for replay protection)
+        PAYLOAD=$(jq -n \
+          --arg iss "$CLIENT_ID" \
+          --arg sub "$CLIENT_ID" \
+          --arg aud "$ISSUER_URL" \
+          --argjson exp "$EXP" \
+          --argjson iat "$NOW" \
+          --arg jti "$JTI" \
+          '{iss: $iss, sub: $sub, aud: $aud, exp: $exp, iat: $iat, jti: $jti}' | \
+          base64 -w0 | tr -d '=' | tr '/+' '_-')
+
+        # Sign JWT (header.payload)
+        SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | \
+          openssl dgst -sha256 -sign /tmp/private_key.pem | \
+          base64 -w0 | tr -d '=' | tr '/+' '_-')
+
+        # Combine JWT
+        CLIENT_ASSERTION="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+
+        echo "Obtaining Authentik OAuth2 token via private_key_jwt..."
+
+        # Request token using client_assertion
+        TOKEN_RESPONSE=$(curl -s -X POST "${ISSUER_URL}token/" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "grant_type=client_credentials" \
+          -d "client_id=${CLIENT_ID}" \
+          -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+          -d "client_assertion=${CLIENT_ASSERTION}" \
+          -d "scope=${SCOPE}")
+
+        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty' 2>/dev/null || echo "")
+
+        # Cleanup
+        rm -f /tmp/private_key.pem
+
+        if [ -n "$ACCESS_TOKEN" ] && [ "$ACCESS_TOKEN" != "null" ]; then
+          echo "✓ Authentik OAuth2 token obtained via private_key_jwt"
+          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+          echo "token_source=private_key_jwt" >> $GITHUB_OUTPUT
+        else
+          ERROR=$(echo "$TOKEN_RESPONSE" | jq -r '.error // "unknown"' 2>/dev/null || echo "parse_error")
+          ERROR_DESC=$(echo "$TOKEN_RESPONSE" | jq -r '.error_description // ""' 2>/dev/null || echo "")
+          echo "::error::Failed to obtain OAuth2 token via private_key_jwt: $ERROR - $ERROR_DESC"
+          echo "Response: $TOKEN_RESPONSE"
+          echo "token_source=static" >> $GITHUB_OUTPUT
+          exit 1
+        fi

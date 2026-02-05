@@ -5,17 +5,22 @@
 #
 # Note: data.authentik_flow.default_authorization_flow est défini dans data.tf
 
-# OAuth2 Provider pour CI/CD (machine-to-machine, client_credentials)
-# Utilisé par Omni GitOps et autres workflows ; Terraform Authentik utilise un token statique (AUTHENTIK_TOKEN).
+# OAuth2 Provider générique pour CI/CD (machine-to-machine avec client_credentials)
+# Supports both client_secret (legacy) and private_key_jwt (preferred) authentication
 resource "authentik_provider_oauth2" "ci_automation" {
   name                       = "ci-automation"
-  client_type                = "confidential"
-  client_id                  = "ci-automation"
+  client_type                = "confidential"  # Required for client_credentials flow
+  client_id                  = "ci-automation" # Client ID (can be changed by Authentik after creation)
   authorization_flow         = data.authentik_flow.default_authorization_flow.id
   invalidation_flow          = data.authentik_flow.default_invalidation.id
   sub_mode                   = "user_username"
   include_claims_in_id_token = true
-  # Grant type Client credentials activé via null_resource (provider_ci_automation_config.tf)
+  # Machine-to-machine: enable client_credentials grant type
+  # Note: In Authentik UI, enable "Client credentials" in provider settings
+  # This is not directly configurable via Terraform provider, so manual step or use API
+  #
+  # For private_key_jwt: Configure the OAuth Source (ci-automation-jwks) in Authentik UI:
+  # Applications → Providers → ci-automation → Edit → OAuth Source → Select "ci-automation-jwks"
 }
 
 # Application pour CI/CD Automation (utilise le provider OAuth2)
