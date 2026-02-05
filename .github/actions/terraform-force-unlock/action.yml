@@ -1,0 +1,132 @@
+# Composite action to force unlock Terraform state lock
+# Automatically unlocks stale locks or locks from failed runs
+# Usage:
+#   - uses: ./.github/actions/terraform-force-unlock
+#     with:
+#       lock_id: ${{ steps.terraform-plan.outputs.lock_id }}  # Optional, from previous step
+#
+name: 'Terraform Force Unlock'
+description: 'Forces unlock of Terraform state lock (for stale/failed runs)'
+
+inputs:
+  lock_id:
+    description: 'Lock ID to unlock (optional, will detect from error if not provided)'
+    required: false
+    default: ''
+  working_directory:
+    description: 'Terraform working directory'
+    required: false
+    default: '.'
+  timeout_minutes:
+    description: 'Maximum age of lock to unlock (in minutes). Locks older than this will be unlocked automatically'
+    required: false
+    default: '30'
+
+outputs:
+  unlocked:
+    description: 'Whether a lock was unlocked'
+    value: ${{ steps.unlock.outputs.unlocked }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Force unlock Terraform state lock
+      id: unlock
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set +e  # Don't exit on error, we want to handle locks gracefully
+
+        LOCK_ID="${{ inputs.lock_id }}"
+        TIMEOUT_MINUTES="${{ inputs.timeout_minutes }}"
+        WORKING_DIR="${{ inputs.working_directory }}"
+
+        echo "Checking for Terraform state locks..."
+
+        # Function to extract lock ID from Terraform error
+        extract_lock_id() {
+          local error_output="$1"
+          # Try to extract lock ID from error message (multiple patterns)
+          echo "$error_output" | grep -oP 'ID:\s+\K[0-9a-f-]+' | head -1 || \
+          echo "$error_output" | grep -oP 'lock ID[:\s]+\K[0-9a-f-]+' | head -1 || \
+          echo ""
+        }
+
+        # Function to check if lock is stale (older than timeout)
+        is_lock_stale() {
+          local lock_created="$1"
+          local now=$(date +%s)
+          local lock_timestamp=$(date -d "$lock_created" +%s 2>/dev/null || echo "0")
+          local timeout_seconds=$((TIMEOUT_MINUTES * 60))
+
+          if [ "$lock_timestamp" -eq "0" ]; then
+            # If we can't parse the date, assume it's stale (likely from failed run)
+            return 0
+          fi
+
+          local age_seconds=$((now - lock_timestamp))
+          [ "$age_seconds" -gt "$timeout_seconds" ]
+        }
+
+        # Check if terraform is initialized
+        if [ ! -d ".terraform" ]; then
+          echo "::notice::Terraform not initialized, skipping lock check"
+          echo "unlocked=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Try to run terraform plan to detect locks (with 0s timeout to fail immediately if locked)
+        PLAN_OUTPUT=$(terraform plan -no-color -out=/dev/null -lock-timeout=0s 2>&1)
+        PLAN_EXIT_CODE=$?
+
+        # Check if the error is specifically about state lock
+        if echo "$PLAN_OUTPUT" | grep -qi "Error acquiring the state lock\|state lock\|lock.*acquired"; then
+          echo "::warning::Terraform state lock detected"
+
+          # Extract lock ID from error if not provided
+          if [ -z "$LOCK_ID" ]; then
+            LOCK_ID=$(extract_lock_id "$PLAN_OUTPUT")
+            if [ -z "$LOCK_ID" ]; then
+              echo "::warning::Could not extract lock ID from error. Output:"
+              echo "$PLAN_OUTPUT" | head -20
+              echo "unlocked=false" >> $GITHUB_OUTPUT
+              exit 0  # Don't fail, just skip unlock
+            fi
+            echo "Extracted lock ID: $LOCK_ID"
+          fi
+
+          # Try to get lock info (if available)
+          LOCK_INFO=$(echo "$PLAN_OUTPUT" | grep -A 15 "Lock Info:" || echo "")
+          if [ -n "$LOCK_INFO" ]; then
+            echo "Lock information:"
+            echo "$LOCK_INFO"
+
+            # Extract lock creation time if available
+            LOCK_CREATED=$(echo "$LOCK_INFO" | grep -oP 'Created:\s+\K[^ ]+ [^ ]+' | head -1 || echo "")
+            if [ -n "$LOCK_CREATED" ]; then
+              echo "Lock created at: $LOCK_CREATED"
+              if is_lock_stale "$LOCK_CREATED"; then
+                echo "::notice::Lock is older than ${TIMEOUT_MINUTES} minutes, will force unlock"
+              else
+                echo "::warning::Lock is recent, but forcing unlock anyway (likely from failed/cancelled run)"
+              fi
+            fi
+          fi
+
+          echo "::warning::Force unlocking Terraform state lock: $LOCK_ID"
+          if terraform force-unlock -force "$LOCK_ID" 2>&1; then
+            echo "✓ Successfully unlocked Terraform state lock"
+            echo "unlocked=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Failed to unlock Terraform state lock (may already be released)"
+            echo "unlocked=false" >> $GITHUB_OUTPUT
+            # Don't exit with error, lock may have been released by another process
+          fi
+        elif [ "$PLAN_EXIT_CODE" -ne 0 ]; then
+          # Plan failed for other reasons (not a lock)
+          echo "::notice::Terraform plan failed for reasons other than lock (exit code: $PLAN_EXIT_CODE)"
+          echo "unlocked=false" >> $GITHUB_OUTPUT
+        else
+          echo "✓ No Terraform state lock detected"
+          echo "unlocked=false" >> $GITHUB_OUTPUT
+        fi
