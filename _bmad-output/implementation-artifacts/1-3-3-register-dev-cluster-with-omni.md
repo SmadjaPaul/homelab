@@ -5,9 +5,9 @@ Status: in-progress
 ## Implementation Summary
 
 - ✅ Story file created
-- ✅ Documentation created: `docs/omni-register-cluster.md`
+- ✅ Documentation: See `docs-site/docs/infrastructure/kubernetes.md` (Omni configuration)
 - **CLOUD (OCI)** : utiliser l’image Talos générée par Omni (créer cluster dans UI, télécharger image Oracle, import OCI, `talos_image_id`). Les VMs s’enrôlent au premier boot. Voir [Zwindler](https://blog.zwindler.fr/2025/01/04/sideros-omni-talos-oracle-cloud/).
-- **DEV (Proxmox)** : créer le cluster dans l’UI Omni, ajouter la section Omni (url, joinToken) dans `talos/controlplane.yaml` et `talos/worker.yaml`, puis `talosctl apply-config`. Docs : `docs/omni-register-cluster.md`.
+- **DEV (Proxmox)** : créer le cluster dans l’UI Omni, ajouter la section Omni (url, joinToken) dans `talos/controlplane.yaml` et `talos/worker.yaml`, puis `talosctl apply-config`. Docs : `docs-site/docs/infrastructure/kubernetes.md`.
 
 ## Story
 

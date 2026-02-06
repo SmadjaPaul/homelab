@@ -199,12 +199,13 @@ variable "vault_secret_cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "vault_secret_tfstate_dev_token" {
-  description = "GitHub PAT for TFstate.dev lock (stored in OCI Vault)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
+# DEPRECATED: TFstate.dev backend no longer used (migrated to OCI Object Storage)
+# variable "vault_secret_tfstate_dev_token" {
+#   description = "GitHub PAT for TFstate.dev lock (stored in OCI Vault)"
+#   type        = string
+#   default     = ""
+#   sensitive   = true
+# }
 
 variable "vault_secret_omni_db_user" {
   description = "Omni PostgreSQL user (stored in OCI Vault)"

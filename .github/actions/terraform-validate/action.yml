@@ -1,0 +1,42 @@
+# Reusable action for Terraform validation (fmt check, init, validate)
+# Reduces duplication across Terraform workflows
+name: 'Terraform Validate'
+description: 'Validates Terraform code (fmt check, init, validate)'
+
+inputs:
+  working_dir:
+    required: true
+    description: 'Terraform working directory'
+  terraform_version:
+    required: false
+    default: '1.14.4'
+    description: 'Terraform version to use'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      id: setup
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: true
+
+    - name: Terraform Format Check
+      id: fmt
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform init -backend=false
+
+    - name: Terraform Validate
+      id: validate
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform validate -no-color

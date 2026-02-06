@@ -56,7 +56,7 @@ so that I can use the NVIDIA GPU in gaming VMs (e.g. Windows Gaming VM, Epic 6.1
 - [Source: _bmad-output/planning-artifacts/epics-and-stories-homelab.md] Story 1.1.3 acceptance criteria and technical notes (intel_iommu/amd_iommu, blacklist nouveau/nvidia).
 - [Source: _bmad-output/planning-artifacts/architecture-proxmox-omni.md] Proxmox VE decision, GPU for gaming VMs, hardware (NVIDIA GPU).
 - [Source: docs-site/docs/infrastructure/proxmox.md] GPU Passthrough checklist, IOMMU and GPU verification commands.
-- [Source: docs/proxmox-setup-guide.md] Post-install includes IOMMU; keep consistent.
+- [Source: docs-site/docs/infrastructure/proxmox.md] Post-install includes IOMMU; keep consistent.
 
 ## Dev Agent Record
 

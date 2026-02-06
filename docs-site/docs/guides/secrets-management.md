@@ -29,7 +29,7 @@ Les **secrets d'authentification OCI** (session token, private key, etc.) resten
 | Secret | Usage |
 |--------|-------|
 | `homelab-cloudflare-api-token` | Token API Cloudflare (Zone → Edit) |
-| `homelab-tfstate-dev-token` | GitHub PAT pour TFstate.dev lock |
+| ~~`homelab-tfstate-dev-token`~~ | ~~DEPRECATED: Backend uses OCI Object Storage~~ |
 | `homelab-omni-db-user` | Utilisateur PostgreSQL Omni |
 | `homelab-omni-db-password` | Mot de passe PostgreSQL Omni |
 | `homelab-omni-db-name` | Nom de la base Omni |

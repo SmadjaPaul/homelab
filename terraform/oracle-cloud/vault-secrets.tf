@@ -29,24 +29,12 @@ resource "oci_vault_secret" "cloudflare_api_token" {
   }
 }
 
-# GitHub PAT (TFstate.dev lock) — DEPRECATED: backends now use OCI Object Storage
-# Kept for backwards compatibility, can be removed in future
-resource "oci_vault_secret" "tfstate_dev_token" {
-  count          = (length(try(var.vault_secret_tfstate_dev_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
-  compartment_id = var.compartment_id
-  vault_id       = local.vault_id
-  key_id         = local.key_id
-  secret_name    = "homelab-tfstate-dev-token"
-
-  secret_content {
-    content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_tfstate_dev_token, "managed-externally"))
-  }
-
-  lifecycle {
-    ignore_changes = [secret_content]
-  }
-}
+# GitHub PAT (TFstate.dev lock) — REMOVED: backends now use OCI Object Storage
+# This resource has been removed. If you still have this secret in OCI Vault,
+# you can delete it manually via OCI Console or keep it (it won't be managed by Terraform).
+# resource "oci_vault_secret" "tfstate_dev_token" {
+#   ...
+# }
 
 # Omni (OCI Management Stack)
 resource "oci_vault_secret" "omni_db_user" {

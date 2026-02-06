@@ -87,8 +87,8 @@ output "vault_secrets" {
     vault_id                  = oci_kms_vault.homelab_secrets.id
     vault_management_endpoint = oci_kms_vault.homelab_secrets.management_endpoint
     secrets = {
-      cloudflare_api_token     = try(oci_vault_secret.cloudflare_api_token[0].id, null)
-      tfstate_dev_token        = try(oci_vault_secret.tfstate_dev_token[0].id, null)
+      cloudflare_api_token = try(oci_vault_secret.cloudflare_api_token[0].id, null)
+      # tfstate_dev_token removed (deprecated, backends use OCI Object Storage)
       omni_db_user             = try(oci_vault_secret.omni_db_user[0].id, null)
       omni_db_password         = try(oci_vault_secret.omni_db_password[0].id, null)
       omni_db_name             = try(oci_vault_secret.omni_db_name[0].id, null)

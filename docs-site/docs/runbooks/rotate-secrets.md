@@ -49,7 +49,7 @@ TF_VAR_vault_secrets_managed_in_ci=true terraform apply
 | Secret OCI Vault | Comment |
 |------------------|---------|
 | `homelab-cloudflare-api-token` | Cloudflare → API Tokens → Create Token |
-| `homelab-tfstate-dev-token` | GitHub → Settings → Developer settings → PAT (repo scope) |
+| ~~`homelab-tfstate-dev-token`~~ | ~~DEPRECATED: Backend uses OCI Object Storage~~ |
 | `homelab-omni-db-user` | Nom d'utilisateur PostgreSQL Omni |
 | `homelab-omni-db-password` | Mot de passe fort pour PostgreSQL |
 | `homelab-omni-db-name` | Nom de la base (ex: `omni`) |

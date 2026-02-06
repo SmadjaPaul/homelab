@@ -7,8 +7,9 @@
 #   TFSTATE_DEV_TOKEN=ghp_xxx ./scripts/gh-secrets-setup.sh  # from env
 #
 # Optional env vars (skip interactive prompt when set):
-#   TFSTATE_DEV_TOKEN, CLOUDFLARE_API_TOKEN,
+#   CLOUDFLARE_API_TOKEN,
 #   OCI_COMPARTMENT_ID, OCI_OBJECT_STORAGE_NAMESPACE, SSH_PUBLIC_KEY or SSH_PUBLIC_KEY_FILE
+# Note: TFSTATE_DEV_TOKEN is deprecated (backend now uses OCI Object Storage)
 #
 # OCI auth in CI uses session tokens (short-lived). Run ./scripts/oci-session-auth-to-gh.sh
 # to generate and upload OCI_SESSION_* and OCI_CLI_* secrets. This script only sets
@@ -76,8 +77,9 @@ set_secret() {
   fi
 }
 
-echo "=== 1. TFstate.dev (état Terraform + lock) ==="
-set_secret TFSTATE_DEV_TOKEN "TFSTATE_DEV_TOKEN (GitHub PAT avec scope repo)"
+# DEPRECATED: TFstate.dev n'est plus utilisé (backend OCI Object Storage)
+# echo "=== 1. TFstate.dev (état Terraform + lock) ==="
+# set_secret TFSTATE_DEV_TOKEN "TFSTATE_DEV_TOKEN (GitHub PAT avec scope repo)"
 
 echo ""
 echo "=== 2. Cloudflare ==="

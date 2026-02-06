@@ -144,7 +144,7 @@ velero restore create --from-backup <backup> \
 ### Restaurer la config Terraform
 
 ```bash
-# Le state est sur TFstate.dev
+# Le state est sur OCI Object Storage (bucket homelab-tfstate)
 cd terraform/oracle-cloud
 terraform init
 terraform plan

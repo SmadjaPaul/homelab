@@ -30,7 +30,7 @@ user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #     not overwritten when vars are null. Never commit real values.
 # -----------------------------------------------------------------------------
 # vault_secret_cloudflare_api_token = ""
-# vault_secret_tfstate_dev_token    = ""
+# vault_secret_tfstate_dev_token    = ""  # DEPRECATED: Backend uses OCI Object Storage now
 # vault_secret_omni_db_user         = ""
 # vault_secret_omni_db_password     = ""
 # vault_secret_omni_db_name         = ""

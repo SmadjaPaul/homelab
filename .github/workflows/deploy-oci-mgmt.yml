@@ -162,57 +162,22 @@ jobs:
           oci_client_secret: ${{ secrets.OCI_OIDC_CLIENT_SECRET }}
 
       - name: Setup SSH key
-        env:
-          OCI_MGMT_SSH_KEY: ${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}
-          OCI_MGMT_SSH_PRIVATE_KEY: ${{ secrets.OCI_MGMT_SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          # Prefer GitHub secret so the key is guaranteed to match SSH_PUBLIC_KEY
-          if [[ -n "$OCI_MGMT_SSH_PRIVATE_KEY" ]]; then
-            echo "Using GitHub secret OCI_MGMT_SSH_PRIVATE_KEY."
-            printf '%s\n' "$OCI_MGMT_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
-          else
-            KEY_FILE="${{ steps.secrets.outputs.oci_mgmt_ssh_private_key_file }}"
-            if [[ -n "$KEY_FILE" && -f "$KEY_FILE" ]]; then
-              cp "$KEY_FILE" ~/.ssh/oci_mgmt.pem
-            else
-              printf '%s\n' "$OCI_MGMT_SSH_KEY" | tr -d '\r' > ~/.ssh/oci_mgmt.pem
-            fi
-          fi
-          chmod 600 ~/.ssh/oci_mgmt.pem
-          KEY_LINES=$(wc -l < ~/.ssh/oci_mgmt.pem)
-          if [[ "$KEY_LINES" -lt 2 ]]; then
-            echo "::error::SSH key invalid (too few lines). Set repo secret OCI_MGMT_SSH_PRIVATE_KEY with the full PEM (same pair as SSH_PUBLIC_KEY)."
-            exit 1
-          fi
-          if ! head -1 ~/.ssh/oci_mgmt.pem | grep -q -- '-----BEGIN'; then
-            echo "Prepending missing -----BEGIN OPENSSH PRIVATE KEY----- line."
-            { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat ~/.ssh/oci_mgmt.pem; } > ~/.ssh/oci_mgmt.pem.new
-            mv ~/.ssh/oci_mgmt.pem.new ~/.ssh/oci_mgmt.pem
-            chmod 600 ~/.ssh/oci_mgmt.pem
-          fi
-          if ! ssh-keygen -y -f ~/.ssh/oci_mgmt.pem >/dev/null 2>&1; then
-            echo "::error::Invalid SSH private key. Check OCI_MGMT_SSH_PRIVATE_KEY: full PEM with -----BEGIN and -----END, same pair as SSH_PUBLIC_KEY."
-            exit 1
-          fi
-          ssh-keyscan -H ${{ needs['get-mgmt-ip'].outputs.mgmt_ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+        id: ssh-setup
+        uses: ./.github/actions/setup-ssh-key
+        with:
+          ssh_private_key: ${{ secrets.OCI_MGMT_SSH_PRIVATE_KEY }}
+          ssh_private_key_file: ${{ steps.secrets.outputs.oci_mgmt_ssh_private_key_file }}
+          ssh_key_from_vault: ${{ steps.secrets.outputs.oci_mgmt_ssh_private_key }}
+          known_hosts: ${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}
 
-      - name: Debug SSH connectivity
+      - name: Test SSH connectivity
         run: |
-          set +e
           IP="${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}"
-          echo "=== SSH debug (target: ubuntu@$IP) ==="
-          echo "Key file: $(wc -l < ~/.ssh/oci_mgmt.pem) lines, first line: $(head -1 ~/.ssh/oci_mgmt.pem), last line: $(tail -1 ~/.ssh/oci_mgmt.pem)"
-          echo "Testing SSH (verbose tail)..."
-          SSH_ERR=$(ssh -v -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=no -i ~/.ssh/oci_mgmt.pem ubuntu@"$IP" "echo OK" 2>&1)
-          SSH_EXIT=$?
-          echo "--- Last 40 lines of SSH output ---"
-          echo "$SSH_ERR" | tail -40
-          echo "--- SSH exit code: $SSH_EXIT ---"
-          if [[ $SSH_EXIT -ne 0 ]]; then
-            echo "::warning::SSH test failed (exit $SSH_EXIT). If you see 'Permission denied (publickey)': the key in OCI Vault must be the PRIVATE key of the same pair as Terraform SSH_PUBLIC_KEY. If you see 'Connection refused' or timeout: check firewall (e.g. ALLOW_SSH_FROM_ANYWHERE or ADMIN_ALLOWED_CIDRS for GitHub IPs)."
+          if ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
+             -i ${{ steps.ssh-setup.outputs.ssh_key_path }} ubuntu@"$IP" "echo OK" 2>&1; then
+            echo "✓ SSH connection successful"
           else
-            echo "SSH test OK."
+            echo "::warning::SSH test failed. Check: key pair match, firewall rules, VM status"
           fi
 
       - name: Install Ansible and collections
@@ -235,7 +200,7 @@ jobs:
             -i "oci_mgmt," \
             -e "ansible_host=${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}" \
             -e "ansible_user=ubuntu" \
-            -e "ansible_ssh_private_key_file=$HOME/.ssh/oci_mgmt.pem" \
+            -e "ansible_ssh_private_key_file=${{ steps.ssh-setup.outputs.ssh_key_path }}" \
             -e "project_root=${{ github.workspace }}" \
             -e "@/tmp/oci-mgmt-ansible-vars.yml"; then
             echo "::error::SSH failed. If 'Permission denied (publickey)': the key in OCI Vault (homelab-oci-mgmt-ssh-private-key) must be the PRIVATE key of the same key pair whose PUBLIC key is in Terraform (SSH_PUBLIC_KEY). Same pair = VM authorized_keys was set by Terraform with that public key."
@@ -249,7 +214,7 @@ jobs:
         run: |
           set -e
           IP="${{ needs['get-mgmt-ip'].outputs.mgmt_ip }}"
-          SSH_OPTS="-o StrictHostKeyChecking=accept-new -i $HOME/.ssh/oci_mgmt.pem -l ubuntu"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -i ${{ steps.ssh-setup.outputs.ssh_key_path }} -l ubuntu"
           echo "Checking containers..."
           CONTAINERS=$(ssh $SSH_OPTS "$IP" "cd /home/ubuntu/homelab/oci-mgmt && docker compose ps -a --format '{{.Name}}'")
           for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres; do

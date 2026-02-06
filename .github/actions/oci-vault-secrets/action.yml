@@ -49,9 +49,10 @@ outputs:
   cloudflare_api_token:
     description: 'Cloudflare API Token'
     value: ${{ steps.fetch.outputs.cloudflare_api_token }}
-  tfstate_dev_token:
-    description: 'TFstate.dev / GitHub PAT'
-    value: ${{ steps.fetch.outputs.tfstate_dev_token }}
+  # DEPRECATED: TFstate.dev backend no longer used (migrated to OCI Object Storage)
+  # tfstate_dev_token:
+  #   description: 'TFstate.dev / GitHub PAT'
+  #   value: ${{ steps.fetch.outputs.tfstate_dev_token }}
   omni_db_user:
     description: 'Omni DB User'
     value: ${{ steps.fetch.outputs.omni_db_user }}
@@ -85,181 +86,90 @@ runs:
       shell: bash
       run: |
         if ! command -v oci &> /dev/null; then
-          echo "Installing OCI CLI..."
           curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
           echo "$HOME/bin" >> $GITHUB_PATH
         fi
 
-    - name: Authenticate to OCI using OIDC
-      id: oci-auth
-      uses: ./.github/actions/oci-oidc-auth
+    - name: Configure OCI CLI
+      uses: ./.github/actions/oci-config
       with:
-        oci_tenancy_ocid: ${{ inputs.oci_cli_tenancy }}
-        oci_user_ocid: ${{ inputs.oci_cli_user }}
-        oci_fingerprint: ${{ inputs.oci_cli_fingerprint }}
-        oci_region: ${{ inputs.oci_cli_region }}
-        oci_api_key_content: ${{ inputs.oci_cli_key_content }}
+        oci_cli_key_content: ${{ inputs.oci_cli_key_content }}
+        oci_cli_user: ${{ inputs.oci_cli_user }}
+        oci_cli_fingerprint: ${{ inputs.oci_cli_fingerprint }}
+        oci_cli_tenancy: ${{ inputs.oci_cli_tenancy }}
+        oci_cli_region: ${{ inputs.oci_cli_region }}
         oci_domain_url: ${{ inputs.oci_domain_url }}
         oci_client_id: ${{ inputs.oci_client_id }}
         oci_client_secret: ${{ inputs.oci_client_secret }}
-
-    - name: Configure OCI Authentication
-      shell: bash
-      env:
-        OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
-        OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
-        AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
-      run: |
-        mkdir -p ~/.oci
-
-        if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
-          echo "Using OIDC authentication (UPST) for Vault access"
-          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
-          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
-          chmod 600 ~/.oci/session_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "auth=security_token"
-            echo "user=${{ inputs.oci_cli_user }}"
-            echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
-            echo "tenancy=${{ inputs.oci_cli_tenancy }}"
-            echo "region=${{ inputs.oci_cli_region }}"
-            echo "security_token_file=${HOME}/.oci/session_token"
-            echo "key_file=${HOME}/.oci/session_key.pem"
-          } > ~/.oci/config
-        else
-          echo "Using API key authentication (fallback) for Vault access"
-          printf '%s\n' "${{ inputs.oci_cli_key_content }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ inputs.oci_cli_user }}"
-            echo "fingerprint=${{ inputs.oci_cli_fingerprint }}"
-            echo "tenancy=${{ inputs.oci_cli_tenancy }}"
-            echo "region=${{ inputs.oci_cli_region }}"
-            echo "key_file=${HOME}/.oci/oci_api_key.pem"
-          } > ~/.oci/config
-        fi
 
     - name: Fetch secrets from OCI Vault
       id: fetch
       shell: bash
       run: |
-        # Secret name to OCID mapping (from Terraform)
-        # These are the secret names created by terraform/oracle-cloud/vault-secrets.tf
         declare -A SECRET_NAMES=(
           ["cloudflare_api_token"]="homelab-cloudflare-api-token"
-          ["tfstate_dev_token"]="homelab-tfstate-dev-token"
           ["omni_db_user"]="homelab-omni-db-user"
           ["omni_db_password"]="homelab-omni-db-password"
           ["omni_db_name"]="homelab-omni-db-name"
           ["oci_mgmt_ssh_private_key"]="homelab-oci-mgmt-ssh-private-key"
-          # OCI Management Stack
           ["cloudflare_tunnel_token"]="homelab-cloudflare-tunnel-token"
           ["postgres_password"]="homelab-postgres-password"
           ["authentik_secret_key"]="homelab-authentik-secret-key"
         )
 
-        # Compartment ID (tenancy root)
-        COMPARTMENT_ID="${{ inputs.oci_cli_tenancy }}"
-
-        # Parse requested secrets
         IFS=',' read -ra REQUESTED <<< "${{ inputs.secrets }}"
 
         for secret_key in "${REQUESTED[@]}"; do
-          secret_key=$(echo "$secret_key" | xargs)  # trim whitespace
+          secret_key=$(echo "$secret_key" | xargs)
           secret_name="${SECRET_NAMES[$secret_key]}"
 
-          if [[ -z "$secret_name" ]]; then
-            echo "::warning::Unknown secret key: $secret_key"
-            continue
-          fi
+          [[ -z "$secret_name" ]] && { echo "::warning::Unknown secret: $secret_key"; continue; }
 
-          echo "Fetching $secret_key ($secret_name)..."
-
-          # Get secret OCID by name
           SECRET_OCID=$(oci vault secret list \
-            --compartment-id "$COMPARTMENT_ID" \
+            --compartment-id "${{ inputs.oci_cli_tenancy }}" \
             --name "$secret_name" \
             --lifecycle-state ACTIVE \
+            --all \
             --query 'data[0].id' \
             --raw-output 2>/dev/null || true)
 
-          if [[ -z "$SECRET_OCID" || "$SECRET_OCID" == "null" ]]; then
-            echo "::warning::Secret not found: $secret_name"
-            continue
-          fi
+          [[ -z "$SECRET_OCID" || "$SECRET_OCID" == "null" ]] && { echo "::warning::Secret not found: $secret_name"; continue; }
 
-          # Get latest secret bundle (content)
           SECRET_VALUE=$(oci secrets secret-bundle get \
             --secret-id "$SECRET_OCID" \
             --stage CURRENT \
             --query 'data."secret-bundle-content".content' \
             --raw-output 2>/dev/null || true)
 
-          if [[ -z "$SECRET_VALUE" || "$SECRET_VALUE" == "null" ]]; then
-            echo "::warning::Could not retrieve content for: $secret_name"
-            continue
-          fi
+          [[ -z "$SECRET_VALUE" || "$SECRET_VALUE" == "null" ]] && { echo "::warning::Could not retrieve: $secret_name"; continue; }
 
-          # Decode base64
           DECODED=$(echo "$SECRET_VALUE" | base64 -d)
+          [[ -z "$DECODED" ]] && { echo "::error::Secret $secret_name is empty"; exit 1; }
 
-          if [[ -z "$DECODED" ]]; then
-            echo "::error::Secret $secret_name is empty after decoding"
-            exit 1
-          fi
-
-          # Mask the secret in logs
           echo "::add-mask::$DECODED"
 
-          # SSH key: always write to workspace file so workflow step sees it (RUNNER_TEMP can be step-scoped)
+          # SSH key: write to file
           if [[ "$secret_key" == "oci_mgmt_ssh_private_key" ]]; then
-            SSH_KEY_DIR="${GITHUB_WORKSPACE}/.tmp"
-            mkdir -p "$SSH_KEY_DIR"
-            SSH_KEY_FILE="${SSH_KEY_DIR}/oci_mgmt_ssh_key.pem"
-            # If PEM is single-line (e.g. stored with literal \n), expand to real newlines
-            if echo "$DECODED" | grep -q $'\n'; then
-              printf '%s\n' "$DECODED" | tr -d '\r' > "$SSH_KEY_FILE"
-            else
-              echo "$DECODED" | sed 's/\\n/\'$'\n''/g' | tr -d '\r' > "$SSH_KEY_FILE"
-            fi
-            # OCI Vault / API sometimes returns secret without first line (-----BEGIN ...-----); restore it
-            if ! head -1 "$SSH_KEY_FILE" | grep -q -- '-----BEGIN'; then
-              { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat "$SSH_KEY_FILE"; } > "${SSH_KEY_FILE}.tmp" && mv "${SSH_KEY_FILE}.tmp" "$SSH_KEY_FILE"
-            fi
+            SSH_KEY_FILE="${GITHUB_WORKSPACE}/.tmp/oci_mgmt_ssh_key.pem"
+            mkdir -p "$(dirname "$SSH_KEY_FILE")"
+            echo "$DECODED" | sed 's/\\n/\n/g' | tr -d '\r' > "$SSH_KEY_FILE"
+            [[ ! $(head -1 "$SSH_KEY_FILE") =~ ^-----BEGIN ]] && \
+              { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat "$SSH_KEY_FILE"; } > "${SSH_KEY_FILE}.tmp" && \
+              mv "${SSH_KEY_FILE}.tmp" "$SSH_KEY_FILE"
             chmod 600 "$SSH_KEY_FILE"
             echo "oci_mgmt_ssh_private_key_file=$SSH_KEY_FILE" >> "$GITHUB_OUTPUT"
           fi
 
-          # Check if secret contains newlines (multiline secret like SSH keys)
+          # Output format
           if echo "$DECODED" | grep -q $'\n'; then
-            # Also output heredoc for consumers that read the output directly (may be collapsed in env)
-            {
-              echo "${secret_key}<<EOF_${secret_key}"
-              echo "$DECODED"
-              echo "EOF_${secret_key}"
-            } >> "$GITHUB_OUTPUT"
+            echo "${secret_key}<<EOF_${secret_key}" >> "$GITHUB_OUTPUT"
+            echo "$DECODED" >> "$GITHUB_OUTPUT"
+            echo "EOF_${secret_key}" >> "$GITHUB_OUTPUT"
           else
-            # Single-line secret: trim whitespace and use simple format
             DECODED_TRIMMED=$(echo "$DECODED" | tr -d '\n\r' | xargs)
-
-            # Special validation for Cloudflare API token (must be exactly 40 chars)
-            if [[ "$secret_key" == "cloudflare_api_token" ]]; then
-              if [[ ${#DECODED_TRIMMED} -ne 40 ]]; then
-                echo "::error::Cloudflare API token must be exactly 40 characters, got ${#DECODED_TRIMMED}"
-                echo "::error::Token value (first 10 chars): ${DECODED_TRIMMED:0:10}..."
-                exit 1
-              fi
-              # Validate format (only alphanumeric, hyphens, underscores)
-              if ! echo "$DECODED_TRIMMED" | grep -qE '^[a-zA-Z0-9_-]{40}$'; then
-                echo "::error::Cloudflare API token contains invalid characters"
-                exit 1
-              fi
-            fi
-
+            [[ "$secret_key" == "cloudflare_api_token" ]] && \
+              { [[ ${#DECODED_TRIMMED} -ne 40 ]] || ! echo "$DECODED_TRIMMED" | grep -qE '^[a-zA-Z0-9_-]{40}$'; } && \
+              { echo "::error::Invalid Cloudflare token format"; exit 1; }
             echo "${secret_key}=$DECODED_TRIMMED" >> "$GITHUB_OUTPUT"
           fi
-
-          echo "✓ $secret_key fetched successfully"
         done

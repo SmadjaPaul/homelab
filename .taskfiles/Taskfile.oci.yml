@@ -28,7 +28,7 @@ tasks:
     desc: "[OCI-First] Phase B - Cloudflare Tunnel + oauth2-proxy + Authentik"
     cmds:
       - 'echo "Phase B: 3.4.1 Cloudflare Tunnel | 3.3.2 oauth2-proxy | 3.3.3 Authentik"'
-      - 'echo "Docs: docs/oci-config-management.md | _bmad-output/planning-artifacts/oci-first-roadmap.md"'
+      - 'echo "Docs: docs-site/docs/ | _bmad-output/planning-artifacts/oci-first-roadmap.md"'
 
   phase-b:tunnel:
     desc: "[Phase B] 3.4.1 - Cloudflare Tunnel (routes Omni/Authentik)"
