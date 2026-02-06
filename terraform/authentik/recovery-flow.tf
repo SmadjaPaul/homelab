@@ -79,6 +79,8 @@ resource "authentik_stage_prompt" "recovery_prompt_password" {
 resource "authentik_stage_identification" "recovery_identification" {
   name        = "default-recovery-identification"
   user_fields = ["email", "username"]
+  # Note: recovery_flow is not set here - this stage is INSIDE the recovery flow
+  # The recovery flow must be linked to the LOGIN flow's identification stage
 }
 
 # =============================================================================

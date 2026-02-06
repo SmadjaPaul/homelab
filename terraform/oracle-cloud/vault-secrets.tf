@@ -172,7 +172,9 @@ resource "oci_vault_secret" "authentik_secret_key" {
 # =============================================================================
 
 resource "oci_vault_secret" "authentik_smtp_host" {
-  count          = (length(try(var.vault_secret_authentik_smtp_host, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  # Only create if content is provided OR if in CI and secret already exists (to avoid destroying it)
+  # In CI, if secret doesn't exist and no content provided, don't create it (will fail with empty content)
+  count          = length(try(var.vault_secret_authentik_smtp_host, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -180,7 +182,7 @@ resource "oci_vault_secret" "authentik_smtp_host" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_authentik_smtp_host, "managed-externally"))
+    content      = base64encode(var.vault_secret_authentik_smtp_host)
   }
 
   lifecycle {
@@ -189,7 +191,7 @@ resource "oci_vault_secret" "authentik_smtp_host" {
 }
 
 resource "oci_vault_secret" "authentik_smtp_port" {
-  count          = (length(try(var.vault_secret_authentik_smtp_port, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_authentik_smtp_port, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -197,7 +199,7 @@ resource "oci_vault_secret" "authentik_smtp_port" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_authentik_smtp_port, "587"))
+    content      = base64encode(var.vault_secret_authentik_smtp_port)
   }
 
   lifecycle {
@@ -206,7 +208,7 @@ resource "oci_vault_secret" "authentik_smtp_port" {
 }
 
 resource "oci_vault_secret" "authentik_smtp_username" {
-  count          = (length(try(var.vault_secret_authentik_smtp_username, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_authentik_smtp_username, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -214,7 +216,7 @@ resource "oci_vault_secret" "authentik_smtp_username" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_authentik_smtp_username, "managed-externally"))
+    content      = base64encode(var.vault_secret_authentik_smtp_username)
   }
 
   lifecycle {
@@ -223,7 +225,7 @@ resource "oci_vault_secret" "authentik_smtp_username" {
 }
 
 resource "oci_vault_secret" "authentik_smtp_password" {
-  count          = (length(try(var.vault_secret_authentik_smtp_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_authentik_smtp_password, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -231,7 +233,7 @@ resource "oci_vault_secret" "authentik_smtp_password" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_authentik_smtp_password, "managed-externally"))
+    content      = base64encode(var.vault_secret_authentik_smtp_password)
   }
 
   lifecycle {
@@ -240,7 +242,7 @@ resource "oci_vault_secret" "authentik_smtp_password" {
 }
 
 resource "oci_vault_secret" "authentik_smtp_from" {
-  count          = (length(try(var.vault_secret_authentik_smtp_from, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  count          = length(try(var.vault_secret_authentik_smtp_from, "")) > 0 ? 1 : 0
   compartment_id = var.compartment_id
   vault_id       = local.vault_id
   key_id         = local.key_id
@@ -248,7 +250,7 @@ resource "oci_vault_secret" "authentik_smtp_from" {
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_authentik_smtp_from, "noreply@smadja.dev"))
+    content      = base64encode(var.vault_secret_authentik_smtp_from)
   }
 
   lifecycle {

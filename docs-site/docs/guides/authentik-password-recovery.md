@@ -78,6 +78,33 @@ terraform apply
 1. Va sur `https://auth.smadja.dev/if/flow/default-recovery-flow/`
 2. Tu devrais voir le formulaire de récupération de mot de passe
 
+### 4. Lier le recovery flow au flow de login (pour afficher le bouton "Forgot password?")
+
+**⚠️ Important** : Pour que le bouton "Forgot username or password?" apparaisse sur la page de login, tu dois lier le recovery flow au flow de login.
+
+**Option A : Via script (recommandé)**
+
+Après avoir appliqué la configuration Terraform, exécute le script :
+
+```bash
+./scripts/link-recovery-flow.sh https://auth.smadja.dev <AUTHENTIK_TOKEN>
+```
+
+Le script mettra à jour automatiquement le stage d'identification dans le flow de login.
+
+**Option B : Via l'UI Authentik**
+
+Si tu as accès à l'UI Authentik :
+
+1. Va sur `https://auth.smadja.dev`
+2. **Flows** → **default-authentication-flow** (ou ton flow de login)
+3. Clique sur le stage **Identification** (généralement le premier stage)
+4. Dans les paramètres du stage, trouve le champ **"Recovery flow"**
+5. Sélectionne **"default-recovery-flow"** (ou le slug de ton recovery flow)
+6. Sauvegarde
+
+Après cette configuration, le bouton "Forgot username or password?" apparaîtra automatiquement sur la page de login.
+
 ## Utilisation
 
 ### Pour les utilisateurs
