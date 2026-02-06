@@ -1,0 +1,107 @@
+# Reusable action for Terraform plan
+# Handles backend config, init, plan, and PR comments
+name: 'Terraform Plan'
+description: 'Runs terraform plan and optionally comments on PR'
+
+inputs:
+  working_dir:
+    required: true
+    description: 'Terraform working directory'
+  terraform_version:
+    required: false
+    default: '1.14.4'
+    description: 'Terraform version to use'
+  backend_config_script:
+    required: false
+    default: ''
+    description: 'Script to configure backend (e.g., sed command)'
+  env_vars_json:
+    required: false
+    default: '{}'
+    description: 'JSON object with environment variables to set'
+  comment_pr:
+    required: false
+    default: 'true'
+    description: 'Whether to comment plan on PR'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      id: setup
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: true
+
+    - name: Configure backend
+      if: inputs.backend_config_script != ''
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: ${{ inputs.backend_config_script }}
+
+    - name: Terraform Init
+      id: init
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform init -reconfigure -input=false
+
+    - name: Set environment variables
+      if: inputs.env_vars_json != '{}'
+      shell: bash
+      run: |
+        echo '${{ inputs.env_vars_json }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+
+    - name: Terraform Plan
+      id: plan
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform plan -no-color -out=tfplan -input=false
+      continue-on-error: true
+
+    - name: Comment PR with Plan
+      if: |
+        inputs.comment_pr == 'true' &&
+        github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      env:
+        PLAN: ${{ steps.plan.outputs.stdout }}
+        PLAN_STDERR: ${{ steps.plan.outputs.stderr }}
+        PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
+        PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        INIT_OUTCOME: ${{ steps.init.outcome }}
+      with:
+        script: |
+          const planOutput = process.env.PLAN || 'No plan output available';
+          const planStderr = process.env.PLAN_STDERR || '';
+          const planOutcome = process.env.PLAN_OUTCOME || 'unknown';
+          const initOutcome = process.env.INIT_OUTCOME || 'unknown';
+
+          const output = `## Terraform Plan 📖\`${planOutcome}\`
+
+          #### Terraform Initialization ⚙️\`${initOutcome}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`hcl
+          ${planOutput.substring(0, 60000)}
+          \`\`\`
+
+          </details>
+
+          ${planStderr ? `<details><summary>Plan Errors/Warnings</summary>
+
+          \`\`\`
+          ${planStderr.substring(0, 10000)}
+          \`\`\`
+
+          </details>` : ''}
+
+          *Plan generated for commit: ${{ github.sha }}*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          });

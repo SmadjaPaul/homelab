@@ -57,7 +57,7 @@ so that I can test GitOps workflows.
   - `install.yaml` - Kustomization referencing official manifests
   - `values.yaml` - Helm values (for future Helm migration if needed)
   - `app-of-apps.yaml` - Root application (Story 1.4.3 ✅)
-- Documentation: `docs/argocd-installation.md` with installation guide
+- Documentation: `docs-site/docs/infrastructure/kubernetes.md` (ArgoCD section)
 
 ### References
 

@@ -1,0 +1,99 @@
+# Main CI workflow - runs on PR and push
+# Only validates non-Terraform changes to avoid conflicts with terraform-*.yml workflows
+# Terraform validation is handled by terraform-oci.yml and terraform-cloudflare.yml
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - 'terraform/oracle-cloud/**'
+      - 'terraform/cloudflare/**'
+      - 'terraform/proxmox/**'
+      - 'terraform/authentik/**'
+      - '.taskfiles/Taskfile.oci.yml'
+      - 'Taskfile.yaml'
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - 'terraform/oracle-cloud/**'
+      - 'terraform/cloudflare/**'
+      - 'terraform/proxmox/**'
+      - 'terraform/authentik/**'
+      - '.taskfiles/Taskfile.oci.yml'
+      - 'Taskfile.yaml'
+
+jobs:
+  # ==================== Validation ====================
+  validate-secrets:
+    name: Validate Secrets Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate SSH_PUBLIC_KEY format
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          if [[ -z "$SSH_PUBLIC_KEY" ]]; then
+            echo "::warning::SSH_PUBLIC_KEY secret is not set"
+            exit 0
+          fi
+
+          if echo "$SSH_PUBLIC_KEY" | grep -q -- '-----BEGIN'; then
+            echo "::error::SSH_PUBLIC_KEY contains a PRIVATE key. It must be the PUBLIC key (one line starting with ssh-ed25519 or ssh-rsa)"
+            exit 1
+          fi
+
+          if ! echo "$SSH_PUBLIC_KEY" | grep -qE '^ssh-(ed25519|rsa|dss|ecdsa) '; then
+            echo "::error::SSH_PUBLIC_KEY format invalid. Must be one line starting with ssh-ed25519 or ssh-rsa"
+            exit 1
+          fi
+
+          echo "✅ SSH_PUBLIC_KEY format is valid"
+
+  # Note: Terraform validation is handled by:
+  # - terraform-oci.yml (for terraform/oracle-cloud/**)
+  # - terraform-cloudflare.yml (for terraform/cloudflare/**)
+  # This avoids duplication and conflicts
+
+  validate-kubernetes:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate manifests
+        run: |
+          if [ ! -d "kubernetes" ]; then
+            echo "No kubernetes directory found, skipping..."
+            exit 0
+          fi
+
+          find kubernetes -name "*.yaml" -o -name "*.yml" 2>/dev/null | while read -r file; do
+            echo "Validating $file..."
+            kubectl apply --dry-run=client -f "$file" || exit 1
+          done || echo "No Kubernetes manifests found"
+
+  # ==================== Security ====================
+  # Note: Security workflow runs manually via workflow_dispatch
+  # See .github/workflows/security.yml
+
+  # ==================== Linting ====================
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    if: false  # Disabled until pre-commit is configured
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files

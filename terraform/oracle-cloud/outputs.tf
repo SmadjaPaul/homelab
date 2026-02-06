@@ -1,5 +1,10 @@
 # Outputs for Oracle Cloud Infrastructure
 
+output "compartment_id" {
+  description = "OCI compartment OCID (useful for other Terraform modules)"
+  value       = var.compartment_id
+}
+
 output "vcn_id" {
   description = "VCN OCID"
   value       = oci_core_vcn.homelab.id
@@ -87,8 +92,8 @@ output "vault_secrets" {
     vault_id                  = oci_kms_vault.homelab_secrets.id
     vault_management_endpoint = oci_kms_vault.homelab_secrets.management_endpoint
     secrets = {
-      cloudflare_api_token     = try(oci_vault_secret.cloudflare_api_token[0].id, null)
-      tfstate_dev_token        = try(oci_vault_secret.tfstate_dev_token[0].id, null)
+      cloudflare_api_token = try(oci_vault_secret.cloudflare_api_token[0].id, null)
+      # tfstate_dev_token removed (deprecated, backends use OCI Object Storage)
       omni_db_user             = try(oci_vault_secret.omni_db_user[0].id, null)
       omni_db_password         = try(oci_vault_secret.omni_db_password[0].id, null)
       omni_db_name             = try(oci_vault_secret.omni_db_name[0].id, null)
@@ -97,6 +102,12 @@ output "vault_secrets" {
       cloudflare_tunnel_token = try(oci_vault_secret.cloudflare_tunnel_token[0].id, null)
       postgres_password       = try(oci_vault_secret.postgres_password[0].id, null)
       authentik_secret_key    = try(oci_vault_secret.authentik_secret_key[0].id, null)
+      # Authentik SMTP
+      authentik_smtp_host     = try(oci_vault_secret.authentik_smtp_host[0].id, null)
+      authentik_smtp_port     = try(oci_vault_secret.authentik_smtp_port[0].id, null)
+      authentik_smtp_username = try(oci_vault_secret.authentik_smtp_username[0].id, null)
+      authentik_smtp_password = try(oci_vault_secret.authentik_smtp_password[0].id, null)
+      authentik_smtp_from     = try(oci_vault_secret.authentik_smtp_from[0].id, null)
     }
   }
 }

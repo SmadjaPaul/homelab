@@ -63,6 +63,7 @@ repos:
           (?x)^(
             docs/.*\.md$|
             \.github/actions/oci-vault-secrets/action\.yml|
+            \.github/actions/setup-ssh-key/action\.yml|
             \.github/workflows/deploy-oci-mgmt\.yml|
             scripts/update-oci-vault-ssh-key\.sh
           )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings

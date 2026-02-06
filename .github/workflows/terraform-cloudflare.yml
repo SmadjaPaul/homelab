@@ -108,7 +108,15 @@ jobs:
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
+        env:
+          OCI_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+        run: |
+          if [[ -z "$OCI_NAMESPACE" ]]; then
+            echo "::error::OCI_OBJECT_STORAGE_NAMESPACE secret is not set or empty"
+            exit 1
+          fi
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" main.tf
+          echo "✅ Backend namespace injected: ${OCI_NAMESPACE:0:10}..."
 
       - name: Terraform Init
         run: terraform init -reconfigure
@@ -190,7 +198,15 @@ jobs:
 
       - name: Inject backend namespace (CI)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
+        env:
+          OCI_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+        run: |
+          if [[ -z "$OCI_NAMESPACE" ]]; then
+            echo "::error::OCI_OBJECT_STORAGE_NAMESPACE secret is not set or empty"
+            exit 1
+          fi
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" main.tf
+          echo "✅ Backend namespace injected: ${OCI_NAMESPACE:0:10}..."
 
       - name: Terraform Init
         run: terraform init -reconfigure

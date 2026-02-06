@@ -49,4 +49,4 @@ so that I can run external services.
 - [Epics & Stories](../planning-artifacts/epics-and-stories-homelab.md) — Story 3.2.2
 - [OCI-First Roadmap](../planning-artifacts/oci-first-roadmap.md)
 - [talos/README.md](../../talos/README.md)
-- [docs/omni-register-cluster.md](../../docs/omni-register-cluster.md)
+- [docs-site/docs/infrastructure/kubernetes.md](../../docs-site/docs/infrastructure/kubernetes.md) (Omni configuration)

@@ -3,7 +3,7 @@
 # =============================================================================
 # Conforme à architecture-proxmox-omni.md ; vérifié vs mitchross/talos-argocd-proxmox.
 # UEFI + q35 : recommandé par Sidero pour Talos sur Proxmox.
-# Vérification : docs/proxmox-talos-setup-verification.md
+# Vérification : docs-site/docs/infrastructure/proxmox.md et talos/README.md
 # - DEV : 1 nœud (control-plane + worker), 2 vCPU, 4GB RAM, 50GB
 # - PROD : 1 control-plane (2 vCPU, 4GB RAM, 50GB) + 1 worker (6 vCPU, 12GB RAM, 200GB)
 # Premier boot : attacher l’ISO Talos (tank-iso) en CDROM dans Proxmox, puis talosctl apply-config.

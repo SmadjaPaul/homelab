@@ -1,0 +1,77 @@
+# Reusable action to configure OCI CLI authentication
+# Handles both OIDC (session token) and API key fallback
+name: 'Configure OCI CLI'
+description: 'Sets up OCI CLI authentication (OIDC preferred, API key fallback)'
+
+inputs:
+  oci_cli_key_content:
+    required: true
+  oci_cli_user:
+    required: true
+  oci_cli_fingerprint:
+    required: true
+  oci_cli_tenancy:
+    required: true
+  oci_cli_region:
+    required: true
+    default: 'eu-paris-1'
+  oci_domain_url:
+    required: false
+    default: ''
+  oci_client_id:
+    required: false
+    default: ''
+  oci_client_secret:
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate to OCI
+      id: oci-auth
+      uses: ./.github/actions/oci-oidc-auth
+      with:
+        oci_tenancy_ocid: ${{ inputs.oci_cli_tenancy }}
+        oci_user_ocid: ${{ inputs.oci_cli_user }}
+        oci_fingerprint: ${{ inputs.oci_cli_fingerprint }}
+        oci_region: ${{ inputs.oci_cli_region }}
+        oci_api_key_content: ${{ inputs.oci_cli_key_content }}
+        oci_domain_url: ${{ inputs.oci_domain_url }}
+        oci_client_id: ${{ inputs.oci_client_id }}
+        oci_client_secret: ${{ inputs.oci_client_secret }}
+
+    - name: Configure OCI CLI
+      shell: bash
+      env:
+        OCI_SESSION_TOKEN: ${{ steps.oci-auth.outputs.oci_session_token }}
+        OCI_SESSION_KEY: ${{ steps.oci-auth.outputs.oci_session_key }}
+        AUTH_METHOD: ${{ steps.oci-auth.outputs.auth_method }}
+      run: |
+        mkdir -p ~/.oci
+        if [[ "$AUTH_METHOD" == "oidc" && -n "$OCI_SESSION_TOKEN" ]]; then
+          printf '%s\n' "$OCI_SESSION_TOKEN" > ~/.oci/session_token
+          printf '%s\n' "$OCI_SESSION_KEY" > ~/.oci/session_key.pem
+          chmod 600 ~/.oci/session_key.pem
+          cat > ~/.oci/config <<EOF
+        [DEFAULT]
+        auth=security_token
+        user=${{ inputs.oci_cli_user }}
+        fingerprint=${{ inputs.oci_cli_fingerprint }}
+        tenancy=${{ inputs.oci_cli_tenancy }}
+        region=${{ inputs.oci_cli_region }}
+        security_token_file=${HOME}/.oci/session_token
+        key_file=${HOME}/.oci/session_key.pem
+        EOF
+        else
+          printf '%s\n' "${{ inputs.oci_cli_key_content }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config <<EOF
+        [DEFAULT]
+        user=${{ inputs.oci_cli_user }}
+        fingerprint=${{ inputs.oci_cli_fingerprint }}
+        tenancy=${{ inputs.oci_cli_tenancy }}
+        region=${{ inputs.oci_cli_region }}
+        key_file=${HOME}/.oci/oci_api_key.pem
+        EOF
+        fi

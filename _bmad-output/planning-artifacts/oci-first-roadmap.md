@@ -121,4 +121,4 @@
 - [Epics & Stories](../planning-artifacts/epics-and-stories-homelab.md)
 - [Implementation Progress](../planning-artifacts/implementation-progress.md)
 - [Architecture](../planning-artifacts/architecture-proxmox-omni.md)
-- [Gestion des configs OCI (outils et services)](../../docs/oci-config-management.md) — direnv, ESO, Taskfile Phase B
+- Gestion des configs OCI : voir `docs-site/docs/guides/secrets-management.md` et `docs-site/docs/getting-started/secrets-setup.md`

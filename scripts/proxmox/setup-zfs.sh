@@ -6,7 +6,7 @@
 #
 # Recommandation homelab : 2×14 To uniquement en miroir.
 #   - Script dédié (non interactif) : ./setup-zfs-14tb-only.sh sda sdb
-#   - Voir docs/proxmox-setup-guide.md pour le guide complet (SSH puis ZFS).
+#   - Voir docs-site/docs/infrastructure/proxmox.md pour le guide complet (SSH puis ZFS).
 #
 set -e
 

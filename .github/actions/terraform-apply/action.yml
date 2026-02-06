@@ -1,0 +1,59 @@
+# Reusable action for Terraform apply
+# Handles backend config, init, and apply
+name: 'Terraform Apply'
+description: 'Runs terraform apply'
+
+inputs:
+  working_dir:
+    required: true
+    description: 'Terraform working directory'
+  terraform_version:
+    required: false
+    default: '1.14.4'
+    description: 'Terraform version to use'
+  backend_config_script:
+    required: false
+    default: ''
+    description: 'Script to configure backend (e.g., sed command)'
+  env_vars_json:
+    required: false
+    default: '{}'
+    description: 'JSON object with environment variables to set'
+  plan_file:
+    required: false
+    default: 'tfplan'
+    description: 'Path to terraform plan file'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      id: setup
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: true
+
+    - name: Configure backend
+      if: inputs.backend_config_script != ''
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: ${{ inputs.backend_config_script }}
+
+    - name: Terraform Init
+      id: init
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform init -reconfigure -input=false
+
+    - name: Set environment variables
+      if: inputs.env_vars_json != '{}'
+      shell: bash
+      run: |
+        echo '${{ inputs.env_vars_json }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+
+    - name: Terraform Apply
+      id: apply
+      shell: bash
+      working-directory: ${{ inputs.working_dir }}
+      run: terraform apply -auto-approve -input=false ${{ inputs.plan_file }}

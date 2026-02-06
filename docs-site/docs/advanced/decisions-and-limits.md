@@ -21,7 +21,7 @@ Ce document garde une trace de la **philosophie**, des **choix techniques** (fea
 
 | Principe | Choix homelab |
 |----------|----------------|
-| **Backend distant** | OCI : bucket `homelab-tfstate` (backend `oci`). Cloudflare / Proxmox : TFstate.dev (HTTP) avec `TFSTATE_DEV_TOKEN`. |
+| **Backend distant** | OCI : bucket `homelab-tfstate` (backend `oci`). ~~Cloudflare / Proxmox : TFstate.dev (HTTP)~~ → Migré vers OCI Object Storage. |
 | **Locking** | OCI : verrouillage natif. CI : `concurrency` par workflow (une run Terraform à la fois par stack). |
 | **Isolation** | Un state par stack : `terraform/oracle-cloud`, `terraform/cloudflare`, `terraform/proxmox`. Pas d’état partagé entre stacks. |
 | **Secrets dans le state** | Variables `sensitive = true` ; pas de credentials en clair dans tfvars committés. |
@@ -46,7 +46,7 @@ Ce document garde une trace de la **philosophie**, des **choix techniques** (fea
 
 ## Secrets
 
-- **CI** : GitHub Secrets (TFSTATE_DEV_TOKEN, CLOUDFLARE_API_TOKEN, OCI_*, etc.). Recréation : voir [Rotate secrets](./../runbooks/rotate-secrets.md) et [.github/DEPLOYMENTS.md](https://github.com/SmadjaPaul/homelab/blob/main/.github/DEPLOYMENTS.md) à la racine du dépôt.
+- **CI** : GitHub Secrets (CLOUDFLARE_API_TOKEN, OCI_*, etc.). ~~TFSTATE_DEV_TOKEN~~ (déprécié, backend utilise OCI Object Storage). Recréation : voir [Rotate secrets](./../runbooks/rotate-secrets.md) et [.github/DEPLOYMENTS.md](https://github.com/SmadjaPaul/homelab/blob/main/.github/DEPLOYMENTS.md) à la racine du dépôt.
 - **Kubernetes** : SOPS + Age pour les secrets chiffrés en Git ; External Secrets (optionnel) pour synchroniser depuis un vault.
 - **Pas de secrets en clair** dans le repo (tfvars, YAML non chiffrés).
 

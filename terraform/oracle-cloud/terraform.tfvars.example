@@ -30,11 +30,33 @@ user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #     not overwritten when vars are null. Never commit real values.
 # -----------------------------------------------------------------------------
 # vault_secret_cloudflare_api_token = ""
-# vault_secret_tfstate_dev_token    = ""
+# vault_secret_tfstate_dev_token    = ""  # DEPRECATED: Backend uses OCI Object Storage now
 # vault_secret_omni_db_user         = ""
 # vault_secret_omni_db_password     = ""
 # vault_secret_omni_db_name         = ""
 # vault_secret_oci_mgmt_ssh_private_key = ""
+
+# Authentik SMTP configuration (for password recovery emails)
+# Example for Resend:
+# vault_secret_authentik_smtp_host     = "smtp.resend.com"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "resend"
+# vault_secret_authentik_smtp_password = "re_xxxxx"  # Your Resend API key
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
+#
+# Example for SendGrid:
+# vault_secret_authentik_smtp_host     = "smtp.sendgrid.net"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "apikey"
+# vault_secret_authentik_smtp_password = "SG.xxxxx"  # Your SendGrid API key
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
+#
+# Example for Zoho Mail:
+# vault_secret_authentik_smtp_host     = "smtp.zoho.com"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "noreply@smadja.dev"  # Full email address
+# vault_secret_authentik_smtp_password = "your-password-or-app-password"
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
 
 # Network: with Cloudflare Tunnel, set false to avoid opening 80/443 (tunnel-only, recommended)
 # allow_public_http_https = false

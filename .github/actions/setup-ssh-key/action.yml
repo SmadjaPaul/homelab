@@ -1,0 +1,76 @@
+# Reusable action to setup SSH key from GitHub secret or OCI Vault
+name: 'Setup SSH Key'
+description: 'Configures SSH key from GitHub secret or OCI Vault output'
+
+inputs:
+  ssh_private_key:
+    description: 'SSH private key from GitHub secret'
+    required: false
+  ssh_private_key_file:
+    description: 'Path to SSH key file from OCI Vault'
+    required: false
+  ssh_key_from_vault:
+    description: 'SSH key content from OCI Vault (fallback)'
+    required: false
+  known_hosts:
+    description: 'Host to add to known_hosts'
+    required: false
+
+outputs:
+  ssh_key_path:
+    description: 'Path to the configured SSH key file'
+    value: ${{ steps.setup.outputs.key_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup SSH key
+      id: setup
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+        SSH_KEY_FILE: ${{ inputs.ssh_private_key_file }}
+        SSH_KEY_FROM_VAULT: ${{ inputs.ssh_key_from_vault }}
+      run: |
+        mkdir -p ~/.ssh
+        KEY_FILE=~/.ssh/oci_mgmt.pem
+
+        # Prefer GitHub secret (guaranteed to match SSH_PUBLIC_KEY)
+        if [[ -n "$SSH_PRIVATE_KEY" ]]; then
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$KEY_FILE"
+        elif [[ -n "$SSH_KEY_FILE" && -f "$SSH_KEY_FILE" ]]; then
+          cp "$SSH_KEY_FILE" "$KEY_FILE"
+        elif [[ -n "$SSH_KEY_FROM_VAULT" ]]; then
+          printf '%s\n' "$SSH_KEY_FROM_VAULT" | tr -d '\r' > "$KEY_FILE"
+        else
+          echo "::error::No SSH key provided"
+          exit 1
+        fi
+
+        chmod 600 "$KEY_FILE"
+
+        # Validate key format
+        if [[ $(wc -l < "$KEY_FILE") -lt 2 ]]; then
+          echo "::error::SSH key invalid (too few lines)"
+          exit 1
+        fi
+
+        # Restore missing BEGIN line if needed
+        if ! head -1 "$KEY_FILE" | grep -q -- '-----BEGIN'; then
+          { echo "-----BEGIN OPENSSH PRIVATE KEY-----"; cat "$KEY_FILE"; } > "${KEY_FILE}.tmp"
+          mv "${KEY_FILE}.tmp" "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+        fi
+
+        # Validate key is valid
+        if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2>&1; then
+          echo "::error::Invalid SSH private key"
+          exit 1
+        fi
+
+        echo "key_path=$KEY_FILE" >> $GITHUB_OUTPUT
+
+        # Add to known_hosts if provided
+        if [[ -n "${{ inputs.known_hosts }}" ]]; then
+          ssh-keyscan -H "${{ inputs.known_hosts }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+        fi

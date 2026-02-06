@@ -4,7 +4,7 @@
 # URL de l’API Proxmox (IP ou hostname du nœud)
 pm_api_url = "https://192.168.68.51:8006/"
 
-# API Token (créer : voir docs/proxmox-api-token.md)
+# API Token (créer : voir docs-site/docs/infrastructure/proxmox.md)
 # Format token_id : user@realm!nomdu token (ex. terraform-prov@pve!terraform)
 pm_api_token_id     = "terraform-prov@pve!terraform"
 pm_api_token_secret = "your-token-secret-here"

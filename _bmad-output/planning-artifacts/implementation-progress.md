@@ -63,7 +63,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 |-------|--------|-------|
 | 1.3.1 Provision OCI Management VM | ✅ | **Terraform** : `terraform/oracle-cloud/` — VM oci-mgmt (1 OCPU, 6 GB). Apply via CI (`task oci:terraform:apply`) ou local. Voir `terraform/oracle-cloud/README.md`. |
 | 1.3.2 Deploy Omni Server | ✅ | **Déployé via CI** : workflow `.github/workflows/deploy-oci-mgmt.yml`. Stack : Omni, PostgreSQL, Authentik, Cloudflared. Voir [docker/oci-mgmt/README.md](../../docker/oci-mgmt/README.md). |
-| 1.3.3 Register DEV Cluster with Omni | 🟡 In Progress | **CLOUD** : image Omni (créer cluster dans UI, télécharger image Oracle, import OCI, `talos_image_id`). **DEV** : config Omni dans talos/*.yaml + talosctl apply-config. Docs : `docs/omni-register-cluster.md`, `docs/omni-automation.md`. |
+| 1.3.3 Register DEV Cluster with Omni | 🟡 In Progress | **CLOUD** : image Omni (créer cluster dans UI, télécharger image Oracle, import OCI, `talos_image_id`). **DEV** : config Omni dans talos/*.yaml + talosctl apply-config. Docs : `docs-site/docs/infrastructure/kubernetes.md`. |
 | 1.3.4 Configure MachineClasses | 🟢 Ready | **Story** : `1-3-4-configure-machineclasses.md`. Specs dans `omni/machine-classes/README.md` (control-plane, worker, gpu-worker). Création des classes dans l’UI Omni ou via API. |
 
 ### Epic 1.4: ArgoCD GitOps Setup

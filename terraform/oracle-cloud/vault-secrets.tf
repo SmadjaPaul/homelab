@@ -29,24 +29,12 @@ resource "oci_vault_secret" "cloudflare_api_token" {
   }
 }
 
-# GitHub PAT (TFstate.dev lock) — DEPRECATED: backends now use OCI Object Storage
-# Kept for backwards compatibility, can be removed in future
-resource "oci_vault_secret" "tfstate_dev_token" {
-  count          = (length(try(var.vault_secret_tfstate_dev_token, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
-  compartment_id = var.compartment_id
-  vault_id       = local.vault_id
-  key_id         = local.key_id
-  secret_name    = "homelab-tfstate-dev-token"
-
-  secret_content {
-    content_type = "BASE64"
-    content      = base64encode(try(var.vault_secret_tfstate_dev_token, "managed-externally"))
-  }
-
-  lifecycle {
-    ignore_changes = [secret_content]
-  }
-}
+# GitHub PAT (TFstate.dev lock) — REMOVED: backends now use OCI Object Storage
+# This resource has been removed. If you still have this secret in OCI Vault,
+# you can delete it manually via OCI Console or keep it (it won't be managed by Terraform).
+# resource "oci_vault_secret" "tfstate_dev_token" {
+#   ...
+# }
 
 # Omni (OCI Management Stack)
 resource "oci_vault_secret" "omni_db_user" {
@@ -172,6 +160,95 @@ resource "oci_vault_secret" "authentik_secret_key" {
   secret_content {
     content_type = "BASE64"
     content      = base64encode(try(var.vault_secret_authentik_secret_key, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+# =============================================================================
+# Authentik SMTP Configuration (for password recovery emails)
+# =============================================================================
+
+resource "oci_vault_secret" "authentik_smtp_host" {
+  count          = (length(try(var.vault_secret_authentik_smtp_host, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-smtp-host"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_smtp_host, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+resource "oci_vault_secret" "authentik_smtp_port" {
+  count          = (length(try(var.vault_secret_authentik_smtp_port, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-smtp-port"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_smtp_port, "587"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+resource "oci_vault_secret" "authentik_smtp_username" {
+  count          = (length(try(var.vault_secret_authentik_smtp_username, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-smtp-username"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_smtp_username, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+resource "oci_vault_secret" "authentik_smtp_password" {
+  count          = (length(try(var.vault_secret_authentik_smtp_password, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-smtp-password"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_smtp_password, "managed-externally"))
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+resource "oci_vault_secret" "authentik_smtp_from" {
+  count          = (length(try(var.vault_secret_authentik_smtp_from, "")) > 0 || var.vault_secrets_managed_in_ci) ? 1 : 0
+  compartment_id = var.compartment_id
+  vault_id       = local.vault_id
+  key_id         = local.key_id
+  secret_name    = "homelab-authentik-smtp-from"
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode(try(var.vault_secret_authentik_smtp_from, "noreply@smadja.dev"))
   }
 
   lifecycle {

@@ -199,12 +199,13 @@ variable "vault_secret_cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "vault_secret_tfstate_dev_token" {
-  description = "GitHub PAT for TFstate.dev lock (stored in OCI Vault)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
+# DEPRECATED: TFstate.dev backend no longer used (migrated to OCI Object Storage)
+# variable "vault_secret_tfstate_dev_token" {
+#   description = "GitHub PAT for TFstate.dev lock (stored in OCI Vault)"
+#   type        = string
+#   default     = ""
+#   sensitive   = true
+# }
 
 variable "vault_secret_omni_db_user" {
   description = "Omni PostgreSQL user (stored in OCI Vault)"
@@ -251,6 +252,42 @@ variable "vault_secret_postgres_password" {
 
 variable "vault_secret_authentik_secret_key" {
   description = "Authentik secret key for session encryption (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# Authentik SMTP configuration (for password recovery emails)
+variable "vault_secret_authentik_smtp_host" {
+  description = "SMTP host for Authentik (e.g. smtp.resend.com, smtp.sendgrid.net) (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_authentik_smtp_port" {
+  description = "SMTP port for Authentik (e.g. 587, 465) (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_authentik_smtp_username" {
+  description = "SMTP username for Authentik (e.g. resend API key, SendGrid API key) (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_authentik_smtp_password" {
+  description = "SMTP password for Authentik (usually same as username for API key-based auth) (stored in OCI Vault)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "vault_secret_authentik_smtp_from" {
+  description = "SMTP from address for Authentik (e.g. noreply@smadja.dev) (stored in OCI Vault)"
   type        = string
   default     = ""
   sensitive   = true

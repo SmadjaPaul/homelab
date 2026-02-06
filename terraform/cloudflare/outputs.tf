@@ -79,7 +79,6 @@ output "next_steps" {
     Next steps:
     1. Security settings are active (SSL strict, HSTS, WAF rules)
     2. DNS records created for all services (placeholder IPs for now)
-    3. Email protection (SPF/DMARC) configured
 
     When infrastructure is ready:
     1. Set enable_tunnel = true in terraform.tfvars

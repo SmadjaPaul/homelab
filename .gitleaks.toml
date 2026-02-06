@@ -22,5 +22,6 @@ paths = [
   # PEM header only (repair logic), no real key
   '''\.github/workflows/deploy-oci-mgmt\.yml$''',
   '''scripts/update-oci-vault-ssh-key\.sh$''',
+  '''\.github/actions/setup-ssh-key/action\.yml$''',
   # Terraform: secret_key = var.xxx (variable reference, not literal secret),
 ]

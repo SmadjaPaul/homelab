@@ -49,8 +49,10 @@ on:
         type: boolean
 
 # Une seule exécution à la fois pour éviter deux runs qui verrouillent le même state (lock conflict)
+# Groupe partagé avec deploy-oci-mgmt : deploy-oci-mgmt attendra que terraform-oci se termine
+# avant de démarrer, évitant les conflits lors des modifications d'infrastructure
 concurrency:
-  group: terraform-oci
+  group: oci-infrastructure-${{ github.ref }}
   cancel-in-progress: false
 
 env:

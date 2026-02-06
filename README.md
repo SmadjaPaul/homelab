@@ -128,6 +128,7 @@ homelab/
 - **[docs-site/](docs-site/)** — Site Docusaurus : runbooks (incidents, rotation des clés), architecture, décisions & limites (state Terraform, CI/CD, free tiers). C’est la seule source de doc opérationnelle.
 - **[_bmad-output/planning-artifacts/README.md](_bmad-output/planning-artifacts/README.md)** — Livrables BMad (PRD, architecture, epics).
 - **Recréer les secrets** : [docs-site/docs/runbooks/rotate-secrets.md](docs-site/docs/runbooks/rotate-secrets.md). Liste et dépannage : [.github/DEPLOYMENTS.md](.github/DEPLOYMENTS.md).
+- **🔧 Plan de stabilisation** : [.github/STABILIZATION-PLAN.md](.github/STABILIZATION-PLAN.md) — Problèmes bloquants et actions prioritaires.
 
 ## Secrets Management
 
