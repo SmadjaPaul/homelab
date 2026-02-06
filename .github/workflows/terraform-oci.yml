@@ -69,7 +69,7 @@ jobs:
     if: github.event.inputs.action != 'force-unlock' && github.event.inputs.action != 'destroy'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -98,7 +98,7 @@ jobs:
       quota_ok: ${{ steps.check.outputs.quota_ok }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check Free Tier Limits
         id: check
@@ -149,7 +149,7 @@ jobs:
       TF_WORKING_DIR: terraform/oracle-cloud
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate key and update secrets (when requested)
         id: rotate
@@ -271,7 +271,7 @@ jobs:
       TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download SSH key artifact
         uses: actions/download-artifact@v4
@@ -451,7 +451,7 @@ jobs:
       TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download SSH key artifact
         uses: actions/download-artifact@v4
@@ -582,7 +582,7 @@ jobs:
       TF_VAR_vault_secrets_managed_in_ci: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -680,7 +680,7 @@ jobs:
       TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
