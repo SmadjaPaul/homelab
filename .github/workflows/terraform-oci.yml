@@ -246,7 +246,7 @@ jobs:
             echo "secret" > ssh-public-key/source
           fi
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ssh-public-key
           path: ssh-public-key/
@@ -568,7 +568,7 @@ jobs:
         run: terraform output -json > outputs.json
 
       - name: Save Outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: terraform-outputs
           path: ${{ env.TF_WORKING_DIR }}/outputs.json
