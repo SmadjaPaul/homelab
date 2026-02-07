@@ -28,6 +28,16 @@ resource "authentik_application" "omni" {
   policy_engine_mode = "any" # Allow if user matches any bound policy
 }
 
-# Assign group "admin" to Omni in Authentik UI:
-# Applications → Omni → Policy / Group / User Bindings → Add group "admin"
-# (Provider goauthentik/authentik may not expose policy_group in this version)
+# Outpost for Forward Auth (Traefik) — must have the proxy provider to validate omni.smadja.dev
+# Without this, "Aucune intégration active" and Forward Auth returns 500.
+# Token: Authentik UI → Avant-postes → [Homelab Forward Auth] → Token (set AUTHENTIK_OUTPOST_TOKEN in .env).
+resource "authentik_outpost" "proxy_forward_auth" {
+  name               = "Homelab Forward Auth"
+  type               = "proxy"
+  protocol_providers = [authentik_provider_proxy.omni.id]
+}
+
+output "omni_outpost_note" {
+  description = "After apply: set AUTHENTIK_OUTPOST_TOKEN from Authentik UI (Avant-postes → Homelab Forward Auth → Token)"
+  value       = "Outpost 'Homelab Forward Auth' created. Get its token in Authentik → Avant-postes → Homelab Forward Auth, then set AUTHENTIK_OUTPOST_TOKEN in docker/oci-mgmt/.env and restart authentik-outpost-proxy."
+}

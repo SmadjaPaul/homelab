@@ -130,8 +130,13 @@ resource "cloudflare_zero_trust_access_application" "internal_services" {
   type             = "self_hosted"
   session_duration = "24h"
 
-  # Auto-redirect to login
   auto_redirect_to_identity = true
+
+  # When Authentik is used as IdP, only allow login via Authentik
+  allowed_idps = (var.authentik_oidc_enabled && length(cloudflare_zero_trust_access_identity_provider.authentik) > 0) ? [cloudflare_zero_trust_access_identity_provider.authentik[0].id] : []
+
+  # Bypass OPTIONS (CORS preflight) so browsers don't get 403 on preflight requests
+  options_preflight_bypass = true
 }
 
 # Access policy - allow only specific emails

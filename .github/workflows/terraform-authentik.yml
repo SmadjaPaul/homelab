@@ -1,0 +1,112 @@
+# Terraform Authentik + post-configuration (API)
+# Applies terraform/authentik and runs post-terraform script to automate
+# recovery flow link, group bindings, enrollment disable.
+#
+# Secrets required: AUTHENTIK_URL, AUTHENTIK_TOKEN
+# Optional: ADMIN_USER_EMAIL (user to add to admin group)
+name: Terraform Authentik
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/authentik/**'
+      - 'scripts/link-recovery-flow.sh'
+      - 'scripts/authentik-post-terraform.sh'
+      - '.github/workflows/terraform-authentik.yml'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Run terraform apply (default: plan only)'
+        required: false
+        default: false
+        type: boolean
+      run_post_terraform:
+        description: 'Run post-terraform script (link recovery, bind group, disable enrollment)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  TF_WORKING_DIR: terraform/authentik
+  TF_VERSION: '1.14.4'
+
+jobs:
+  terraform:
+    name: Terraform Authentik
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      compartment_id: ${{ steps.get-compartment.outputs.compartment_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Get compartment_id
+        id: get-compartment
+        run: |
+          # Prefer variable/secret; fallback to terraform output from oracle-cloud
+          COMPARTMENT_ID="${{ vars.OCI_COMPARTMENT_ID || secrets.OCI_COMPARTMENT_ID || '' }}"
+          if [[ -z "$COMPARTMENT_ID" ]] && [[ -d terraform/oracle-cloud ]]; then
+            cd terraform/oracle-cloud
+            terraform init -input=false 2>/dev/null || true
+            COMPARTMENT_ID=$(terraform output -raw compartment_id 2>/dev/null || echo "")
+          fi
+          echo "compartment_id=${COMPARTMENT_ID}" >> "$GITHUB_OUTPUT"
+          if [[ -z "$COMPARTMENT_ID" ]]; then
+            echo "::warning::compartment_id empty; set OCI_COMPARTMENT_ID or run from oracle-cloud state"
+          fi
+
+      - name: Terraform Init (Authentik)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+          TF_VAR_oci_compartment_id: ${{ steps.get-compartment.outputs.compartment_id }}
+        run: |
+          terraform plan -input=false -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}" -out=tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.apply == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'dependabot[bot]')
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+          TF_VAR_oci_compartment_id: ${{ steps.get-compartment.outputs.compartment_id }}
+        run: |
+          terraform apply -input=false -auto-approve tfplan || terraform apply -input=false -auto-approve -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}"
+
+  post-terraform:
+    name: Post-Terraform (API)
+    needs: terraform
+    if: github.event.inputs.run_post_terraform != 'false' && (secrets.AUTHENTIK_TOKEN != '' && secrets.AUTHENTIK_URL != '')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run post-Terraform script
+        run: |
+          chmod +x scripts/authentik-post-terraform.sh scripts/link-recovery-flow.sh
+          ./scripts/authentik-post-terraform.sh \
+            "${{ secrets.AUTHENTIK_URL }}" \
+            "${{ secrets.AUTHENTIK_TOKEN }}" \
+            "${{ vars.ADMIN_USER_EMAIL || secrets.ADMIN_USER_EMAIL || '' }}"
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+          ADMIN_USER_EMAIL: ${{ vars.ADMIN_USER_EMAIL || secrets.ADMIN_USER_EMAIL || '' }}

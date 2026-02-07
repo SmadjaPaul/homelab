@@ -27,10 +27,21 @@ if [[ -z "$NEW_PASSWORD" ]]; then
 fi
 
 # Get VM IP from Terraform or prompt
-if command -v terraform &> /dev/null; then
-  cd terraform/oracle-cloud
-  VM_IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty' || echo "")
-  cd - > /dev/null
+if command -v terraform &> /dev/null && command -v jq &> /dev/null; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+  TERRAFORM_DIR="$PROJECT_ROOT/terraform/oracle-cloud"
+
+  if [[ -d "$TERRAFORM_DIR" ]]; then
+    cd "$TERRAFORM_DIR"
+    # Try different output formats
+    VM_IP=$(terraform output -json management_vm 2>/dev/null | jq -r '.public_ip // empty' 2>/dev/null || echo "")
+    if [[ -z "$VM_IP" ]]; then
+      # Try alternative format
+      VM_IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // .management_vm.public_ip // empty' 2>/dev/null || echo "")
+    fi
+    cd - > /dev/null 2>&1 || true
+  fi
 fi
 
 if [[ -z "$VM_IP" ]]; then

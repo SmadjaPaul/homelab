@@ -17,9 +17,11 @@ data "authentik_flow" "default_authentication" {
 # Create a new identification stage with recovery flow linked
 # This will replace the default identification stage in the authentication flow
 resource "authentik_stage_identification" "default_auth_with_recovery" {
+  depends_on = [authentik_flow.recovery]
+
   name          = "default-authentication-identification-with-recovery"
   user_fields   = ["email", "username"]
-  recovery_flow = authentik_flow.recovery.id
+  recovery_flow = authentik_flow.recovery.uuid
 }
 
 # Output the stage ID for use with the linking script

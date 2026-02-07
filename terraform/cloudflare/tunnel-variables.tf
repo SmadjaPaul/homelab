@@ -19,7 +19,7 @@ variable "tunnel_secret" {
 variable "allowed_emails" {
   description = "Email addresses allowed to access internal services via Cloudflare Access"
   type        = list(string)
-  default     = ["smadjapaul02@gmail.com"]
+  default     = ["smadjapaul02@gmail.com", "smadja-paul@protonmail.com"]
 }
 
 # Feature flag to enable/disable tunnel (disabled until infra is ready)

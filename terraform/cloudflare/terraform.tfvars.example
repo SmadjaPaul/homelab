@@ -23,8 +23,22 @@ enable_tunnel = false
 # cloudflare_account_id = "your-account-id"  # Found in dashboard URL
 # tunnel_secret = "base64-encoded-secret"     # Generate: openssl rand -base64 32
 
-# Emails allowed to access internal services
-# allowed_emails = ["smadjapaul02@gmail.com"]
+# Emails allowed to access internal services (used when Authentik IdP is disabled)
+# allowed_emails = ["smadjapaul02@gmail.com", "smadja-paul@protonmail.com"]
+
+# =============================================================================
+# Authentik as OIDC IdP (optional — users in Authentik get Access automatically)
+# =============================================================================
+# 1. Apply terraform/authentik and get: terraform output -json cloudflare_access_oidc
+# 2. Set the variables below (or pass via TF_VAR_)
+# 3. Set authentik_oidc_enabled = true
+# Then anyone who can log in to Authentik can access Cloudflare-protected apps.
+# authentik_oidc_enabled = true
+# authentik_oidc_client_id     = "<from authentik output>"
+# authentik_oidc_client_secret = "<from authentik output>"
+# authentik_oidc_auth_url      = "https://auth.smadja.dev/application/o/authorize/"
+# authentik_oidc_token_url     = "https://auth.smadja.dev/application/o/token/"
+# authentik_oidc_certs_url     = "https://auth.smadja.dev/application/o/jwks/"
 
 # =============================================================================
 # Oracle Cloud IPs (set after VMs are created)

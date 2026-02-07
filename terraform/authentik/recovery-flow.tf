@@ -124,9 +124,12 @@ resource "authentik_flow" "recovery" {
 # =============================================================================
 # Flow Stage Bindings - Connect stages to flow
 # =============================================================================
+# Note: All bindings depend on the recovery flow being created first
 
 resource "authentik_flow_stage_binding" "recovery_identification" {
-  target                  = authentik_flow.recovery.id
+  depends_on = [authentik_flow.recovery]
+
+  target                  = authentik_flow.recovery.uuid
   stage                   = authentik_stage_identification.recovery_identification.id
   order                   = 10
   evaluate_on_plan        = true
@@ -136,7 +139,9 @@ resource "authentik_flow_stage_binding" "recovery_identification" {
 }
 
 resource "authentik_flow_stage_binding" "recovery_email" {
-  target                  = authentik_flow.recovery.id
+  depends_on = [authentik_flow.recovery]
+
+  target                  = authentik_flow.recovery.uuid
   stage                   = authentik_stage_email.recovery_email.id
   order                   = 20
   evaluate_on_plan        = true
@@ -146,7 +151,9 @@ resource "authentik_flow_stage_binding" "recovery_email" {
 }
 
 resource "authentik_flow_stage_binding" "recovery_prompt_password" {
-  target                  = authentik_flow.recovery.id
+  depends_on = [authentik_flow.recovery]
+
+  target                  = authentik_flow.recovery.uuid
   stage                   = authentik_stage_prompt.recovery_prompt_password.id
   order                   = 30
   evaluate_on_plan        = true
@@ -156,7 +163,9 @@ resource "authentik_flow_stage_binding" "recovery_prompt_password" {
 }
 
 resource "authentik_flow_stage_binding" "recovery_user_write" {
-  target                  = authentik_flow.recovery.id
+  depends_on = [authentik_flow.recovery]
+
+  target                  = authentik_flow.recovery.uuid
   stage                   = authentik_stage_user_write.recovery_user_write.id
   order                   = 40
   evaluate_on_plan        = true
@@ -166,7 +175,9 @@ resource "authentik_flow_stage_binding" "recovery_user_write" {
 }
 
 resource "authentik_flow_stage_binding" "recovery_user_login" {
-  target                  = authentik_flow.recovery.id
+  depends_on = [authentik_flow.recovery]
+
+  target                  = authentik_flow.recovery.uuid
   stage                   = authentik_stage_user_login.recovery_user_login.id
   order                   = 100
   evaluate_on_plan        = true
