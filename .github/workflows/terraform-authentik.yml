@@ -93,7 +93,8 @@ jobs:
   post-terraform:
     name: Post-Terraform (API)
     needs: terraform
-    if: github.event.inputs.run_post_terraform != 'false' && (secrets.AUTHENTIK_TOKEN != '' && secrets.AUTHENTIK_URL != '')
+    # secrets.* cannot be used in if: (GitHub restriction). Ensure AUTHENTIK_URL and AUTHENTIK_TOKEN are set in repo secrets.
+    if: github.event.inputs.run_post_terraform != 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
