@@ -23,7 +23,7 @@ terraform {
 
 provider "litellm" {
   # LiteLLM proxy URL (internal or public). Set via env LITELLM_URL or variable.
-  base_url = var.litellm_url
+  api_base = var.litellm_url
   # Master key for proxy admin API. Set via env LITELLM_MASTER_KEY or variable.
   api_key = var.litellm_master_key
 }

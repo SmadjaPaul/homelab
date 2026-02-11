@@ -39,6 +39,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Authentik API reachable (no Cloudflare challenge)
+        env:
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+        run: |
+          if [[ -z "$AUTHENTIK_TOKEN" ]]; then
+            echo "::error::AUTHENTIK_TOKEN is not set."
+            exit 1
+          fi
+          resp=$(curl -sS -o /tmp/ak-api-resp.txt -w "%{http_code}" \
+            -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
+            "$AUTHENTIK_URL/api/v3/flows/instances/?slug=default-authentication-flow" || true)
+          if [[ "$resp" != "200" ]]; then
+            echo "::error::Authentik API returned HTTP $resp (expected 200)."
+            head -c 500 /tmp/ak-api-resp.txt
+            echo ""
+            if grep -q "Just a moment" /tmp/ak-api-resp.txt 2>/dev/null || grep -q "<!DOCTYPE html>" /tmp/ak-api-resp.txt 2>/dev/null; then
+              AUTH_HOST="${AUTHENTIK_URL#https://}"
+              AUTH_HOST="${AUTH_HOST%/}"
+              echo "::error::Cloudflare challenge detected. Create a Configuration Rule: see .github/docs/cloudflare-authentik-api-challenge.md"
+              echo "::: Expression: (http.host eq \"$AUTH_HOST\" and starts_with(http.request.uri.path, \"/api/\")) → Security Level Essentially Off"
+            fi
+            exit 1
+          fi
+          if grep -q "Just a moment" /tmp/ak-api-resp.txt 2>/dev/null || grep -q "<!DOCTYPE html>" /tmp/ak-api-resp.txt 2>/dev/null; then
+            echo "::error::Cloudflare challenge: see .github/docs/cloudflare-authentik-api-challenge.md"
+            exit 1
+          fi
+          echo "Authentik API OK."
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:

@@ -35,3 +35,31 @@ variable "oci_smtp_secret_names" {
     from     = "homelab-authentik-smtp-from"
   }
 }
+
+variable "domain" {
+  type        = string
+  default     = "smadja.dev"
+  description = "Public domain for external_host (e.g. omni.smadja.dev)"
+}
+
+variable "cloudflare_access_team" {
+  type        = string
+  default     = "smadja"
+  description = "Cloudflare Access team subdomain (e.g. smadja for smadja.cloudflareaccess.com)"
+}
+
+# -----------------------------------------------------------------------------
+# Users (optionnel) — Définir des utilisateurs dans Terraform (voir modules/users)
+# -----------------------------------------------------------------------------
+variable "authentik_users" {
+  type = list(object({
+    username    = string
+    name        = string
+    email       = optional(string, "")
+    group_names = list(string)
+    is_active   = optional(bool, true)
+    path        = optional(string, "")
+  }))
+  default     = []
+  description = "Liste d'utilisateurs à créer (optionnel). Préférer les invitations pour l'onboarding."
+}

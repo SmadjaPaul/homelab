@@ -137,6 +137,7 @@ jobs:
           enable_tunnel = ${{ vars.CLOUDFLARE_ENABLE_TUNNEL || 'false' }}
           cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
           tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
+          enable_authentik_api_skip_challenge = ${{ vars.ENABLE_AUTHENTIK_API_SKIP_CHALLENGE || 'false' }}
           EOF
       - name: Terraform Apply
         if: steps.skip.outputs.run == 'true'
@@ -391,11 +392,22 @@ jobs:
           if [[ "$resp" != "200" ]]; then
             echo "::error::Authentik API returned HTTP $resp (expected 200)."
             head -c 500 /tmp/ak-api-resp.txt
+            echo ""
+            if grep -q "Just a moment" /tmp/ak-api-resp.txt 2>/dev/null || grep -q "<!DOCTYPE html>" /tmp/ak-api-resp.txt 2>/dev/null; then
+              AUTH_HOST="${AUTHENTIK_URL#https://}"
+              AUTH_HOST="${AUTH_HOST%/}"
+              echo "::error::Cloudflare is showing a challenge page instead of proxying to the API."
+              echo "::: Create a Configuration Rule in Cloudflare so /api/* is not challenged."
+              echo "::: See: .github/docs/cloudflare-authentik-api-challenge.md"
+              echo "::: Quick fix: Cloudflare Dashboard → Zone → Security → Configuration Rules → Create rule"
+              echo ":::   Expression: (http.host eq \"$AUTH_HOST\" and starts_with(http.request.uri.path, \"/api/\"))"
+              echo ":::   Configuration: Security Level → Essentially Off → Deploy"
+            fi
             exit 1
           fi
-          if grep -q "Just a moment" /tmp/ak-api-resp.txt || grep -q "<!DOCTYPE html>" /tmp/ak-api-resp.txt; then
+          if grep -q "Just a moment" /tmp/ak-api-resp.txt 2>/dev/null || grep -q "<!DOCTYPE html>" /tmp/ak-api-resp.txt 2>/dev/null; then
             echo "::error::Authentik API is behind a Cloudflare challenge (HTML instead of JSON)."
-            echo "Apply the Cloudflare ruleset that skips challenge for auth.*/api/ (terraform/cloudflare/security.tf: authentik_api_skip_challenge), then re-run."
+            echo "::: See .github/docs/cloudflare-authentik-api-challenge.md to create the Configuration Rule."
             exit 1
           fi
           echo "Authentik API OK (JSON)."

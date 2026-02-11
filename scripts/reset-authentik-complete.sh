@@ -463,4 +463,10 @@ fi
 
 echo ""
 echo -e "${GREEN}✅ Opération terminée!${NC}"
-echo -e "${BLUE}Tu peux maintenant te connecter sur: https://auth.smadja.dev${NC}"
+echo -e "${BLUE}Connexion: https://auth.smadja.dev${NC}"
+echo ""
+echo -e "${YELLOW}Pour Terraform / CI (token API):${NC}"
+echo -e "  1. Connecte-toi à Authentik → Directory → Tokens & App passwords"
+echo -e "  2. Create token → donne un nom (ex. terraform-ci) → Create"
+echo -e "  3. Copie le token (affiché une seule fois)"
+echo -e "  4. GitHub → Repo → Settings → Secrets → Actions → AUTHENTIK_TOKEN (mettre à jour)"

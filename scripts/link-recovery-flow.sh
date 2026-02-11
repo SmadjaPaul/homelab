@@ -4,18 +4,20 @@
 # to use our recovery flow, making the "Forgot password?" link appear on the login page.
 #
 # Usage:
-#   ./scripts/link-recovery-flow.sh <AUTHENTIK_URL> <AUTHENTIK_TOKEN>
+#   ./scripts/link-recovery-flow.sh [AUTHENTIK_URL] [AUTHENTIK_TOKEN]
+#   Or set AUTHENTIK_URL and AUTHENTIK_TOKEN in the environment (e.g. from Terraform).
 #
 # Example:
 #   ./scripts/link-recovery-flow.sh https://auth.smadja.dev $(cat ~/.authentik-token)
 
 set -euo pipefail
 
-AUTHENTIK_URL="${1:-}"
-AUTHENTIK_TOKEN="${2:-}"
+AUTHENTIK_URL="${1:-${AUTHENTIK_URL:-}}"
+AUTHENTIK_TOKEN="${2:-${AUTHENTIK_TOKEN:-}}"
 
 if [[ -z "$AUTHENTIK_URL" || -z "$AUTHENTIK_TOKEN" ]]; then
-  echo "Usage: $0 <AUTHENTIK_URL> <AUTHENTIK_TOKEN>"
+  echo "Usage: $0 [AUTHENTIK_URL] [AUTHENTIK_TOKEN]"
+  echo "   Or set AUTHENTIK_URL and AUTHENTIK_TOKEN in the environment."
   echo "Example: $0 https://auth.smadja.dev \$(cat ~/.authentik-token)"
   exit 1
 fi

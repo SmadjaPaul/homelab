@@ -1,9 +1,8 @@
 # Terraform – Authentik configuration
 
-Configuration Authentik en IaC : **groupes**, **applications + providers**, **policies/bindings**, **service accounts** uniquement.
-Les **utilisateurs humains** et **qui est dans quel groupe** se gèrent dans l’UI Authentik (ou via API), pas dans Terraform.
+Configuration Authentik en IaC : **groupes RBAC**, **applications + providers**, **policies/bindings**, **flows** (recovery, security). Structure **modulaire** (inspirée de [K-FOSS](https://github.com/K-FOSS/auth.kristinejones.dev-TF), [ghndrx/authentik-terraform](https://github.com/ghndrx/authentik-terraform)).
+**Utilisateurs** : par défaut gérés dans l’UI (invitations, groupes) ; optionnellement définissables dans Terraform via `authentik_users` (voir [docs/RBAC.md](docs/RBAC.md)).
 Design : docs-site/docs/advanced/planning-conclusions.md (§4).
-Détail d’implémentation : `_bmad-output/implementation-artifacts/authentik-terraform-implementation.md` (§2).
 
 ## Prérequis
 
@@ -29,10 +28,14 @@ terraform apply
 
 ## Structure
 
-- `provider.tf` – Provider et version.
-- `data.tf` – Data sources (flows, certificate).
-- `groups.tf` – Groupes (admin, family-validated, optionnel par app).
-- À ajouter : `policies.tf`, `applications.tf`, `applications_admin.tf`, `service_accounts.tf`, `outputs.tf`.
+- **Racine** : `main.tf` (orchestration modules), `data.tf`, `provider.tf`, `variables.tf`, `outputs.tf`, `smtp-secrets.tf`
+- **modules/groups** – Groupes RBAC (admin, family-validated) + attributs
+- **modules/policies** – Policies d’expression (admin_only, family_validated_only, block_public_enrollment, etc.)
+- **modules/flows** – Recovery flow, login link, security (password, reputation)
+- **modules/apps** – Providers + applications (Omni, LiteLLM, OpenClaw, OIDC, Cloudflare Access), outpost
+- **modules/bindings** – Policy bindings (groupe + policy par app)
+- **modules/users** – (Optionnel) Utilisateurs + assignation aux groupes
+- **docs/RBAC.md** – Matrice RBAC et usage des groupes
 
 ## Ordre d’exécution
 

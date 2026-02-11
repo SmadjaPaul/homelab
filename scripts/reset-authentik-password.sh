@@ -51,13 +51,15 @@ fi
 echo "Connecting to VM: $VM_IP"
 echo "Resetting password for: $EMAIL"
 
-# SSH to VM and reset password via Authentik shell
-ssh ubuntu@"$VM_IP" bash <<'EOF'
+# SSH to VM and reset password via Authentik shell (pass args so remote receives them)
+ssh ubuntu@"$VM_IP" bash -s "$EMAIL" "$NEW_PASSWORD" <<'EOF'
 set -e
-cd ~/homelab/oci-mgmt
+EMAIL=$1
+NEW_PASSWORD=$2
+cd ~/homelab/oci-mgmt 2>/dev/null || cd /opt/oci-mgmt 2>/dev/null || cd ~/oci-mgmt
 
 # Check if containers are running
-if ! docker compose ps | grep -q authentik-server; then
+if ! docker compose ps 2>/dev/null | grep -q authentik-server; then
   echo "Error: Authentik containers are not running"
   exit 1
 fi
@@ -67,13 +69,26 @@ echo "Resetting password for user: $EMAIL"
 docker compose exec -T authentik-server ak reset_password --email "$EMAIL" --password "$NEW_PASSWORD" || {
   echo "Error: Failed to reset password. Trying alternative method..."
 
-  # Alternative: Create a new admin user if reset fails
-  echo "Creating new admin user..."
-  docker compose exec -T authentik-server ak create_user \
-    --email admin@smadja.dev \
-    --name "Admin User" \
-    --password "$NEW_PASSWORD" \
-    --superuser || true
+  # Alternative: Create/update user via shell if reset fails
+  echo "Creating/updating admin user via shell..."
+  docker compose exec -T authentik-server ak shell -c "
+from authentik.core.models import User
+from authentik.core.models import Group
+user, created = User.objects.get_or_create(
+    email='$EMAIL',
+    defaults={'username': '$EMAIL', 'name': '$EMAIL'}
+)
+user.set_password('$NEW_PASSWORD')
+user.is_superuser = True
+user.is_active = True
+user.save()
+try:
+    admin_group = Group.objects.get(name='authentik Admins')
+    user.ak_groups.add(admin_group)
+except Group.DoesNotExist:
+    pass
+print('✅ User created/updated:', user.email)
+" || true
 }
 
 echo ""
@@ -87,3 +102,6 @@ EOF
 echo ""
 echo "✅ Password reset script completed!"
 echo "Try logging in at: https://auth.smadja.dev"
+echo ""
+echo "Pour Terraform/CI: crée un token dans Authentik → Directory → Tokens & App passwords"
+echo "→ Create token → copie la valeur → GitHub Secrets AUTHENTIK_TOKEN"

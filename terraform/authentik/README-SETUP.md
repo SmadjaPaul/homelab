@@ -75,43 +75,63 @@ terraform apply -var="oci_compartment_id=$COMPARTMENT_ID"
 - ✅ **Mot de passe** : 12 caractères min, majuscule/minuscule/chiffre/symbole, HIBP, zxcvbn (appliqué au recovery flow)
 - ✅ **Réputation** : blocage après 5 échecs de connexion (IP + username), appliqué au flow d’authentification par défaut
 
-## 🔧 Actions Manuelles Requises
+## ✅ Ce qui est automatisé (aucune action manuelle)
 
-Après avoir appliqué Terraform, certaines configurations doivent être faites manuellement dans l'UI :
+- **Applications** Omni, LiteLLM, OpenClaw (proxy + OIDC OpenClaw) et **outpost** Homelab Forward Auth : créés par Terraform.
+- **Groupes** admin / family-validated et **bindings** vers les applications : gérés par Terraform.
+- **Recovery flow** (mot de passe oublié) : le lien vers le flow d’auth par défaut est fait **automatiquement** après l’apply si `AUTHENTIK_URL` et `AUTHENTIK_TOKEN` sont définis (voir [ghndrx/authentik-terraform](https://github.com/ghndrx/authentik-terraform) pour l’inspiration).
 
-### 1. Lier le Recovery Flow au Login Flow
+## 🔧 Actions manuelles restantes (limitations API / choix métier)
 
-**Option A : Via script (recommandé)**
+### 1. Token de l’outpost (limitation Authentik)
+
+**Ne pas créer l’outpost à la main.** L’outpost **Homelab Forward Auth** est créé par Terraform (voir `applications_omni.tf`). Si tu ne vois que « authentik Embedded Outpost » dans Avant-postes, lance un `terraform apply` dans `terraform/authentik` (avec `AUTHENTIK_TOKEN` configuré) : l’outpost apparaîtra après l’apply.
+
+Ensuite, récupère le token dans l’UI :
+
+1. Authentik → **Avant-postes** → **Homelab Forward Auth**
+2. Copie le **token** (affiché une seule fois à la création)
+3. Sur la VM OCI (oci-mgmt), dans `docker/oci-mgmt/.env` :
+   `AUTHENTIK_OUTPOST_TOKEN=<token_copié>`
+4. Redémarrer le proxy outpost :
+   `docker compose -f docker/oci-mgmt/docker-compose.yml up -d authentik-outpost-proxy`
+
+Sans ce token, le forward auth vers Omni/LiteLLM/OpenClaw renverra 500.
+
+**Si tu n’as pas la clé** (outpost créé par Terraform, token jamais copié) :
+
+- **Option A** : Clique sur le **nom** de l’outpost « Homelab Forward Auth » (pas sur le crayon Modifier). Sur la fiche détail, regarde s’il y a un bloc **Token**, **Installation** ou **Déploiement** où le token est affiché ou régénéré.
+- **Option B** : **Directory** → **Tokens and App passwords**. Cherche un token dont le propriétaire est le compte de service de l’outpost (nom du type « Outpost: Homelab Forward Auth » ou utilisateur système). Tu peux en créer un nouveau pour ce compte si besoin (Intent: **API Token** ou **App password**).
+- **Option C** : Si aucun token n’apparaît, recréer l’outpost pour qu’Authentik en génère un nouveau :
+  `cd terraform/authentik && terraform taint authentik_outpost.proxy_forward_auth && terraform apply`
+  Puis **tout de suite** dans l’UI : Avant-postes → Homelab Forward Auth → récupérer le token affiché à la recréation.
+
+### 2. Ajouter ton utilisateur au groupe Admin (choix métier)
+
+Le groupe **admin** est lié aux apps par Terraform ; il reste à choisir quels utilisateurs en font partie :
+
+1. Directory → **Groups** → **admin**
+2. Onglet **Users** → **Add** → sélectionne ton utilisateur
+3. Sauvegarde
+
+(Alternative : Directory → **Users** → ton user → **Groups** → Add → `admin`.)
+
+### 3. (Ancien) Lier le Recovery Flow — désormais automatique
+
+Le lien est fait à l’apply par Terraform. Si tu as appliqué sans token, tu peux encore lancer à la main :
+**Option A : Via script**
 ```bash
 cd ../..
 ./scripts/link-recovery-flow.sh https://auth.smadja.dev "$AUTHENTIK_TOKEN"
 ```
 
-**Option B : Via l'UI**
+**Option B : Via l’UI**
 1. Flows → `default-authentication-flow`
 2. Clique sur le stage **Identification**
 3. Dans **Recovery flow**, sélectionne `default-recovery-flow`
 4. Sauvegarde
 
-### 2. Lier le groupe Admin à Omni
-
-1. Applications → **Omni**
-2. Onglet **Policy / Group / User Bindings**
-3. Clique sur **Create**
-4. **Group** : Sélectionne `admin`
-5. **Order** : `0`
-6. Sauvegarde
-
-### 3. Ajouter ton utilisateur au groupe Admin
-
-1. Directory → **Users**
-2. Trouve ton utilisateur
-3. Onglet **Groups**
-4. Clique sur **Add**
-5. Sélectionne le groupe `admin`
-6. Sauvegarde
-
-### 4. Désactiver le Self-Registration (recommandé)
+### 4. Désactiver le Self-Registration dans l’UI (optionnel)
 
 1. Flows → `default-enrollment-flow`
 2. Clique sur **Settings**
@@ -140,9 +160,9 @@ cd ../..
 4. Tu devrais accéder à Omni
 
 Si erreur 401/403 :
-- ✅ Vérifie que l'outpost est démarré (`docker compose ps authentik-outpost-proxy`)
-- ✅ Vérifie que tu es dans le groupe `admin`
-- ✅ Vérifie que le binding groupe → Omni est créé
+- ✅ Vérifie que l’outpost est démarré et que `AUTHENTIK_OUTPOST_TOKEN` est set dans `.env` sur la VM
+- ✅ Vérifie que ton utilisateur est dans le groupe **admin** (Directory → Groups → admin)
+- ✅ Les bindings groupe admin → Omni/LiteLLM/OpenClaw sont créés par Terraform
 
 ## 📝 Outputs Terraform
 
@@ -156,7 +176,7 @@ Les outputs incluent :
 - `identification_stage_id` - ID du stage d'identification avec recovery flow
 - `recovery_flow_slug` - Slug du recovery flow
 - `enrollment_flow_disabled_note` - Instructions pour désactiver le self-registration
-- `omni_group_binding_note` - Instructions pour lier le groupe admin à Omni
+- `omni_group_binding_note` - Rappel : groupe admin lié par Terraform ; ajouter ton user au groupe admin dans l’UI
 
 ## 🔍 Dépannage
 
@@ -188,7 +208,5 @@ Exemple de structure : voir `applications_omni.tf` (proxy) et `cloudflare-access
 
 ## 📚 Références
 
-- [Guide Configuration Initiale Authentik](../../docs-site/docs/guides/authentik-initial-setup.md)
-- [Guide Recovery Flow](../../docs-site/docs/guides/authentik-password-recovery.md)
-- [Runbook Recovery Flow](../../docs-site/docs/runbooks/configure-authentik-recovery-flow.md)
-- [Documentation Terraform Provider Authentik](https://registry.terraform.io/providers/goauthentik/authentik/latest/docs)
+- [Terraform Provider Authentik](https://registry.terraform.io/providers/goauthentik/authentik/latest/docs)
+- Exemples Terraform Authentik : [ghndrx/authentik-terraform](https://github.com/ghndrx/authentik-terraform), [gclear96/authentik-terraform-repo](https://github.com/gclear96/authentik-terraform-repo), [dhoppeIT/terraform-authentik-outpost](https://github.com/dhoppeIT/terraform-authentik-outpost), [dhoppeIT/terraform-authentik-token](https://github.com/dhoppeIT/terraform-authentik-token)
