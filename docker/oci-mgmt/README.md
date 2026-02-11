@@ -19,10 +19,11 @@ Internet → Cloudflare Tunnel → cloudflared (host) → localhost:8080 (Traefi
 
 | Service | Port / réseau | URL publique | Description |
 |---------|----------------|--------------|-------------|
-| **Traefik** | 8080 (host) | — | Reverse proxy unique (auth + omni + futures routes) |
+| **Traefik** | 8080 (host) | — | Reverse proxy unique (auth + omni + LiteLLM + futures routes) |
 | Authentik | 9000 (réseau) | auth.smadja.dev | SSO / Identity Provider |
 | Authentik Outpost | 9000 (réseau) | — | Forward Auth pour Traefik (Omni + futures apps) |
 | Omni | 8080 (réseau) | omni.smadja.dev | Talos Linux management (protégé par Forward Auth) |
+| **LiteLLM** | 4000 (réseau) | llm.smadja.dev | Proxy OpenAI-compatible (Synthetic, Cline, etc.) — logs, rate limits |
 | PostgreSQL | 5432 | - | Base de données (interne) |
 | Redis | 6379 | - | Cache Authentik (interne) |
 
@@ -33,6 +34,8 @@ Internet → Cloudflare Tunnel → cloudflared (host) → localhost:8080 (Traefi
 3. **Secrets** dans le fichier `.env`
 
 ## Déploiement
+
+**Runbook complet** : voir **[DEPLOYMENT.md](./DEPLOYMENT.md)** (ordre Terraform Cloudflare → Authentik → CI ou Ansible, vérifications, dépannage).
 
 ### 1. Créer le Tunnel Cloudflare
 
@@ -50,6 +53,7 @@ Le tunnel envoie tout le trafic OCI mgmt vers **Traefik** (un seul port). Dans C
 |-----------|------|----------------|
 | auth.smadja.dev | HTTP | `localhost:8080` |
 | omni.smadja.dev | HTTP | `localhost:8080` |
+| llm.smadja.dev | HTTP | `localhost:8080` |
 
 Traefik route par hostname. Si le tunnel est géré par Terraform (`terraform/cloudflare`), les routes sont dans `tunnel.tf`.
 
@@ -133,6 +137,24 @@ docker compose logs authentik-server
 1. **Routes du tunnel** : auth et omni doivent pointer vers **localhost:8080** (Traefik). Vérifier dans Cloudflare Zero Trust ou dans `terraform/cloudflare/tunnel.tf`.
 2. **Traefik à l’écoute** : sur la VM, `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080` (Host: auth.smadja.dev) doit retourner 200 après démarrage.
 3. **Logs** : `docker compose logs traefik`, `docker compose logs cloudflared`, `docker compose logs authentik-outpost-proxy`.
+
+---
+
+## LiteLLM (proxy IA)
+
+LiteLLM expose une API OpenAI-compatible pour Cline, Synthetic, aichat, etc. Config dans `litellm/config.yaml`. Les modèles et clés API peuvent être ajoutés plus tard via l’UI LiteLLM ou **Terraform** (provider [ncecere/litellm](https://registry.terraform.io/providers/ncecere/litellm/latest/docs)) : voir `terraform/litellm/`.
+
+- **URL** : https://llm.smadja.dev (après ajout du hostname au tunnel, voir tableau ci-dessus).
+- **Authentik** : l’accès à LiteLLM est protégé par Forward Auth (comme Omni). Application et provider dans `terraform/authentik/applications_litellm.tf`. Après `terraform apply`, seuls les utilisateurs autorisés (policy admin) peuvent accéder à l’UI et à l’API depuis le navigateur. Pour un accès **programmatique** (Cline, aichat) sans session navigateur : utiliser une clé LiteLLM sur un accès interne (réseau homelab) ou une URL dédiée sans auth si tu en configures une.
+- **Variables optionnelles** dans `.env` : `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` (pour l’admin API et le chiffrement des clés). Sans master key, le proxy tourne mais l’API admin (et Terraform) ne pourra pas gérer les credentials.
+- **Création des clés** : dans un second temps, via Terraform (`terraform/litellm/credentials.tf`) avec des secrets (ex. OCI Vault) ou via l’UI LiteLLM.
+- **Fonctionnalités Enterprise (optionnel)** : voir `litellm/ENTERPRISE-FEATURES.md` pour des pistes (guardrails, budgets, modération) selon la [doc LiteLLM Enterprise](https://docs.litellm.ai/docs/proxy/enterprise).
+
+---
+
+## Agent orchestrateur (optionnel)
+
+Pour un agent autonome piloté par GitHub Issues (construction du homelab en mode ticket-driven), voir **[AGENT-ORCHESTRATOR.md](./AGENT-ORCHESTRATOR.md)** : comment ajouter le service dans le Compose, variables d’env, et référence au planning (`_bmad-output/planning-artifacts/stack-ia-et-services-entrepreneuse.md`).
 
 ---
 

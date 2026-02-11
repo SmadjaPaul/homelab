@@ -59,6 +59,10 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
       hostname = "omni.${var.domain}"
       service  = "http://localhost:8080"
     }
+    ingress_rule {
+      hostname = "llm.${var.domain}"
+      service  = "http://localhost:8080"
+    }
 
     # Homepage dashboard
     ingress_rule {

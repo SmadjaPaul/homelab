@@ -117,6 +117,12 @@ variable "homelab_services" {
       internal    = true
       user_facing = false
     }
+    litellm = {
+      subdomain   = "llm"
+      description = "LiteLLM proxy (Synthetic, Cline)"
+      internal    = true
+      user_facing = false
+    }
   }
 }
 

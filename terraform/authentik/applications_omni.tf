@@ -28,13 +28,13 @@ resource "authentik_application" "omni" {
   policy_engine_mode = "any" # Allow if user matches any bound policy
 }
 
-# Outpost for Forward Auth (Traefik) — must have the proxy provider to validate omni.smadja.dev
+# Outpost for Forward Auth (Traefik) — validates omni + litellm (and any other proxy app)
 # Without this, "Aucune intégration active" and Forward Auth returns 500.
 # Token: Authentik UI → Avant-postes → [Homelab Forward Auth] → Token (set AUTHENTIK_OUTPOST_TOKEN in .env).
 resource "authentik_outpost" "proxy_forward_auth" {
   name               = "Homelab Forward Auth"
   type               = "proxy"
-  protocol_providers = [authentik_provider_proxy.omni.id]
+  protocol_providers = [authentik_provider_proxy.omni.id, authentik_provider_proxy.litellm.id]
 }
 
 output "omni_outpost_note" {

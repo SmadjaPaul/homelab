@@ -8,9 +8,10 @@ Ce dossier contient les **livrables BMad** (Analysis, Planning, Solutioning). Vo
 
 | Document | Rôle | Version / date |
 |----------|------|----------------|
-| **prd-homelab-2026-01-29.md** | PRD (Product Requirements Document) | v2.0 — aligné Architecture v6.0 (Authentik) |
+| **prd-homelab-2026-01-29.md** | PRD (Product Requirements Document) | v2.0 — aligné Architecture v6.0 ; Stack IA + services entreprise (FR-032 à FR-037, Phase 4b) |
 | **architecture-proxmox-omni.md** | Architecture système | v6.0 — Proxmox + Omni + Talos + ArgoCD + Authentik |
-| **epics-and-stories-homelab.md** | Epics et User Stories | 23 epics, 70 stories |
+| **epics-and-stories-homelab.md** | Epics et User Stories | 25 epics, 84 stories (dont Phase 4b : Stack IA, Fleet, Odoo, Migadu, DocuSeal, Docusaurus) |
+| **stack-ia-et-services-entrepreneuse.md** | Intégration Stack IA & services entreprise | Référence docs/fiche-stack-ia.md, docs/synthese-outils-entrepreneuse.md ; mapping FR/epics Phase 4b |
 | *(résumé)* | Product Brief | Conclusions dans docs-site/docs/advanced/planning-conclusions.md §1 |
 | **bmm-workflow-status.yaml** | Statut des workflows BMad | Pointe vers les livrables ci‑dessus |
 | **story-0.0.1-pre-implementation-checklist.md** | Implementation Readiness | PASSED |
@@ -27,6 +28,13 @@ Ce dossier contient les **livrables BMad** (Analysis, Planning, Solutioning). Vo
 | **architecture-cozystack.md** | architecture-proxmox-omni.md |
 
 ---
+
+## Sources intégrées (hors _bmad-output)
+
+| Document | Rôle |
+|----------|------|
+| **docs/fiche-stack-ia.md** | Stack IA : LiteLLM, DLP, RAG, observabilité, limites — intégrée via Phase 4b (Epic 4.6) |
+| **docs/synthese-outils-entrepreneuse.md** | Stratégie et services (Fleet, Odoo, Migadu, DocuSeal, Docusaurus) — intégrée via Phase 4b (Epic 4.7) |
 
 ## Autres artefacts
 

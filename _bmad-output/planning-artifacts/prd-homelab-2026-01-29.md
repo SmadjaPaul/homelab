@@ -4,12 +4,14 @@ author: PM Agent
 project: homelab
 version: 2.0
 status: draft
-lastUpdated: 2026-01-29
-updateNotes: Align with Architecture v6.0 (Authentik as IdP ; validation manuelle ; design Authentik formalisé 2026-02-01 — docs-site/docs/advanced/planning-conclusions.md §4)
+lastUpdated: 2026-02-10
+updateNotes: Align with Architecture v6.0 ; intégration Stack IA (docs/fiche-stack-ia.md) et services entreprise (docs/synthese-outils-entrepreneuse.md) — FR-032 à FR-037, Phase 4b.
 inputDocuments:
   - docs-site/docs/advanced/planning-conclusions.md §1
   - architecture-proxmox-omni.md (v6.0)
   - docs-site/docs/advanced/planning-conclusions.md (§4 Design Authentik)
+  - docs/fiche-stack-ia.md
+  - docs/synthese-outils-entrepreneuse.md
 previousVersion: prd-homelab-2026-01-22.md (v1.1)
 ---
 
@@ -772,6 +774,133 @@ The system SHOULD support on-demand gaming via KubeVirt.
 
 ---
 
+### 1.9 Stack IA & Services entreprise (Phase 4b)
+
+*Références : docs/fiche-stack-ia.md, docs/synthese-outils-entrepreneuse.md, planning-artifacts/stack-ia-et-services-entrepreneuse.md.*
+
+#### FR-032: Stack IA (LiteLLM, DLP, RAG, observabilité, limites)
+**Priority**: P0 (Critical)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: Oracle Cloud cluster ou VM dédiée
+
+The system MUST provide an AI stack enabling agents to complete homelab implementation autonomously.
+
+**Requirements**:
+- LiteLLM Proxy as single OpenAI-compatible entry point (multi-providers, RBAC, rate limiting)
+- DLP on prompts (async_pre_call_hook) and on responses (async_post_call_success_hook) via llmshield or Presidio
+- Authentik JWT integration for LiteLLM (role_permissions, model groups)
+- Observability: logging (user, model, tokens, latency), metrics (Prometheus/Grafana), cost tracking and alerts
+- Usage limits: quotas per team/user (req/min, tokens/day), budgets, global rate limiting
+- Stack RAG: vector store (Qdrant or pgvector), embeddings, pipeline (Nextcloud, Docusaurus, DBs), API « search » for agents
+- Optional: Open WebUI, agent identities (OpenClaw, Kilo) with dedicated keys/model groups
+
+**Acceptance Criteria**:
+- LiteLLM Proxy operational and reachable from IDE, CI, and agents
+- DLP pre- and post-call active; no PII/secrets sent to providers or returned to clients
+- Dashboards for usage, costs, and quotas; alerts on budget/errors
+- RAG API available for agents (context from doc, Nextcloud, Docusaurus)
+- Documentation and runbook in repo or Docusaurus
+
+---
+
+#### FR-033: Fleet (FleetDM)
+**Priority**: P1 (High)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: Homelab PROD or Oracle Cloud cluster
+
+The system MUST provide Fleet for endpoint management and « no data in local » strategy.
+
+**Requirements**:
+- Fleet (FleetDM) deployed (self-hosted)
+- MDM: inventory, policies, lock/wipe capability
+- Visibility (e.g. osquery for USB)
+- Config in Git / IaC where applicable
+
+**Acceptance Criteria**:
+- Fleet UI accessible (behind Authentik if exposed)
+- Devices enrollable and visible
+- Policies and scripts deployable
+
+---
+
+#### FR-034: Odoo
+**Priority**: P1 (High)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: Oracle Cloud cluster
+
+The system MUST provide Odoo for CRM, sales, invoicing, and leave management.
+
+**Requirements**:
+- Odoo (Community or licensed) deployed on CLOUD cluster
+- Authentik SSO (Tier 1)
+- Accessible via Cloudflare Tunnel
+- Backup and updates managed
+
+**Acceptance Criteria**:
+- Odoo accessible via SSO
+- Core modules operational (CRM, invoicing, etc.)
+- Data backed up
+
+---
+
+#### FR-035: Migadu (Mail IaC)
+**Priority**: P1 (High)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: External (Terraform)
+
+The system MUST manage professional email via Migadu using Infrastructure as Code.
+
+**Requirements**:
+- Terraform provider metio/migadu (or equivalent) for mailboxes, aliases, auto-replies
+- No mail server hosted in homelab; Migadu is external
+- Secrets (API keys) in ESO/Bitwarden
+
+**Acceptance Criteria**:
+- Mailboxes and aliases provisioned via Terraform
+- Changes applied and documented in Git
+
+---
+
+#### FR-036: DocuSeal
+**Priority**: P1 (High)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: Oracle Cloud cluster
+
+The system MUST provide DocuSeal for electronic signatures (contracts, NDA, amendments).
+
+**Requirements**:
+- DocuSeal deployed on CLOUD cluster
+- Authentik SSO (Tier 1)
+- Accessible via Cloudflare Tunnel
+- Storage for signed documents
+
+**Acceptance Criteria**:
+- DocuSeal accessible via SSO
+- Document upload and signing workflow functional
+- Signed documents stored and retrievable
+
+---
+
+#### FR-037: Docusaurus (Base documentaire)
+**Priority**: P1 (High)  
+**Phase**: Phase 4b - Stack IA & Services entreprise
+**Location**: Git repo + build (CLOUD or CI)
+
+The system MUST provide a versioned documentation base (Docusaurus) with Git as source of truth.
+
+**Requirements**:
+- Docusaurus site built from Git repository (procedures, onboarding, knowledge)
+- Editable locally (e.g. Obsidian) and via Git workflow
+- Deployed and accessible (e.g. CLOUD cluster or static hosting)
+- Used as a source for Stack IA RAG (agents can query doc context)
+
+**Acceptance Criteria**:
+- Documentation site accessible
+- Content versioned in Git
+- RAG pipeline can index and serve doc content to agents
+
+---
+
 ## 2. Non-Functional Requirements (NFRs)
 
 ### 2.1 Performance Requirements
@@ -989,7 +1118,13 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 - Critical: Vaultwarden, Baïkal, Twingate, oauth2-proxy
 - Collaborative: Nextcloud
 - Dashboard: Glance
+- **Stack IA**: LiteLLM Proxy, Open WebUI (optional), RAG (vector store, API search)
+- **Services entreprise**: Odoo, DocuSeal, Docusaurus (build/serve)
 - Optional: Immich, n8n, Mealie, Invidious
+
+**Homelab - PROD or CLOUD (services entreprise)**:
+- **Fleet (FleetDM)** (MDM, inventaire, politiques)
+- **Migadu**: gestion en IaC uniquement (Terraform ; hébergement mail externe)
 
 **Homelab - PROD Cluster**:
 - Home: AdGuard Home, Home Assistant, Audiobookshelf, Komga, Romm
@@ -1004,7 +1139,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 ### 4.2 By Authentication Tier
 
 **Tier 1 - Authentik SSO** (Private Data):
-- Nextcloud, Immich, Vaultwarden, Baïkal, n8n
+- Nextcloud, Immich, Vaultwarden, Baïkal, n8n, **Odoo**, **DocuSeal** ; LiteLLM/Open WebUI (optionnel)
 
 **Tier 2 - App-Native** (Media/Public):
 - Navidrome, Komga, Romm, Audiobookshelf, Mealie, Invidious, Glance
@@ -1058,6 +1193,7 @@ Must stay within Always Free limits (24GB RAM, 4 OCPUs).
 | 2 | Core Infrastructure | Storage, cert-manager, external-dns, ESO, Monitoring, AdGuard |
 | 3 | PROD + Oracle Cloud | PROD cluster, OCI infra, Authentik, Cloudflare Tunnel, Twingate, CI/CD |
 | 4 | Services MVP | Critical + Collaborative + Media + Home + Dashboard |
+| **4b** | **Stack IA & Services entreprise** | **LiteLLM, DLP, RAG, observabilité, limites ; Fleet, Odoo, Migadu (IaC), DocuSeal, Docusaurus** |
 | 5 | Optional Services | Immich, n8n, Mealie, Invidious |
 | 6 | Gaming & Advanced | GPU passthrough, Windows VM, KubeVirt, Backup automation |
 

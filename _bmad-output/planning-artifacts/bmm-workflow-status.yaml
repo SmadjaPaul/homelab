@@ -55,8 +55,8 @@ workflow_status:
           status: "planning-artifacts/prd-homelab-2026-01-29.md"
           agent: "pm"
           command: "/bmad:bmm:workflows:create-prd"
-          output: "Product Requirements Document v2.0 - aligned with Architecture v4.0 (Proxmox + Omni + ArgoCD)"
-          completed: "2026-01-29T12:00:00Z"
+          output: "Product Requirements Document v2.0 - aligned with Architecture v6.0; Stack IA + services entreprise (FR-032 to FR-037, Phase 4b) from docs/fiche-stack-ia.md, docs/synthese-outils-entrepreneuse.md"
+          completed: "2026-02-10T12:00:00Z"
           finalized: false
           previous_versions:
             - "planning-artifacts/prd-homelab-2026-01-22.md"
@@ -89,9 +89,9 @@ workflow_status:
           status: "planning-artifacts/epics-and-stories-homelab.md"
           agent: "pm"
           command: "/bmad:bmm:workflows:create-epics-and-stories"
-          output: "23 Epics, 70 Stories across 6 phases (Foundation → Gaming)"
-          note: "Aligned with PRD v2.0 and Architecture v4.0; v1.1 adds User Story mapping, corrected phase counts"
-          completed: "2026-01-30T12:00:00Z"
+          output: "25 Epics, 84 Stories (Phase 4b: Stack IA + Services entreprise from docs/fiche-stack-ia.md, docs/synthese-outils-entrepreneuse.md)"
+          note: "Aligned with PRD v2.0 and Architecture v6.0; Phase 4b adds Epic 4.6 (Stack IA), Epic 4.7 (Fleet, Odoo, Migadu, DocuSeal, Docusaurus)"
+          completed: "2026-02-10T12:00:00Z"
           finalized: false
         
         - id: "test-design"

@@ -26,6 +26,21 @@ http:
       middlewares: [forward-auth-omni]
       service: omni
 
+    # LiteLLM — outpost path (callbacks, ping) must reach the outpost
+    litellm-outpost:
+      rule: "Host(`llm.smadja.dev`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      entryPoints: [web]
+      middlewares: [fix-proto]
+      service: authentik-outpost
+      priority: 100
+
+    # LiteLLM — app behind Forward Auth (Authentik)
+    litellm:
+      rule: "Host(`llm.smadja.dev`)"
+      entryPoints: [web]
+      middlewares: [fix-proto, forward-auth-omni]
+      service: litellm
+
   services:
     authentik:
       loadBalancer:
@@ -43,6 +58,12 @@ http:
       loadBalancer:
         servers:
           - url: "http://omni:8080"
+        passHostHeader: true
+
+    litellm:
+      loadBalancer:
+        servers:
+          - url: "http://litellm:4000"
         passHostHeader: true
 
   middlewares:

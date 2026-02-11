@@ -182,6 +182,25 @@ services:
     networks:
       - homelab
 
+  # =========================================================================
+  # LiteLLM — OpenAI-compatible proxy (Synthetic, etc.), logs + rate limits
+  # =========================================================================
+  # Exposed via Traefik at llm.smadja.dev. API keys managed later via Terraform
+  # (provider ncecere/litellm) or UI. Add tunnel hostname llm.smadja.dev → localhost:8080
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:main-stable
+    container_name: oci-mgmt-litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    networks:
+      - homelab
+    # No direct port — reached via Traefik (llm.smadja.dev)
+
 networks:
   homelab:
     driver: bridge

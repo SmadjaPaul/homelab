@@ -217,7 +217,7 @@ jobs:
           SSH_OPTS="-o StrictHostKeyChecking=accept-new -i ${{ steps.ssh-setup.outputs.ssh_key_path }} -l ubuntu"
           echo "Checking containers..."
           CONTAINERS=$(ssh $SSH_OPTS "$IP" "cd /home/ubuntu/homelab/oci-mgmt && docker compose ps -a --format '{{.Name}}'")
-          for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres; do
+          for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres oci-mgmt-litellm; do
             if echo "$CONTAINERS" | grep -q "$name"; then
               echo "  ✓ $name"
             else

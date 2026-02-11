@@ -2,13 +2,13 @@
 date: 2026-01-30
 project: homelab
 status: in-progress
-lastUpdated: 2026-02-04
-sourceOfTruth: epics-and-stories-homelab.md (v1.1 — 23 epics, 70 stories)
+lastUpdated: 2026-02-10
+sourceOfTruth: epics-and-stories-homelab.md (25 epics, 84 stories — Phase 4b Stack IA & Services entreprise)
 ---
 
 # Implementation Progress
 
-Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homelab.md) (PRD v2.0, Architecture v4.0).
+Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homelab.md) (PRD v2.0, Architecture v6.0). Intégration Stack IA et services entreprise : [stack-ia-et-services-entrepreneuse.md](stack-ia-et-services-entrepreneuse.md).
 
 ## Summary
 
@@ -19,6 +19,7 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 | Phase 2: Core Infrastructure | 🟡 In Progress | 60% |
 | Phase 3: PROD + Oracle Cloud | 🟡 In Progress | 25% |
 | Phase 4: Services MVP | ⬜ Not Started | 0% |
+| **Phase 4b: Stack IA & Services entreprise** | **⬜ Not Started** | **0%** |
 | Phase 5: Optional Services | ⬜ Not Started | 0% |
 | Phase 6: Gaming | ⬜ Not Started | 0% |
 
@@ -184,6 +185,17 @@ Suivi d’implémentation aligné sur [Epics & Stories](epics-and-stories-homela
 | 4.3 Home (Home Assistant, Audiobookshelf, Komga, Romm) | ⬜ | Cluster PROD |
 | 4.4 Dashboard (Glance) | ⬜ | CLOUD |
 | 4.5 Backup (Velero, Volsync/Restic, ZFS snapshots) | 🟢 Ready | Manifests Velero prêts ; Volsync/ZFS à configurer |
+
+---
+
+## Phase 4b: Stack IA & Services entreprise ⬜
+
+*Objectif : stack IA opérationnelle pour que les agents (OpenClaw, Kilo, Cursor) puissent finaliser le homelab en autonomie. Références : [docs/fiche-stack-ia.md](../../docs/fiche-stack-ia.md), [docs/synthese-outils-entrepreneuse.md](../../docs/synthese-outils-entrepreneuse.md), [stack-ia-et-services-entrepreneuse.md](stack-ia-et-services-entrepreneuse.md).*
+
+| Epic | Status | Notes |
+|------|--------|-------|
+| 4.6 Stack IA (LiteLLM, DLP, RAG, observabilité, limites) | ⬜ | Dépend de 3.3 (Authentik). Ordre rapide : LiteLLM → DLP → RBAC/limites → observabilité → Authentik JWT → RAG → API search |
+| 4.7 Services entreprise (Fleet, Odoo, Migadu, DocuSeal, Docusaurus) | ⬜ | Dépend de 3.3, 3.4. Migadu = Terraform uniquement (externe) |
 
 ---
 

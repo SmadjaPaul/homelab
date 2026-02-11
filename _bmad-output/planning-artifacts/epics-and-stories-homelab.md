@@ -4,12 +4,15 @@ author: PM Agent
 project: homelab
 version: 1.3
 status: draft
-lastUpdated: 2026-02-01
+lastUpdated: 2026-02-10
 stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
 inputDocuments:
   - prd-homelab-2026-01-29.md (v2.0)
   - architecture-proxmox-omni.md (v6.0)
   - docs-site/docs/advanced/planning-conclusions.md (§4 Décisions Authentik, §3 invitation-only / Cloudflare)
+  - docs/fiche-stack-ia.md
+  - docs/synthese-outils-entrepreneuse.md
+  - planning-artifacts/stack-ia-et-services-entrepreneuse.md
 ---
 
 # Epics and Stories: Homelab Infrastructure
@@ -35,9 +38,10 @@ This document breaks down the PRD into implementable epics and user stories, org
 | 2 | Core Infrastructure | 5 | 15 | P0 - Critical |
 | 3 | PROD + Oracle Cloud | 5 | 15 | P0 - Critical |
 | 4 | Services MVP | 5 | 14 | P0/P1 - Critical/High |
+| **4b** | **Stack IA & Services entreprise** | **2** | **12** | **P0/P1** |
 | 5 | Optional Services | 1 | 4 | P2/P3 - Medium/Low |
 | 6 | Gaming & Advanced | 2 | 6 | P2/P3 - Medium/Low |
-| **Total** | | **23** | **72** | |
+| **Total** | | **25** | **84** | |
 
 ### Implementation Status
 
@@ -49,6 +53,7 @@ Le suivi détaillé (état par story, next steps) est dans **[implementation-pro
 | 1 | 🟡 In Progress (~50%) | Proxmox ✅, Terraform Proxmox ✅, Talos VMs ✅, ArgoCD manifests ✅ — ZFS ready |
 | 2 | 🟡 In Progress (~60%) | cert-manager, monitoring, SOPS, CI/CD ✅ — ESO, Cilium, ntfy à faire |
 | 3 | 🟡 In Progress (~25%) | Terraform/manifests prêts — VMs OCI peuvent être créées |
+| 4b | ⬜ Not Started | Stack IA + Fleet, Odoo, Migadu, DocuSeal, Docusaurus — voir stack-ia-et-services-entrepreneuse.md |
 | 4–6 | ⬜ Not Started | Dépendent de Phase 3 (CLOUD cluster) et Phase 1–2 (DEV/PROD) |
 
 ---
@@ -89,7 +94,13 @@ FR-027: KubeVirt (future, on-demand gaming).
 FR-028: Immich (Authentik SSO, NFS).  
 FR-029: n8n (Authentik SSO).  
 FR-030: Mealie (app-native auth).  
-FR-031: Invidious (app-native auth).
+FR-031: Invidious (app-native auth).  
+FR-032: Stack IA (LiteLLM, DLP, RAG, observabilité, limites).  
+FR-033: Fleet (FleetDM) — MDM, inventaire, politiques.  
+FR-034: Odoo (CRM, facturation, Authentik SSO).  
+FR-035: Migadu — Mail en IaC (Terraform metio/migadu).  
+FR-036: DocuSeal (signature électronique, Authentik SSO).  
+FR-037: Docusaurus (base documentaire Git + RAG).
 
 ### Non-Functional Requirements (NFRs)
 
@@ -141,6 +152,8 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 | 4.3 | Home Services | Home Assistant, Audiobookshelf, Komga, Romm | FR-017, FR-018 |
 | 4.4 | Dashboard | Glance family dashboard | FR-019 |
 | 4.5 | Backup Implementation | Velero, Volsync/Restic, ZFS snapshots (3-2-1) | FR-024, FR-025 |
+| **4.6** | **Stack IA** | LiteLLM, DLP, RAG, observabilité, limites — agents peuvent finaliser le homelab | **FR-032** |
+| **4.7** | **Services entreprise** | Fleet, Odoo, Migadu (IaC), DocuSeal, Docusaurus | **FR-033 à FR-037** |
 | 5.1 | Optional Services | Immich, n8n, Mealie, Invidious | FR-028, FR-029, FR-030, FR-031 |
 | 6.1 | Windows Gaming VM | GPU passthrough, Parsec/Moonlight, on-demand | FR-026 |
 | 6.2 | KubeVirt Integration (Future) | KubeVirt, VM templates, web UI | FR-027 |
@@ -169,6 +182,8 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 | FR-020, FR-021 | 2.4 | Monitoring, alerting |
 | FR-022, FR-023 | 3.5 | CI/CD pipeline |
 | FR-024, FR-025 | 4.5 | Backup 3-2-1 |
+| FR-032 | 4.6 | Stack IA |
+| FR-033 à FR-037 | 4.7 | Services entreprise (Fleet, Odoo, Migadu, DocuSeal, Docusaurus) |
 | FR-026 | 6.1 | Windows gaming VM |
 | FR-027 | 6.2 | KubeVirt (future) |
 | FR-028 to FR-031 | 5.1 | Immich, n8n, Mealie, Invidious |
@@ -1404,6 +1419,210 @@ NFR-012: Cost (<$1000/year, Oracle Free only).
 
 ---
 
+## Phase 4b: Stack IA & Services entreprise
+
+*Références : [docs/fiche-stack-ia.md](../../docs/fiche-stack-ia.md), [docs/synthese-outils-entrepreneuse.md](../../docs/synthese-outils-entrepreneuse.md), [stack-ia-et-services-entrepreneuse.md](stack-ia-et-services-entrepreneuse.md). Objectif : stack IA opérationnelle pour que les agents (OpenClaw, Kilo, Cursor) puissent finaliser le homelab en autonomie ; services entreprise (Fleet, Odoo, Migadu, DocuSeal, Docusaurus) intégrés au catalogue.*
+
+### Epic 4.6: Stack IA (LiteLLM, DLP, RAG, observabilité, limites)
+**Priority**: P0 (Critical)  
+**FR Reference**: FR-032  
+**Description**: Déployer la stack IA self-hosted (LiteLLM Proxy, DLP entrée/sortie, RBAC, limites, observabilité, stack RAG) pour permettre aux agents d’utiliser le contexte homelab et de finaliser l’implémentation en autonomie.
+
+#### Story 4.6.1: Deploy LiteLLM Proxy
+**As a** developer administrator  
+**I want** LiteLLM Proxy déployé comme point d’entrée unique API OpenAI-compatible  
+**So that** IDE, agents et CI peuvent appeler les LLM via une seule URL avec routage multi-providers
+
+**Acceptance Criteria**:
+- [ ] LiteLLM Proxy déployé (CLOUD cluster ou VM oci-mgmt)
+- [ ] 1–2 providers configurés (ex. Fireworks pour Kimi K2.5, Venice ou Ollama)
+- [ ] Clé de test opérationnelle
+- [ ] Accessible via Cloudflare Tunnel (optionnel, selon exposition)
+- [ ] Documentation ou runbook dans le repo
+
+**Technical Notes**: Voir docs/fiche-stack-ia.md §1–2. Config budgets, model groups.
+
+---
+
+#### Story 4.6.2: Configure DLP (pre-call and post-call)
+**As a** developer administrator  
+**I want** DLP actif sur les prompts et sur les réponses  
+**So that** aucune PII ni secret n’est envoyé aux providers ni renvoyé aux clients
+
+**Acceptance Criteria**:
+- [ ] `async_pre_call_hook` configuré avec llmshield ou Presidio (redaction PII/secrets dans les messages)
+- [ ] `async_post_call_success_hook` configuré avec la même logique sur les réponses
+- [ ] Comportement vérifié (test avec données sensibles simulées)
+- [ ] Optionnel : logging des redactions (type uniquement) pour audit
+
+**Technical Notes**: docs/fiche-stack-ia.md §5.
+
+---
+
+#### Story 4.6.3: Configure RBAC and usage limits
+**As a** developer administrator  
+**I want** RBAC (teams, model groups) et limites d’utilisation (quotas, budgets)  
+**So that** l’accès aux modèles et les coûts sont contrôlés par identité
+
+**Acceptance Criteria**:
+- [ ] Teams créées (ex. « dev », « agents ») avec model groups associés
+- [ ] Clés API ou JWT selon choix ; `role_permissions` et `enforce_rbac` configurés
+- [ ] Quotas par team (ex. req/min, tokens/jour) et budgets LiteLLM configurés
+- [ ] Rate limiting global si nécessaire (LiteLLM ou reverse proxy)
+- [ ] Documentation des clés et des limites
+
+**Technical Notes**: docs/fiche-stack-ia.md §3, §7.
+
+---
+
+#### Story 4.6.4: Configure observability (logs, metrics, costs)
+**As a** developer administrator  
+**I want** logs des appels, métriques et suivi des coûts  
+**So that** je peux piloter la stack et alerter en cas de dépassement ou d’erreurs
+
+**Acceptance Criteria**:
+- [ ] Logging des appels (user/team, modèle, tokens, latence, statut) vers agrégateur (Loki/Postgres/fichier) ou callback LiteLLM
+- [ ] Métriques exposées (Prometheus) : requêtes, tokens, erreurs, latence
+- [ ] Dashboard Grafana (usage par team/model, coûts si tarifs connus)
+- [ ] Alertes (dépassement budget, taux d’erreur)
+- [ ] Rétention et politique documentées (RGPD)
+
+**Technical Notes**: docs/fiche-stack-ia.md §6.
+
+---
+
+#### Story 4.6.5: Integrate Authentik JWT with LiteLLM
+**As a** developer administrator  
+**I want** LiteLLM validant les JWT Authentik et appliquant le RBAC par rôle  
+**So that** les utilisateurs et optionnellement les agents utilisent une identité centralisée
+
+**Acceptance Criteria**:
+- [ ] `enable_jwt_auth: true` ; `JWT_PUBLIC_KEY_URL` pointant vers JWKS Authentik
+- [ ] `user_roles_jwt_field` et `role_permissions` configurés
+- [ ] Open WebUI (si déployé) connecté en OIDC Authentik et utilisant le proxy en « OpenAI »
+- [ ] Test : utilisateur Authentik → JWT → proxy → accès modèles selon rôle
+
+**Technical Notes**: docs/fiche-stack-ia.md §3. Authentik déjà déployé (Epic 3.3).
+
+---
+
+#### Story 4.6.6: Deploy RAG pipeline (vector store, embeddings, indexation)
+**As a** developer administrator  
+**I want** un vector store, un modèle d’embeddings et un pipeline d’indexation (Docusaurus, Nextcloud, BDD)  
+**So that** les agents peuvent s’appuyer sur le contexte documentaire et métier
+
+**Acceptance Criteria**:
+- [ ] Vector store déployé (Qdrant ou pgvector) sur CLOUD ou VM
+- [ ] Modèle d’embeddings choisi et configuré (Ollama local ou API)
+- [ ] Pipeline d’indexation (cron ou événementiel) pour au moins une source (ex. Docusaurus/Git ou Nextcloud)
+- [ ] Chunks indexés avec métadonnées ; DLP optionnel sur les chunks
+- [ ] Documentation du pipeline et des sources
+
+**Technical Notes**: docs/fiche-stack-ia.md §4.5. LlamaIndex ou LangChain pour ingest.
+
+---
+
+#### Story 4.6.7: Expose RAG API « search » and connect agents
+**As a** developer administrator  
+**I want** une API « search » protégée et les agents (OpenClaw, Kilo, etc.) configurés pour l’utiliser  
+**So that** les agents ont accès au contexte RAG sans credentials directs aux sources
+
+**Acceptance Criteria**:
+- [ ] Service API « search » (FastAPI/Flask) : requête → embedding → recherche vectorielle → retour des chunks
+- [ ] API protégée (Authentik ou clé API) ; seuls les agents autorisés y accèdent
+- [ ] OpenClaw / Kilo (ou autre client) configurés avec URL proxy LiteLLM + clé ou JWT ; documentation pour utiliser l’API search si intégrée au flow
+- [ ] Optionnel : identités dédiées agents (teams + model groups restreints)
+
+**Technical Notes**: docs/fiche-stack-ia.md §4.4, §4.5. Pas d’accès direct des agents à Nextcloud/DB/Git.
+
+---
+
+### Epic 4.7: Services entreprise (Fleet, Odoo, Migadu, DocuSeal, Docusaurus)
+**Priority**: P1 (High)  
+**FR Reference**: FR-033, FR-034, FR-035, FR-036, FR-037  
+**Description**: Déployer et configurer les services principaux de la synthèse outils entrepreneuse : Fleet (MDM), Odoo (CRM/facturation), Migadu (mail en IaC), DocuSeal (signature), Docusaurus (base documentaire).
+
+#### Story 4.7.1: Deploy Fleet (FleetDM)
+**As a** developer administrator  
+**I want** Fleet déployé pour la gestion des postes (MDM, inventaire, politiques)  
+**So that** la stratégie « aucune donnée en local » est supportée et les postes sont visibles et contrôlables
+
+**Acceptance Criteria**:
+- [ ] Fleet (FleetDM) déployé (PROD ou CLOUD cluster)
+- [ ] UI accessible (derrière Authentik si exposée)
+- [ ] Enrôlement de postes documenté
+- [ ] Politiques et scripts configurables (ex. via Git)
+- [ ] Visibilité USB (osquery) si disponible
+
+**Technical Notes**: docs/synthese-outils-entrepreneuse.md. Ansible complète Fleet pour la config postes.
+
+---
+
+#### Story 4.7.2: Deploy Odoo
+**As a** developer administrator  
+**I want** Odoo déployé pour CRM, facturation et congés  
+**So that** la gestion d’entreprise est centralisée et sous mon contrôle
+
+**Acceptance Criteria**:
+- [ ] Odoo (Community ou licence) déployé sur CLOUD cluster
+- [ ] Authentik SSO (Tier 1) configuré
+- [ ] Accessible via Cloudflare Tunnel
+- [ ] Modules de base opérationnels (CRM, ventes, facturation)
+- [ ] Backup et mises à jour gérés
+
+**Technical Notes**: docs/synthese-outils-entrepreneuse.md. Ajouter à la liste des apps Tier 1 dans Authentik.
+
+---
+
+#### Story 4.7.3: Configure Migadu with Terraform (Mail IaC)
+**As a** developer administrator  
+**I want** la gestion du mail Migadu en Terraform (mailboxes, alias, réponses auto)  
+**So that** le mail pro est en IaC sans héberger un serveur mail
+
+**Acceptance Criteria**:
+- [ ] Provider Terraform metio/migadu (ou équivalent) configuré
+- [ ] Ressources : mailboxes, alias, auto-replies selon besoin
+- [ ] Secrets (clé API Migadu) dans ESO/Bitwarden
+- [ ] Apply Terraform documenté ; pas de serveur mail dans le homelab
+
+**Technical Notes**: docs/synthese-outils-entrepreneuse.md §4. Migadu = hébergement externe.
+
+---
+
+#### Story 4.7.4: Deploy DocuSeal
+**As a** developer administrator  
+**I want** DocuSeal déployé pour la signature électronique (contrats, NDA, avenants)  
+**So that** les documents juridiques sont signés et archivés de façon traçable
+
+**Acceptance Criteria**:
+- [ ] DocuSeal déployé sur CLOUD cluster
+- [ ] Authentik SSO (Tier 1) configuré
+- [ ] Accessible via Cloudflare Tunnel
+- [ ] Workflow upload → signature → stockage opérationnel
+- [ ] Stockage des documents signés configuré (PVC ou object storage)
+
+**Technical Notes**: docs/synthese-outils-entrepreneuse.md. Tier 1 Authentik.
+
+---
+
+#### Story 4.7.5: Deploy Docusaurus (base documentaire)
+**As a** developer administrator  
+**I want** une base documentaire Docusaurus alimentée par Git  
+**So that** les procédures et le savoir métier sont versionnés et consultables, et alimentent le RAG de la stack IA
+
+**Acceptance Criteria**:
+- [ ] Dépôt Git dédié ou répertoire docs avec contenu Docusaurus (procédures, onboarding)
+- [ ] Build Docusaurus (CI ou manuel) ; site déployé (CLOUD ou hébergement statique)
+- [ ] Site accessible (Authentik ou public selon choix)
+- [ ] Workflow d’édition documenté (Git + optionnel Obsidian en local)
+- [ ] Pipeline RAG (Epic 4.6) peut indexer ce contenu pour les agents
+
+**Technical Notes**: docs/synthese-outils-entrepreneuse.md. Git = source de vérité. Alimente la stack RAG (fiche-stack-ia §4.3, §4.5).
+
+---
+
+---
+
 ## Phase 5: Optional Services
 
 ### Epic 5.1: Optional Services Deployment
@@ -1697,6 +1916,10 @@ Phase 4: Services MVP (depends on Phase 3)
 ├── Epic 4.4: Dashboard (depends on 4.1, 4.2)
 └── Epic 4.5: Backup (depends on 3.1, 3.2)
 
+Phase 4b: Stack IA & Services entreprise (depends on Phase 3, optional 4.1 for RAG sources)
+├── Epic 4.6: Stack IA (LiteLLM, DLP, RAG, observabilité, limites) — depends on 3.3 (Authentik)
+└── Epic 4.7: Services entreprise (Fleet, Odoo, Migadu, DocuSeal, Docusaurus) — depends on 3.3, 3.4
+
 Phase 5: Optional Services (depends on Phase 4)
 └── Epic 5.1: Optional (depends on 4.1 stable)
 
@@ -1724,8 +1947,8 @@ Phase 6: Gaming (depends on Phase 3)
 
 - **Status**: Draft
 - **Version**: 1.2
-- **Total Epics**: 23
-- **Total Stories**: 70
+- **Total Epics**: 25 (dont 4.6 Stack IA, 4.7 Services entreprise)
+- **Total Stories**: 84
 - **Implementation status**: voir [implementation-progress.md](implementation-progress.md)
 - **Next Steps**: Avancer Phase 1 (bootstrap DEV, Omni, ArgoCD) et Phase 2 en parallèle. Phase 3 (OCI VMs) peut maintenant être démarrée.
 
