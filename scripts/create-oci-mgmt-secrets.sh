@@ -106,6 +106,12 @@ if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
     exit 1
 fi
 
+# OpenClaw gateway token (optional; leave empty to skip)
+if [[ -z "$OPENCLAW_GATEWAY_TOKEN" ]]; then
+    echo "Generating OPENCLAW_GATEWAY_TOKEN..."
+    OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32 | tr -d '\n')
+fi
+
 echo ""
 echo "=== Creating secrets in OCI Vault ==="
 echo ""
@@ -114,6 +120,7 @@ echo ""
 create_secret "homelab-postgres-password" "$POSTGRES_PASSWORD" "PostgreSQL password for OCI management stack"
 create_secret "homelab-authentik-secret-key" "$AUTHENTIK_SECRET_KEY" "Authentik secret key for session encryption"
 create_secret "homelab-cloudflare-tunnel-token" "$CLOUDFLARE_TUNNEL_TOKEN" "Cloudflare Tunnel token for cloudflared"
+create_secret "homelab-openclaw-gateway-token" "$OPENCLAW_GATEWAY_TOKEN" "OpenClaw gateway token for CLI/apps"
 
 echo ""
 echo "=== All secrets created successfully! ==="

@@ -16,7 +16,8 @@ terraform {
 }
 
 provider "authentik" {
-  # URL and token from environment: AUTHENTIK_URL, AUTHENTIK_TOKEN
+  url   = var.authentik_url
+  token = var.authentik_token
 }
 
 provider "oci" {

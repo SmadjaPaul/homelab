@@ -1,8 +1,8 @@
 # Optional: override URL/token via variables (otherwise use env)
 variable "authentik_url" {
   type        = string
-  default     = ""
-  description = "Authentik base URL (e.g. https://authentik.example.com). Prefer AUTHENTIK_URL env."
+  default     = "https://auth.smadja.dev"
+  description = "Authentik base URL (e.g. https://auth.smadja.dev). Override with TF_VAR_authentik_url or AUTHENTIK_URL in CI."
 }
 
 variable "authentik_token" {

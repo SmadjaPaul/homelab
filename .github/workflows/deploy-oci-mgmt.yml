@@ -2,19 +2,11 @@
 # Déploie docker/oci-mgmt sur la VM OCI management uniquement (Ubuntu, pas Talos).
 # SSH cible : oci_core_instance.management (Ubuntu). Les 2 nœuds Talos (k8s_node) ne sont jamais utilisés par ce workflow.
 # Point d'entrée unique : Traefik (localhost:8080). Tunnel et Authentik : gérés par Terraform.
+# Pour déploiement en ordre : utiliser le workflow "Deploy Stack".
 name: Deploy OCI Management Stack
 
+# Push → utiliser "Deploy Stack"
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docker/oci-mgmt/**'
-      - 'ansible/**'
-      - 'terraform/cloudflare/tunnel.tf'
-      - 'terraform/authentik/**'
-      - '.taskfiles/Taskfile.oci.yml'
-      - 'Taskfile.yaml'
-      - '.github/workflows/deploy-oci-mgmt.yml'
   workflow_dispatch:
     inputs:
       branch:
@@ -151,7 +143,7 @@ jobs:
         id: secrets
         uses: ./.github/actions/oci-vault-secrets
         with:
-          secrets: 'oci_mgmt_ssh_private_key,postgres_password,authentik_secret_key,cloudflare_tunnel_token'
+          secrets: 'oci_mgmt_ssh_private_key,postgres_password,authentik_secret_key,cloudflare_tunnel_token,openclaw_gateway_token'
           oci_cli_key_content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci_cli_user: ${{ secrets.OCI_CLI_USER }}
           oci_cli_fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
@@ -191,6 +183,7 @@ jobs:
             echo "cloudflare_tunnel_token: \"${{ steps.secrets.outputs.cloudflare_tunnel_token }}\""
             echo "postgres_password: \"${{ steps.secrets.outputs.postgres_password }}\""
             echo "authentik_secret_key: \"${{ steps.secrets.outputs.authentik_secret_key }}\""
+            echo "openclaw_gateway_token: \"${{ steps.secrets.outputs.openclaw_gateway_token || '' }}\""
           } > /tmp/oci-mgmt-ansible-vars.yml
           chmod 600 /tmp/oci-mgmt-ansible-vars.yml
 
@@ -217,7 +210,7 @@ jobs:
           SSH_OPTS="-o StrictHostKeyChecking=accept-new -i ${{ steps.ssh-setup.outputs.ssh_key_path }} -l ubuntu"
           echo "Checking containers..."
           CONTAINERS=$(ssh $SSH_OPTS "$IP" "cd /home/ubuntu/homelab/oci-mgmt && docker compose ps -a --format '{{.Name}}'")
-          for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres oci-mgmt-litellm; do
+          for name in oci-mgmt-traefik oci-mgmt-cloudflared oci-mgmt-omni oci-mgmt-authentik-server oci-mgmt-postgres oci-mgmt-litellm oci-mgmt-openclaw; do
             if echo "$CONTAINERS" | grep -q "$name"; then
               echo "  ✓ $name"
             else

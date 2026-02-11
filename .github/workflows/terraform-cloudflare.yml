@@ -5,12 +5,8 @@
 # - Secrets: CLOUDFLARE_API_TOKEN from GitHub Secrets
 name: Cloudflare Infrastructure
 
+# Push → utiliser "Deploy Stack" (un seul run, ordre + skip par couche)
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'terraform/cloudflare/**'
-      - '.github/workflows/terraform-cloudflare.yml'
   pull_request:
     branches: [main]
     paths:
@@ -136,7 +132,10 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Plan
-        run: terraform plan -no-color -out=tfplan
+        # -refresh=false workaround: Cloudflare API can return 1055 "Configuration for tunnel not found"
+        # when the tunnel exists but has no config yet (e.g. after tunnel recreate). Skip refresh so plan
+        # succeeds; apply will create/update the config. Next plan (with refresh) will work once config exists.
+        run: terraform plan -no-color -refresh=false -out=tfplan
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -226,7 +225,8 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        # -refresh=false: same workaround as plan (tunnel config 1055 until config exists)
+        run: terraform apply -refresh=false -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

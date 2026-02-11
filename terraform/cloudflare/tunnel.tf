@@ -63,6 +63,10 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
       hostname = "llm.${var.domain}"
       service  = "http://localhost:8080"
     }
+    ingress_rule {
+      hostname = "openclaw.${var.domain}"
+      service  = "http://localhost:8080"
+    }
 
     # Homepage dashboard
     ingress_rule {

@@ -201,6 +201,34 @@ services:
       - homelab
     # No direct port — reached via Traefik (llm.smadja.dev)
 
+  # =========================================================================
+  # OpenClaw — Personal AI assistant gateway (Control UI + WebSocket)
+  # =========================================================================
+  # Official image. State in volume openclaw_data. Behind Authentik Forward Auth.
+  # Set OPENCLAW_GATEWAY_TOKEN in .env (see SECURITY-OPENCLAW.md).
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:main
+    container_name: oci-mgmt-openclaw
+    restart: unless-stopped
+    environment:
+      HOME: /home/node
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+    volumes:
+      - openclaw_data:/home/node/.openclaw
+      - ./openclaw/security-defaults.json:/home/node/.openclaw/security-defaults.json:ro
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - "0.0.0.0"
+      - --port
+      - "18789"
+      - --allow-unconfigured
+    networks:
+      - homelab
+    # No direct port — reached via Traefik (openclaw.smadja.dev)
+
 networks:
   homelab:
     driver: bridge
@@ -210,3 +238,4 @@ volumes:
   authentik_redis:
   authentik_media:
   authentik_templates:
+  openclaw_data:

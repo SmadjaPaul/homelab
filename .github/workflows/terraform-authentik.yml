@@ -4,16 +4,11 @@
 #
 # Secrets required: AUTHENTIK_URL, AUTHENTIK_TOKEN
 # Optional: ADMIN_USER_EMAIL (user to add to admin group)
+# Pour déploiement en ordre : utiliser le workflow "Deploy Stack".
 name: Terraform Authentik
 
+# Push → utiliser "Deploy Stack"
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'terraform/authentik/**'
-      - 'scripts/link-recovery-flow.sh'
-      - 'scripts/authentik-post-terraform.sh'
-      - '.github/workflows/terraform-authentik.yml'
   workflow_dispatch:
     inputs:
       apply:
@@ -64,6 +59,21 @@ jobs:
             echo "::warning::compartment_id empty; set OCI_COMPARTMENT_ID or run from oracle-cloud state"
           fi
 
+      - name: Configure OCI (for SMTP secrets / OCI provider)
+        # OCI provider is always loaded; configure so plan/apply can read SMTP secrets when oci_compartment_id is set.
+        run: |
+          mkdir -p ~/.oci
+          printf '%s\n' "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          key_file=${HOME}/.oci/oci_api_key.pem
+          EOF
+
       - name: Terraform Init (Authentik)
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
@@ -74,21 +84,25 @@ jobs:
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
-          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+          TF_VAR_authentik_url: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
           TF_VAR_oci_compartment_id: ${{ steps.get-compartment.outputs.compartment_id }}
         run: |
-          terraform plan -input=false -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}" -out=tfplan
+          terraform plan -input=false -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}" -var="authentik_url=${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}" -out=tfplan
 
       - name: Terraform Apply
-        if: github.event.inputs.apply == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'dependabot[bot]')
+        if: |
+          github.event.inputs.apply == 'true' ||
+          (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'dependabot[bot]')
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
-          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL }}
+          AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
+          TF_VAR_authentik_url: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
           TF_VAR_oci_compartment_id: ${{ steps.get-compartment.outputs.compartment_id }}
         run: |
-          terraform apply -input=false -auto-approve tfplan || terraform apply -input=false -auto-approve -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}"
+          terraform apply -input=false -auto-approve tfplan || terraform apply -input=false -auto-approve -var="oci_compartment_id=${{ steps.get-compartment.outputs.compartment_id }}" -var="authentik_url=${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}"
 
   post-terraform:
     name: Post-Terraform (API)

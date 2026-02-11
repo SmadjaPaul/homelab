@@ -1,16 +1,11 @@
 # Terraform Oracle Cloud CI/CD
 # - development: plan only (PR ou push sur develop)
 # - production: apply sur push main
+# Pour déploiement en ordre : utiliser le workflow "Deploy Stack" (un seul run, skip par couche).
 name: Terraform Oracle Cloud
 
+# Push → utiliser "Deploy Stack"
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'terraform/oracle-cloud/**'
-      - '.taskfiles/Taskfile.oci.yml'
-      - 'Taskfile.yaml'
-      - '.github/workflows/terraform-oci.yml'
   pull_request:
     branches: [main]
     paths:
@@ -94,7 +89,6 @@ jobs:
   quota-check:
     name: Free Tier Quota Check
     runs-on: ubuntu-latest
-    # Skip quota check for force-unlock and destroy actions
     if: github.event.inputs.action != 'force-unlock' && github.event.inputs.action != 'destroy'
     outputs:
       quota_ok: ${{ steps.check.outputs.quota_ok }}
@@ -431,7 +425,7 @@ jobs:
             });
 
   # ==================== Apply ====================
-  # Runs on: push to main, OR manual run with action=apply AND environment=production
+  # Runs on: push to main OR manual apply+production
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest

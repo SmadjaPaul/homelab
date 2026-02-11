@@ -41,6 +41,21 @@ http:
       middlewares: [fix-proto, forward-auth-omni]
       service: litellm
 
+    # OpenClaw — outpost path (callbacks, ping) must reach the outpost
+    openclaw-outpost:
+      rule: "Host(`openclaw.smadja.dev`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      entryPoints: [web]
+      middlewares: [fix-proto]
+      service: authentik-outpost
+      priority: 100
+
+    # OpenClaw — app behind Forward Auth (Authentik)
+    openclaw:
+      rule: "Host(`openclaw.smadja.dev`)"
+      entryPoints: [web]
+      middlewares: [fix-proto, forward-auth-omni]
+      service: openclaw
+
   services:
     authentik:
       loadBalancer:
@@ -64,6 +79,12 @@ http:
       loadBalancer:
         servers:
           - url: "http://litellm:4000"
+        passHostHeader: true
+
+    openclaw:
+      loadBalancer:
+        servers:
+          - url: "http://openclaw:18789"
         passHostHeader: true
 
   middlewares:

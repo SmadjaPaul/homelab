@@ -73,6 +73,45 @@ resource "cloudflare_ruleset" "geo_restrict" {
   }
 }
 
+# =============================================================================
+# Authentik API: skip Cloudflare challenge for /api/* (Terraform/CI calls)
+# =============================================================================
+# Without this, requests from GitHub Actions (no browser) get "Just a moment..."
+# and Terraform Authentik provider fails. We lower security for API paths only.
+#
+# By default (enable_authentik_api_skip_challenge = false) this ruleset is NOT
+# created by Terraform, because the API token often lacks "Configuration Rules"
+# permission. Create the rule once manually in the dashboard:
+#
+#   1. Cloudflare Dashboard → your zone (e.g. smadja.dev) → Security → Configuration Rules
+#   2. Create rule: Name "Authentik API - skip challenge"
+#   3. Expression: (http.host eq "auth.smadja.dev" and starts_with(http.request.uri.path, "/api/"))
+#   4. Then: Configuration → Security Level → Essentially Off
+#   5. Deploy
+#
+# If your token has Zone → Configuration Rules → Edit (or "Config Settings" Edit),
+# set enable_authentik_api_skip_challenge = true so Terraform manages the rule.
+# See: https://developers.cloudflare.com/rules/configuration-rules/create-api/
+resource "cloudflare_ruleset" "authentik_api_skip_challenge" {
+  count = var.enable_authentik_api_skip_challenge ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "Authentik API - skip challenge"
+  description = "Do not challenge requests to auth.*/api/ (allows Terraform/CI)"
+  kind        = "zone"
+  phase       = "http_config_settings"
+
+  rules {
+    action      = "set_config"
+    description = "Lower security for Authentik API (Terraform/CI)"
+    expression  = "(http.host eq \"auth.${var.domain}\" and starts_with(http.request.uri.path, \"/api/\"))"
+
+    action_parameters {
+      security_level = "essentially_off"
+    }
+  }
+}
+
 # WAF Custom Rules - Additional rules can be added via Dashboard (free tier limit: 5 rules)
 # Dashboard > Security > WAF > Custom Rules
 #

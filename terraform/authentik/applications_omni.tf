@@ -34,7 +34,7 @@ resource "authentik_application" "omni" {
 resource "authentik_outpost" "proxy_forward_auth" {
   name               = "Homelab Forward Auth"
   type               = "proxy"
-  protocol_providers = [authentik_provider_proxy.omni.id, authentik_provider_proxy.litellm.id]
+  protocol_providers = [authentik_provider_proxy.omni.id, authentik_provider_proxy.litellm.id, authentik_provider_proxy.openclaw.id]
 }
 
 output "omni_outpost_note" {

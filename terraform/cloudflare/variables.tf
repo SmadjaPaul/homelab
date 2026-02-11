@@ -34,6 +34,15 @@ variable "enable_geo_restriction" {
   default     = true
 }
 
+# Authentik API: skip Cloudflare challenge for /api/* so Terraform/CI can call the API.
+# Set to true only if your API token has Zone → Configuration Rules → Edit.
+# If not, leave false and create the rule once manually: see security.tf comment or docs.
+variable "enable_authentik_api_skip_challenge" {
+  description = "Create Configuration Rule to skip challenge for auth.*/api/* (requires token with Config/Configuration Rules permission; else create rule manually in dashboard)"
+  type        = bool
+  default     = false
+}
+
 # Homelab service subdomains
 variable "homelab_services" {
   description = "Homelab services to expose via Cloudflare Tunnel"
@@ -120,6 +129,12 @@ variable "homelab_services" {
     litellm = {
       subdomain   = "llm"
       description = "LiteLLM proxy (Synthetic, Cline)"
+      internal    = true
+      user_facing = false
+    }
+    openclaw = {
+      subdomain   = "openclaw"
+      description = "OpenClaw personal AI gateway"
       internal    = true
       user_facing = false
     }

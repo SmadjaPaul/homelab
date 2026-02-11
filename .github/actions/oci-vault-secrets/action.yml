@@ -78,6 +78,9 @@ outputs:
   authentik_secret_key:
     description: 'Authentik secret key for session encryption'
     value: ${{ steps.fetch.outputs.authentik_secret_key }}
+  openclaw_gateway_token:
+    description: 'OpenClaw gateway token for CLI/apps'
+    value: ${{ steps.fetch.outputs.openclaw_gateway_token }}
 
 runs:
   using: 'composite'
@@ -115,6 +118,7 @@ runs:
           ["cloudflare_tunnel_token"]="homelab-cloudflare-tunnel-token"
           ["postgres_password"]="homelab-postgres-password"
           ["authentik_secret_key"]="homelab-authentik-secret-key"
+          ["openclaw_gateway_token"]="homelab-openclaw-gateway-token"
         )
 
         IFS=',' read -ra REQUESTED <<< "${{ inputs.secrets }}"
