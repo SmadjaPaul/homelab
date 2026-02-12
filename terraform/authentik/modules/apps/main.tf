@@ -105,6 +105,8 @@ resource "authentik_provider_oauth2" "cloudflare_access" {
   signing_key            = var.default_certificate_key_pair_id
   access_token_validity  = "hours=1"
   refresh_token_validity = "days=30"
+  # Scope mappings so Cloudflare Access gets user/group from UserInfo (fixes "Failed to fetch user/group information")
+  property_mappings = var.default_oidc_scope_mapping_ids
 }
 
 resource "authentik_application" "cloudflare_access" {

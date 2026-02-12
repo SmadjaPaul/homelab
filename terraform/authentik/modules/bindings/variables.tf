@@ -1,8 +1,3 @@
-variable "admin_group_id" {
-  type        = string
-  description = "ID du groupe admin"
-}
-
 variable "admin_only_policy_id" {
   type        = string
   description = "ID de la policy admin_only"

@@ -1,0 +1,47 @@
+# =============================================================================
+# DNS module — variables
+# =============================================================================
+
+variable "zone_id" {
+  type        = string
+  description = "Cloudflare Zone ID"
+}
+
+variable "domain" {
+  type        = string
+  description = "Root domain (e.g. smadja.dev)"
+}
+
+variable "enable_tunnel" {
+  type        = bool
+  description = "When true, CNAMEs point to tunnel; when false, placeholder A records for services"
+}
+
+variable "homelab_services" {
+  type = map(object({
+    subdomain   = string
+    description = string
+    internal    = bool
+    user_facing = bool
+  }))
+  description = "Map of service key -> { subdomain, description, internal, user_facing }"
+  default     = {}
+}
+
+variable "tunnel_id" {
+  type        = string
+  description = "Cloudflare Tunnel ID (for CNAME target). Empty when enable_tunnel = false."
+  default     = ""
+}
+
+variable "oci_management_ip" {
+  type        = string
+  description = "OCI Management VM public IP (optional)"
+  default     = ""
+}
+
+variable "oci_node_ips" {
+  type        = list(string)
+  description = "OCI K8s node public IPs (optional)"
+  default     = []
+}

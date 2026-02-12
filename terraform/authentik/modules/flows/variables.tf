@@ -54,3 +54,8 @@ variable "authentik_token" {
   sensitive   = true
   description = "Token API Authentik (pour script link recovery)"
 }
+
+variable "link_recovery_script_path" {
+  type        = string
+  description = "Chemin absolu du script link-recovery-flow.sh (depuis la racine du repo)"
+}

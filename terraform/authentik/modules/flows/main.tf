@@ -155,7 +155,7 @@ resource "null_resource" "link_recovery_flow" {
     stage_id = authentik_stage_identification.default_auth_with_recovery.id
   }
   provisioner "local-exec" {
-    command     = "bash ${path.root}/../../scripts/link-recovery-flow.sh"
+    command     = "bash ${var.link_recovery_script_path}"
     working_dir = path.module
     environment = {
       AUTHENTIK_URL   = var.authentik_url

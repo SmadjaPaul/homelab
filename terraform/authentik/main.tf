@@ -34,6 +34,7 @@ module "flows" {
   default_authentication_flow_id = data.authentik_flow.default_authentication.id
   authentik_url                  = var.authentik_url
   authentik_token                = var.authentik_token
+  link_recovery_script_path      = abspath("${path.module}/../../scripts/link-recovery-flow.sh")
 }
 
 module "apps" {
@@ -45,12 +46,12 @@ module "apps" {
   default_certificate_key_pair_id = data.authentik_certificate_key_pair.default.id
   authentik_url                   = var.authentik_url
   cloudflare_access_team          = var.cloudflare_access_team
+  default_oidc_scope_mapping_ids  = local.default_oidc_scope_mapping_ids
 }
 
 module "bindings" {
   source = "./modules/bindings"
 
-  admin_group_id                 = module.groups.admin_group_id
   admin_only_policy_id           = module.policies.admin_only_id
   omni_application_uuid          = module.apps.omni_application_uuid
   litellm_application_uuid       = module.apps.litellm_application_uuid

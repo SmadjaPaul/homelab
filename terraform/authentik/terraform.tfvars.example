@@ -17,3 +17,19 @@
 #   password = "homelab-authentik-smtp-password"
 #   from     = "homelab-authentik-smtp-from"
 # }
+
+# -----------------------------------------------------------------------------
+# Utilisateurs gérés par Terraform (optionnel)
+# Si l'utilisateur existe déjà dans Authentik, importer avant apply (pk = ID dans l'URL admin) :
+#   terraform import 'module.users[0].authentik_user.users["smadja-paul"]' <pk>
+# Puis terraform apply pour mettre à jour les groupes.
+# -----------------------------------------------------------------------------
+# authentik_users = [
+#   {
+#     username    = "smadja-paul"
+#     name        = "Paul"
+#     email       = "smadja-paul@protonmail.com"
+#     group_names = ["admin", "family-validated"]
+#     is_active   = true
+#   }
+# ]

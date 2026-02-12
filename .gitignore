@@ -18,6 +18,7 @@ secrets/*.yaml
 !secrets/README.md
 **/keys.txt
 terraform.tfvars
+authentik-oidc.auto.tfvars.json
 backend_override.tf
 .terraform/
 .terraform.lock.hcl

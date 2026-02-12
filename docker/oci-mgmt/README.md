@@ -55,7 +55,7 @@ Le tunnel envoie tout le trafic OCI mgmt vers **Traefik** (un seul port). Dans C
 | omni.smadja.dev | HTTP | `localhost:8080` |
 | llm.smadja.dev | HTTP | `localhost:8080` |
 
-Traefik route par hostname. Si le tunnel est géré par Terraform (`terraform/cloudflare`), les routes sont dans `tunnel.tf`.
+Traefik route par hostname. Si le tunnel est géré par Terraform (`terraform/cloudflare`), les routes sont dans `terraform/cloudflare/modules/tunnel`.
 
 ### 3. Configurer les variables d'environnement
 
@@ -134,7 +134,7 @@ docker compose logs authentik-server
 
 ### Services inaccessibles via le tunnel (502 Bad Gateway)
 
-1. **Routes du tunnel** : auth et omni doivent pointer vers **localhost:8080** (Traefik). Vérifier dans Cloudflare Zero Trust ou dans `terraform/cloudflare/tunnel.tf`.
+1. **Routes du tunnel** : auth et omni doivent pointer vers **localhost:8080** (Traefik). Vérifier dans Cloudflare Zero Trust ou dans `terraform/cloudflare/modules/tunnel/main.tf`.
 2. **Traefik à l’écoute** : sur la VM, `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080` (Host: auth.smadja.dev) doit retourner 200 après démarrage.
 3. **Logs** : `docker compose logs traefik`, `docker compose logs cloudflared`, `docker compose logs authentik-outpost-proxy`.
 

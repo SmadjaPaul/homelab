@@ -111,7 +111,7 @@ jobs:
             echo "::error::OCI_OBJECT_STORAGE_NAMESPACE secret is not set or empty"
             exit 1
           fi
-          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" main.tf
+          sed -i.bak "s/axnvxxurxefp/$OCI_NAMESPACE/g" main.tf
           echo "✅ Backend namespace injected: ${OCI_NAMESPACE:0:10}..."
 
       - name: Terraform Init
@@ -204,7 +204,7 @@ jobs:
             echo "::error::OCI_OBJECT_STORAGE_NAMESPACE secret is not set or empty"
             exit 1
           fi
-          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" main.tf
+          sed -i.bak "s/axnvxxurxefp/$OCI_NAMESPACE/g" main.tf
           echo "✅ Backend namespace injected: ${OCI_NAMESPACE:0:10}..."
 
       - name: Terraform Init

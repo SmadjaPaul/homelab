@@ -49,6 +49,36 @@ variable "cloudflare_access_team" {
 }
 
 # -----------------------------------------------------------------------------
+# Slugs/noms des flows et certificat par défaut (data sources)
+# Si ton instance a d'autres slugs (version différente ou config custom), override
+# via TF_VAR_* ou terraform.tfvars. Pour trouver les slugs : Authentik → Flows →
+# cliquer sur un flow → l'URL ou les détails affichent le slug.
+# -----------------------------------------------------------------------------
+variable "authentik_flow_slug_authorization" {
+  type        = string
+  default     = "default-provider-authorization-implicit-consent"
+  description = "Slug du flow d'autorisation (provider) par défaut"
+}
+
+variable "authentik_flow_slug_invalidation" {
+  type        = string
+  default     = "default-provider-invalidation-flow"
+  description = "Slug du flow d'invalidation (logout) par défaut"
+}
+
+variable "authentik_flow_slug_authentication" {
+  type        = string
+  default     = "default-authentication-flow"
+  description = "Slug du flow d'authentification (login) par défaut"
+}
+
+variable "authentik_certificate_key_pair_name" {
+  type        = string
+  default     = "authentik Self-signed Certificate"
+  description = "Nom du certificat par défaut (OIDC signing)"
+}
+
+# -----------------------------------------------------------------------------
 # Users (optionnel) — Définir des utilisateurs dans Terraform (voir modules/users)
 # -----------------------------------------------------------------------------
 variable "authentik_users" {
@@ -60,6 +90,15 @@ variable "authentik_users" {
     is_active   = optional(bool, true)
     path        = optional(string, "")
   }))
-  default     = []
-  description = "Liste d'utilisateurs à créer (optionnel). Préférer les invitations pour l'onboarding."
+  default = [
+    {
+      username    = "smadja-paul"
+      name        = "Paul"
+      email       = "smadja-paul@protonmail.com"
+      group_names = ["admin", "family-validated"]
+      is_active   = true
+      path        = ""
+    }
+  ]
+  description = "Liste d'utilisateurs à créer/gérer. smadja-paul (admin + family-validated) pour accès complet. Si l'utilisateur existe déjà : terraform import 'module.users[0].authentik_user.users[\"smadja-paul\"]' <pk>."
 }

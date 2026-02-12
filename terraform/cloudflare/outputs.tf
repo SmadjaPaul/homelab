@@ -1,5 +1,5 @@
 # =============================================================================
-# Cloudflare Outputs
+# Cloudflare Outputs (from modules)
 # =============================================================================
 
 output "zone_info" {
@@ -14,26 +14,15 @@ output "zone_info" {
 output "dns_records" {
   description = "Created DNS records"
   value = {
-    root = {
-      name    = cloudflare_record.root.name
-      type    = cloudflare_record.root.type
-      proxied = cloudflare_record.root.proxied
-    }
-    www = {
-      name    = cloudflare_record.www.name
-      type    = cloudflare_record.www.type
-      content = cloudflare_record.www.content
-    }
-    services = { for k, v in cloudflare_record.homelab_services : k => {
-      fqdn    = "${v.name}.${var.domain}"
-      type    = v.type
-      proxied = v.proxied
-    } }
+    root          = module.dns.root_record
+    www           = { name = "www", type = "CNAME", content = var.domain }
+    services      = module.dns.service_records
+    tunnel_cnames = module.dns.tunnel_cname_records
   }
 }
 
 output "security_settings" {
-  description = "Security settings applied"
+  description = "Security settings applied (via security module)"
   value = {
     ssl_mode         = "strict"
     min_tls_version  = "1.2"
@@ -46,9 +35,9 @@ output "security_settings" {
 output "tunnel_info" {
   description = "Cloudflare Tunnel information (when enabled)"
   value = var.enable_tunnel ? {
-    tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
-    tunnel_name = cloudflare_zero_trust_tunnel_cloudflared.homelab[0].name
-    cname       = "${cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id}.cfargotunnel.com"
+    tunnel_id   = module.tunnel[0].tunnel_id
+    tunnel_name = module.tunnel[0].tunnel_name
+    cname       = module.tunnel[0].cname_target
     status      = "Created - install cloudflared to connect"
     } : {
     status = "Tunnel disabled - set enable_tunnel = true when ready"
@@ -58,7 +47,7 @@ output "tunnel_info" {
 output "tunnel_token" {
   description = "Cloudflare Tunnel token for cloudflared (sensitive)"
   sensitive   = true
-  value       = var.enable_tunnel ? cloudflare_zero_trust_tunnel_cloudflared.homelab[0].tunnel_token : ""
+  value       = var.enable_tunnel ? module.tunnel[0].tunnel_token : ""
 }
 
 output "service_urls" {
@@ -71,21 +60,20 @@ output "service_urls" {
 }
 
 output "next_steps" {
-  description = "Next steps for configuration"
+  description = "Next steps after apply"
   value       = <<-EOT
 
     ✅ Cloudflare configuration applied!
 
     Next steps:
     1. Security settings are active (SSL strict, HSTS, WAF rules)
-    2. DNS records created for all services (placeholder IPs for now)
+    2. DNS records created for all services
 
     When infrastructure is ready:
     1. Set enable_tunnel = true in terraform.tfvars
     2. Add cloudflare_account_id and tunnel_secret
     3. Run: terraform apply
-    4. Install cloudflared on Proxmox/VM
-    5. Connect tunnel: cloudflared tunnel run homelab-tunnel
+    4. Install cloudflared and run: cloudflared tunnel run homelab-tunnel
 
   EOT
 }

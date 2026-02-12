@@ -2,20 +2,19 @@
 # Cloudflare DNS Records
 # =============================================================================
 
-# Root domain - placeholder for now
-# Will point to Cloudflare Tunnel or load balancer
+# Root domain - placeholder
 resource "cloudflare_record" "root" {
   zone_id         = var.zone_id
   name            = "@"
-  content         = "192.0.2.1" # Placeholder - will be replaced by Tunnel
+  content         = "192.0.2.1"
   type            = "A"
   proxied         = true
-  ttl             = 1 # Auto when proxied
+  ttl             = 1
   comment         = "Root domain - placeholder for Cloudflare Tunnel"
   allow_overwrite = true
 
   lifecycle {
-    ignore_changes = [content] # Will be managed by Tunnel later
+    ignore_changes = [content]
   }
 }
 
@@ -31,19 +30,13 @@ resource "cloudflare_record" "www" {
   allow_overwrite = true
 }
 
-# =============================================================================
-# Homelab Service DNS Records
-# When enable_tunnel = false: A records (placeholder)
-# When enable_tunnel = true: CNAMEs are in tunnel.tf (tunnel_cname), not here
-# =============================================================================
-
-# Placeholder A records only when tunnel is disabled (tunnel uses CNAME, can't overwrite A→CNAME)
+# Placeholder A records when tunnel is disabled
 resource "cloudflare_record" "homelab_services" {
   for_each = var.enable_tunnel ? {} : var.homelab_services
 
   zone_id         = var.zone_id
   name            = each.value.subdomain
-  content         = "192.0.2.1" # Placeholder
+  content         = "192.0.2.1"
   type            = "A"
   proxied         = true
   ttl             = 1
@@ -51,11 +44,7 @@ resource "cloudflare_record" "homelab_services" {
   allow_overwrite = true
 }
 
-# =============================================================================
-# Oracle Cloud DNS Records (when VMs are available)
-# =============================================================================
-
-# Management VM (direct access for SSH, etc.)
+# OCI Management VM
 resource "cloudflare_record" "oci_mgmt" {
   count = var.oci_management_ip != "" ? 1 : 0
 
@@ -63,12 +52,12 @@ resource "cloudflare_record" "oci_mgmt" {
   name    = "oci-mgmt"
   content = var.oci_management_ip
   type    = "A"
-  proxied = false # Direct access for SSH
+  proxied = false
   ttl     = 300
   comment = "OCI Management VM - direct access"
 }
 
-# K8s nodes (direct access)
+# OCI K8s nodes
 resource "cloudflare_record" "oci_nodes" {
   count = length(var.oci_node_ips)
 
@@ -76,38 +65,38 @@ resource "cloudflare_record" "oci_nodes" {
   name    = "oci-node-${count.index + 1}"
   content = var.oci_node_ips[count.index]
   type    = "A"
-  proxied = false # Direct access for K8s API
+  proxied = false
   ttl     = 300
   comment = "OCI K8s Node ${count.index + 1}"
 }
 
-# =============================================================================
-# Email DNS Records (for future use)
-# =============================================================================
+# CNAMEs to tunnel (when enabled). for_each keys must be known at plan time, so we use
+# only var.enable_tunnel; content uses tunnel_id (may be known after apply).
+resource "cloudflare_record" "tunnel_cname" {
+  for_each = var.enable_tunnel ? var.homelab_services : {}
 
-# MX records placeholder (uncomment when setting up email)
-# resource "cloudflare_record" "mx_primary" {
-#   zone_id  = var.zone_id
-#   name     = "@"
-#   content  = "mail.smadja.dev"
-#   type     = "MX"
-#   priority = 10
-#   ttl      = 3600
-#   comment  = "Primary MX record"
-# }
+  zone_id         = var.zone_id
+  name            = each.value.subdomain
+  content         = "${var.tunnel_id}.cfargotunnel.com"
+  type            = "CNAME"
+  proxied         = true
+  ttl             = 1
+  comment         = "${each.value.description} (via Tunnel)"
+  allow_overwrite = true
+}
 
-# SPF record (prevents email spoofing)
+# SPF
 resource "cloudflare_record" "spf" {
   zone_id         = var.zone_id
   name            = "@"
-  content         = "v=spf1 -all" # No email sent from this domain (for now)
+  content         = "v=spf1 -all"
   type            = "TXT"
   ttl             = 3600
   comment         = "SPF - no email sending allowed"
   allow_overwrite = true
 }
 
-# DMARC record (email authentication)
+# DMARC
 resource "cloudflare_record" "dmarc" {
   zone_id         = var.zone_id
   name            = "_dmarc"

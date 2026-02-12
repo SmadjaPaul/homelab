@@ -21,7 +21,7 @@ terraform {
 
 provider "authentik" {
   url   = var.authentik_url
-  token = var.authentik_token
+  token = var.authentik_token != "" ? var.authentik_token : try(env("AUTHENTIK_TOKEN"), "")
 }
 
 provider "oci" {

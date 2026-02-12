@@ -126,6 +126,10 @@ jobs:
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
         run: terraform init -reconfigure
+      - name: Migrate state to modules (one-time, idempotent)
+        if: steps.skip.outputs.run == 'true'
+        working-directory: ${{ env.TF_CF }}
+        run: ./scripts/migrate-state-to-modules.sh
       - name: Create tfvars
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
@@ -137,7 +141,8 @@ jobs:
           enable_tunnel = ${{ vars.CLOUDFLARE_ENABLE_TUNNEL || 'false' }}
           cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
           tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
-          enable_authentik_api_skip_challenge = ${{ vars.ENABLE_AUTHENTIK_API_SKIP_CHALLENGE || 'false' }}
+          enable_authentik_api_skip_challenge = false
+          enable_geo_restriction = false
           EOF
       - name: Terraform Apply
         if: steps.skip.outputs.run == 'true'
@@ -436,13 +441,21 @@ jobs:
         if: steps.skip.outputs.run == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
+      - name: Inject backend namespace (OCI)
+        if: steps.skip.outputs.run == 'true'
+        working-directory: ${{ env.TF_AUTH }}
+        env:
+          OCI_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+        run: |
+          [[ -z "$OCI_NAMESPACE" ]] && { echo "::error::OCI_OBJECT_STORAGE_NAMESPACE required for Authentik backend"; exit 1; }
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" backend.tf
       - name: Terraform Init
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_AUTH }}
         env:
           AUTHENTIK_URL: ${{ secrets.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_TOKEN }}
-        run: terraform init -input=false
+        run: terraform init -reconfigure -input=false
       - name: Terraform Apply
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_AUTH }}

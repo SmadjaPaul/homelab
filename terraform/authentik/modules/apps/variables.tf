@@ -30,3 +30,9 @@ variable "cloudflare_access_team" {
   default     = "smadja"
   description = "Cloudflare Access team subdomain (e.g. smadja for smadja.cloudflareaccess.com)"
 }
+
+variable "default_oidc_scope_mapping_ids" {
+  type        = list(string)
+  default     = []
+  description = "Scope mapping IDs (openid, email, profile) so OIDC IdPs get user info; required for Cloudflare Access"
+}

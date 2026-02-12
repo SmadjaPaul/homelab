@@ -14,7 +14,7 @@ Ce document compare ta configuration (Terraform + scripts) au guide [authentikat
 | Tunnel Cloudflare (cloudflared) | ✅ | ✅ Terraform tunnel + déploiement |
 | Exposition d’Authentik (auth.xxx) | ✅ | ✅ `auth.smadja.dev` |
 | Provider OAuth2/OIDC pour Cloudflare (redirect callback) | ✅ manuel | ✅ `terraform/authentik/cloudflare-access-oidc.tf` |
-| IdP OpenID Connect dans Zero Trust | ✅ manuel | ✅ `terraform/cloudflare/access-authentik-idp.tf` |
+| IdP OpenID Connect dans Zero Trust | ✅ manuel | ✅ `terraform/cloudflare/modules/access` |
 | Policy « autoriser les utilisateurs Authentik » | ✅ (Login Methods) | ✅ Policy « Allow Authentik users » (everyone) |
 | Une seule méthode de login = pas de choix IdP | ✅ (option UI) | ✅ `allowed_idps = [authentik]` (un seul IdP) |
 

@@ -87,6 +87,8 @@ Optionnel : `-e "litellm_master_key=..."` et `-e "litellm_salt_key=..."` si tu v
 
 ## En cas de problème
 
+- **Error 1033 (Cloudflare Tunnel error)** : Cloudflare ne résout pas le tunnel → cloudflared sur la VM n’est pas connecté ou utilise un token invalide. Récupérer le token à jour : `terraform -chdir=terraform/cloudflare output -raw tunnel_token`, mettre à jour `CLOUDFLARE_TUNNEL_TOKEN` dans les secrets / `.env` de la VM, puis `docker compose up -d --force-recreate cloudflared`. Voir le [runbook Cloudflare Tunnel et Access](../../docs-site/docs/runbooks/cloudflare-tunnel-and-access.md).
+- **Code Cloudflare Access (one-time PIN)** à chaque visite : activer Authentik comme IdP dans `terraform/cloudflare` (`authentik_oidc_enabled = true` + variables OIDC depuis `terraform/authentik output cloudflare_access_oidc`). Détail dans le même runbook.
 - **502 Bad Gateway** : Traefik tourne mais le backend (Authentik, Omni, LiteLLM) pas encore prêt. Attendre 1–2 min ou `docker compose logs -f` sur la VM.
 - **Authentik « Aucune intégration active »** : l’outpost n’a pas le provider LiteLLM/Omni. Vérifier `terraform/authentik` (outpost avec `protocol_providers = [omni, litellm]`) et réappliquer.
 - **LiteLLM ne démarre pas** : `docker compose logs litellm` ; si `model_list` vide pose souci, ajouter un modèle minimal dans `litellm/config.yaml` ou via l’UI après premier démarrage.
