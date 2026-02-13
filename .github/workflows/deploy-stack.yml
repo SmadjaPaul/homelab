@@ -171,8 +171,8 @@ jobs:
   oci-mgmt:
     name: 3. Deploy oci-mgmt
     runs-on: ubuntu-latest
-    needs: [detect-changes, oci]
-    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.run_all == 'true' || github.event.inputs.oci_mgmt == 'true') || (needs.detect-changes.outputs.oci_mgmt == 'true')
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.oci_mgmt == 'true'
     environment: production
     steps:
       - uses: actions/checkout@v4
