@@ -34,6 +34,8 @@ inputs:
     default: '300'
 runs:
   using: 'composite'
+  env:
+    DOPPLER_TOKEN: ${{ inputs.doppler-token }}
   steps:
     - name: Install required tools
       shell: bash
@@ -43,8 +45,6 @@ runs:
 
     - name: Setup Doppler CLI
       uses: dopplerhq/cli-action@v3
-      with:
-        token: ${{ inputs.doppler-token }}
 
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
