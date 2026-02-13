@@ -23,6 +23,26 @@ on:
         required: false
         default: true
         type: boolean
+      cloudflare:
+        description: 'Run Cloudflare job'
+        required: false
+        default: false
+        type: boolean
+      oci:
+        description: 'Run OCI job'
+        required: false
+        default: false
+        type: boolean
+      oci_mgmt:
+        description: 'Run oci-mgmt job'
+        required: false
+        default: false
+        type: boolean
+      authentik:
+        description: 'Run Authentik job'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-stack-${{ github.ref }}
@@ -70,12 +90,22 @@ jobs:
       - name: Set outputs (use filter or run_all)
         id: outputs
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.run_all }}" == "true" ]]; then
-            echo "cloudflare=true" >> $GITHUB_OUTPUT
-            echo "oci=true" >> $GITHUB_OUTPUT
-            echo "oci_mgmt=true" >> $GITHUB_OUTPUT
-            echo "authentik=true" >> $GITHUB_OUTPUT
+          # Manual selection via workflow_dispatch
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.event.inputs.run_all }}" == "true" ]]; then
+              echo "cloudflare=true" >> $GITHUB_OUTPUT
+              echo "oci=true" >> $GITHUB_OUTPUT
+              echo "oci_mgmt=true" >> $GITHUB_OUTPUT
+              echo "authentik=true" >> $GITHUB_OUTPUT
+            else
+              # Individual job selection
+              [[ "${{ github.event.inputs.cloudflare }}" == "true" ]] && echo "cloudflare=true" >> $GITHUB_OUTPUT || echo "cloudflare=false" >> $GITHUB_OUTPUT
+              [[ "${{ github.event.inputs.oci }}" == "true" ]] && echo "oci=true" >> $GITHUB_OUTPUT || echo "oci=false" >> $GITHUB_OUTPUT
+              [[ "${{ github.event.inputs.oci_mgmt }}" == "true" ]] && echo "oci_mgmt=true" >> $GITHUB_OUTPUT || echo "oci_mgmt=false" >> $GITHUB_OUTPUT
+              [[ "${{ github.event.inputs.authentik }}" == "true" ]] && echo "authentik=true" >> $GITHUB_OUTPUT || echo "authentik=false" >> $GITHUB_OUTPUT
+            fi
           else
+            # Auto-detection from path filters
             echo "cloudflare=${{ steps.filter.outputs.cloudflare }}" >> $GITHUB_OUTPUT
             echo "oci=${{ steps.filter.outputs.oci }}" >> $GITHUB_OUTPUT
             echo "oci_mgmt=${{ steps.filter.outputs.oci_mgmt }}" >> $GITHUB_OUTPUT
