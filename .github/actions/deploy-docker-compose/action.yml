@@ -34,8 +34,6 @@ inputs:
     default: '300'
 runs:
   using: 'composite'
-  env:
-    DOPPLER_TOKEN: ${{ inputs.doppler-token }}
   steps:
     - name: Install required tools
       shell: bash
@@ -53,6 +51,8 @@ runs:
 
     - name: Setup SSH key
       shell: bash
+      env:
+        DOPPLER_TOKEN: ${{ inputs.doppler-token }}
       run: |
         mkdir -p ~/.ssh
         doppler secrets get SSH_PRIVATE_KEY --plain -p ${{ inputs.doppler-project }} -c ${{ inputs.doppler-config }} > ~/.ssh/oci-homelab
@@ -87,6 +87,8 @@ runs:
     - name: Deploy with Docker Compose
       if: steps.get-ip.outputs.vm_exists == 'true'
       shell: bash
+      env:
+        DOPPLER_TOKEN: ${{ inputs.doppler-token }}
       run: |
         ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
           ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
