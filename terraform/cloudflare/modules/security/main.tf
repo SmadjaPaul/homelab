@@ -37,8 +37,20 @@ resource "cloudflare_zone_settings_override" "security" {
   }
 }
 
+# Data source to check if geo restriction ruleset already exists
+data "cloudflare_rulesets" "existing_geo" {
+  zone_id = var.zone_id
+}
+
+locals {
+  geo_ruleset_exists = length([
+    for rs in data.cloudflare_rulesets.existing_geo.rulesets : rs
+    if rs.phase == "http_request_firewall_custom" && can(regex("[Gg]eo", rs.name))
+  ]) > 0
+}
+
 resource "cloudflare_ruleset" "geo_restrict" {
-  count = var.enable_geo_restriction && length(var.allowed_countries) > 0 ? 1 : 0
+  count = var.enable_geo_restriction && length(var.allowed_countries) > 0 && !local.geo_ruleset_exists ? 1 : 0
 
   zone_id     = var.zone_id
   name        = "Homelab - Geo restriction (allow ${join(", ", var.allowed_countries)} only)"
@@ -53,8 +65,15 @@ resource "cloudflare_ruleset" "geo_restrict" {
   }
 }
 
+locals {
+  authentik_ruleset_exists = length([
+    for rs in data.cloudflare_rulesets.existing_geo.rulesets : rs
+    if rs.phase == "http_config_settings" && can(regex("[Aa]uthentik", rs.name))
+  ]) > 0
+}
+
 resource "cloudflare_ruleset" "authentik_api_skip_challenge" {
-  count = var.enable_authentik_api_skip_challenge ? 1 : 0
+  count = var.enable_authentik_api_skip_challenge && !local.authentik_ruleset_exists ? 1 : 0
 
   zone_id     = var.zone_id
   name        = "Authentik API - skip challenge"

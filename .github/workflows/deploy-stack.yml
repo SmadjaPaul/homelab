@@ -6,11 +6,9 @@ on:
     paths:
       - 'terraform/cloudflare/**'
       - 'terraform/oracle-cloud/**'
-      - 'docker/oci-core/**'
       - 'ansible/**'
       - 'terraform/authentik/**'
       - 'doppler.yaml'
-      - 'Taskfile.yaml'
       - '.github/workflows/deploy-stack.yml'
   workflow_dispatch:
     inputs:
@@ -30,7 +28,7 @@ on:
         default: false
         type: boolean
       oci_mgmt:
-        description: 'Run oci-mgmt'
+        description: 'Run oci-mgmt (Ansible)'
         required: false
         default: false
         type: boolean
@@ -72,9 +70,7 @@ jobs:
             oci:
               - 'terraform/oracle-cloud/**'
             oci_mgmt:
-              - 'docker/oci-core/**'
               - 'ansible/**'
-              - 'doppler.yaml'
             authentik:
               - 'terraform/authentik/**'
           base: main
@@ -96,10 +92,16 @@ jobs:
       - name: Configure OCI
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
-          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
-            "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
+          cat > ~/.oci/config << OCIEOF
+          [DEFAULT]
+          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
+          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
+          key_file=$HOME/.oci/oci_api_key.pem
+          OCIEOF
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
@@ -114,12 +116,12 @@ jobs:
         run: |
           cat > terraform.tfvars << EOF
           cloudflare_api_token = "${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}"
-          zone_id = "bda8e2196f6b4f1684c6c9c06d996109"
-          domain = "smadja.dev"
+          zone_id = "${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}"
+          domain = "${{ steps.doppler.outputs.DOMAIN }}"
           enable_tunnel = true
           cloudflare_account_id = "${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}"
           tunnel_secret = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}"
-          tunnel_id = "64e0b862-35f3-45e8-ab7c-f1eee6609eab"
+          tunnel_id = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}"
           enable_tunnel_config = true
           EOF
       - name: Terraform Apply
@@ -127,7 +129,7 @@ jobs:
         run: terraform apply -refresh=false -auto-approve -lock=false
 
   oci:
-    name: 2. OCI
+    name: 2. OCI Infrastructure
     runs-on: ubuntu-latest
     needs: cloudflare
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.oci == 'true'
@@ -145,7 +147,7 @@ jobs:
       - name: Set SSH public key
         run: |
           echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
-          printf '%s\n' "${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
+          echo "${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -153,10 +155,16 @@ jobs:
       - name: Configure OCI
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
-          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
-            "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
+          cat > ~/.oci/config << OCIEOF
+          [DEFAULT]
+          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
+          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
+          key_file=$HOME/.oci/oci_api_key.pem
+          OCIEOF
       - name: Inject backend namespace
         working-directory: ${{ env.TF_OCI }}
         run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
@@ -168,10 +176,10 @@ jobs:
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
           TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
-          TF_VAR_budget_alert_email: smadjapaul02@gmail.com
+          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.ALERT_EMAIL }}
 
   oci-mgmt:
-    name: 3. Deploy oci-mgmt
+    name: 3. Deploy oci-mgmt (Ansible)
     runs-on: ubuntu-latest
     needs: oci
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.oci_mgmt == 'true'
@@ -183,6 +191,11 @@ jobs:
         uses: dopplerhq/secrets-fetch-action@v1.3.0
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
+          chmod 600 ~/.ssh/oci-homelab
       - name: Setup Terraform (get VM IP)
         uses: hashicorp/setup-terraform@v3
         with:
@@ -190,16 +203,19 @@ jobs:
       - name: Configure OCI
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
-          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
-            "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
+          cat > ~/.oci/config << OCIEOF
+          [DEFAULT]
+          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
+          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
+          key_file=$HOME/.oci/oci_api_key.pem
+          OCIEOF
       - name: Inject backend namespace
         working-directory: ${{ env.TF_OCI }}
         run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
-      - name: Terraform Init
-        working-directory: ${{ env.TF_OCI }}
-        run: terraform init -reconfigure
       - name: Get management VM IP
         id: get-ip
         working-directory: ${{ env.TF_OCI }}
@@ -207,34 +223,28 @@ jobs:
           IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
           echo "vm_exists=$([[ -n "$IP" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
-      - name: Setup SSH key
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Ansible
         if: steps.get-ip.outputs.vm_exists == 'true'
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
-          chmod 600 ~/.ssh/oci-homelab
-          echo "Host ${{ steps.get-ip.outputs.public_ip }}" >> ~/.ssh/config
-          echo "    IdentityFile ~/.ssh/oci-homelab" >> ~/.ssh/config
-          echo "    StrictHostKeyChecking no" >> ~/.ssh/config
-          echo "    BatchMode yes" >> ~/.ssh/config
-      - name: Deploy to VM
+          pip install ansible
+      - name: Run Ansible Playbook
         if: steps.get-ip.outputs.vm_exists == 'true'
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
         run: |
-          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@${{ steps.get-ip.outputs.public_ip }} \
-            "sudo mkdir -p /opt/oci-core && sudo chown -R ubuntu:ubuntu /opt/oci-core"
+          # Update inventory with dynamic IP
+          sed -i "s/ansible_host: .*/ansible_host: ${{ steps.get-ip.outputs.public_ip }}/" ansible/inventories/oracle/hosts.yml
 
-          rsync -avz --exclude='.env' --exclude='data' --exclude='.git' \
-            -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
-            ./docker/oci-core/ ubuntu@${{ steps.get-ip.outputs.public_ip }}:/opt/oci-core/
-
-          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@${{ steps.get-ip.outputs.public_ip }} \
-            "cd /opt/oci-core && \
-             mkdir -p data/traefik/letsencrypt data/authentik/{postgres,redis,media,custom-templates,certs} data/prometheus data/uptime-kuma data/gotify data/gitea data/vaultwarden data/filebrowser/database && \
-             (sudo systemctl stop systemd-resolved 2>/dev/null || true) && \
-             echo 'nameserver 1.1.1.1' | sudo tee /etc/resolv.conf && \
-             curl -Ls https://cli.doppler.com/install.sh | sudo sh && \
-             export DOPPLER_TOKEN='${{ secrets.DOPPLER_SERVICE_TOKEN }}' && \
-             doppler run --project infrastructure --config prd -- docker compose --profile core up -d"
+          # Run Ansible
+          ansible-playbook -i ansible/inventories/oracle/hosts.yml ansible/playbooks/deploy-oci-core.yml \
+            --private-key ~/.ssh/oci-homelab \
+            -u ubuntu \
+            -e "doppler_token=${{ secrets.DOPPLER_SERVICE_TOKEN }}"
 
   authentik:
     name: 4. Authentik
@@ -252,10 +262,16 @@ jobs:
       - name: Configure OCI
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
-          printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
-            "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
+          cat > ~/.oci/config << OCIEOF
+          [DEFAULT]
+          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
+          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
+          key_file=$HOME/.oci/oci_api_key.pem
+          OCIEOF
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
@@ -267,4 +283,4 @@ jobs:
         run: terraform init -reconfigure -input=false
       - name: Terraform Apply
         working-directory: ${{ env.TF_AUTH }}
-        run: terraform apply -input=false -auto-approve -lock=false -var="authentik_url=https://auth.smadja.dev"
+        run: terraform apply -input=false -auto-approve -lock=false -var="authentik_url=${{ steps.doppler.outputs.AUTHENTIK_URL }}"
