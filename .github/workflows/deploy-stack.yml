@@ -166,7 +166,7 @@ jobs:
         working-directory: ${{ env.TF_OCI }}
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
-          TF_VAR_compartment_id: ${{ steps.dopler.outputs.OCI_COMPARTMENT_ID }}
+          TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
           TF_VAR_budget_alert_email: smadjapaul02@gmail.com
 
   oci-mgmt:
