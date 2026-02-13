@@ -113,6 +113,7 @@ jobs:
           TF_VAR_domain: ${{ steps.doppler.outputs.DOMAIN }}
           TF_VAR_tunnel_id: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}
           TF_VAR_tunnel_secret: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_create_root_record: "false"
 
   # =============================================================================
   # LAYER 2: OCI Infrastructure (VMs, Network)
@@ -147,6 +148,7 @@ jobs:
         env:
           TF_VAR_ssh_public_key: ${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}
           TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
+          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.ALERT_EMAIL }}
 
   # =============================================================================
   # LAYER 3: Deploy Docker Compose (Authentik, Traefik, etc.)

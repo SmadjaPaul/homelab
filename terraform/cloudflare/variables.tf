@@ -268,3 +268,10 @@ variable "access_skip_interstitial" {
   type        = bool
   default     = true
 }
+
+# Set to false if root record already exists manually in Cloudflare dashboard
+variable "create_root_record" {
+  type        = bool
+  description = "Create root domain A record (set to false if already exists manually)"
+  default     = true
+}

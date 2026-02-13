@@ -50,13 +50,14 @@ module "tunnel" {
 module "dns" {
   source = "./modules/dns"
 
-  zone_id           = var.zone_id
-  domain            = var.domain
-  enable_tunnel     = var.enable_tunnel
-  homelab_services  = var.homelab_services
-  tunnel_id         = var.enable_tunnel ? module.tunnel[0].tunnel_id : ""
-  oci_management_ip = var.oci_management_ip
-  oci_node_ips      = var.oci_node_ips
+  zone_id            = var.zone_id
+  domain             = var.domain
+  enable_tunnel      = var.enable_tunnel
+  homelab_services   = var.homelab_services
+  tunnel_id          = var.enable_tunnel ? module.tunnel[0].tunnel_id : ""
+  oci_management_ip  = var.oci_management_ip
+  oci_node_ips       = var.oci_node_ips
+  create_root_record = var.create_root_record
 }
 
 # -----------------------------------------------------------------------------

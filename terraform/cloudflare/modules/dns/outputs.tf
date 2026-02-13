@@ -1,9 +1,9 @@
 output "root_record" {
-  value = {
-    name    = cloudflare_record.root.name
-    type    = cloudflare_record.root.type
-    proxied = cloudflare_record.root.proxied
-  }
+  value = var.create_root_record ? {
+    name    = cloudflare_record.root[0].name
+    type    = cloudflare_record.root[0].type
+    proxied = cloudflare_record.root[0].proxied
+  } : null
 }
 
 output "service_records" {

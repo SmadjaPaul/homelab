@@ -45,3 +45,9 @@ variable "oci_node_ips" {
   description = "OCI K8s node public IPs (optional)"
   default     = []
 }
+
+variable "create_root_record" {
+  type        = bool
+  description = "Create root domain A record (set to false if already exists manually)"
+  default     = true
+}

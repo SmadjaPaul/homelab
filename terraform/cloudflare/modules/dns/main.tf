@@ -2,8 +2,10 @@
 # Cloudflare DNS Records
 # =============================================================================
 
-# Root domain - placeholder
+# Root domain - placeholder (can be disabled if already exists)
 resource "cloudflare_record" "root" {
+  count = var.create_root_record ? 1 : 0
+
   zone_id         = var.zone_id
   name            = "@"
   content         = "192.0.2.1"
