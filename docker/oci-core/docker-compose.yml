@@ -1,13 +1,14 @@
-# Enterprise Homelab - Phase 1 (No Authentik)
-# Services: cloudflared, traefik, blocky, prometheus, litellm, openclaw
-# Monitoring: Grafana Cloud (not self-hosted)
+# Enterprise Homelab - Authentik + Cloudflare Access Architecture
+# Services: cloudflared, traefik, authentik, blocky, prometheus
+# Monitoring: Grafana Cloud (via Alloy)
+# Database: Supabase PostgreSQL (external)
+#
+# Architecture:
+#   User → Cloudflare Access → Authentik (IdP) → Cloudflare → Traefik → Service
 #
 # Usage with Doppler:
 #   export DOPPLER_TOKEN=dp.st.prd.xxxx
 #   ./doppler-run.sh up -d
-#
-# Or manually with env file:
-#   docker compose up -d
 
 name: oci-core
 
@@ -19,7 +20,6 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    # Token injected via Doppler or .env file
     command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - proxy
@@ -37,11 +37,13 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@smadja.dev}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
       - "--accesslog=true"
+      - "--ping=true"
     ports:
       - "80:80"
       - "443:443"
@@ -56,8 +58,86 @@ services:
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      # Note: Auth is handled by Cloudflare Access before reaching Traefik
     profiles:
       - core
+
+  # ============================================================================
+  # IDENTITY PROVIDER (Authentik with Supabase PostgreSQL)
+  # ============================================================================
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:latest
+    restart: unless-stopped
+    command: server
+    environment:
+      - AUTHENTIK_REDIS__HOST=authentik-redis
+      # Supabase PostgreSQL (external cloud database)
+      - AUTHENTIK_POSTGRESQL__HOST=${AUTHENTIK_POSTGRES_HOST:-db.supabase.co}
+      - AUTHENTIK_POSTGRESQL__NAME=${AUTHENTIK_POSTGRES_NAME:-postgres}
+      - AUTHENTIK_POSTGRESQL__USER=${AUTHENTIK_POSTGRES_USER:-postgres}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD}
+      - AUTHENTIK_POSTGRESQL__PORT=${AUTHENTIK_POSTGRES_PORT:-5432}
+      - AUTHENTIK_POSTGRESQL__SSLMODE=require
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+      - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD}
+      - AUTHENTIK_BOOTSTRAP_TOKEN=${AUTHENTIK_BOOTSTRAP_TOKEN}
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+    volumes:
+      - ./data/authentik/media:/media
+      - ./data/authentik/certs:/certs
+      - ./data/authentik/custom-templates:/templates
+    networks:
+      - proxy
+      - authentik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`auth.smadja.dev`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls.certresolver=letsencrypt"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+    profiles:
+      - core
+    depends_on:
+      - authentik-redis
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:latest
+    restart: unless-stopped
+    command: worker
+    environment:
+      - AUTHENTIK_REDIS__HOST=authentik-redis
+      # Supabase PostgreSQL (external cloud database)
+      - AUTHENTIK_POSTGRESQL__HOST=${AUTHENTIK_POSTGRES_HOST:-db.supabase.co}
+      - AUTHENTIK_POSTGRESQL__NAME=${AUTHENTIK_POSTGRES_NAME:-postgres}
+      - AUTHENTIK_POSTGRESQL__USER=${AUTHENTIK_POSTGRES_USER:-postgres}
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD}
+      - AUTHENTIK_POSTGRESQL__PORT=${AUTHENTIK_POSTGRES_PORT:-5432}
+      - AUTHENTIK_POSTGRESQL__SSLMODE=require
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
+    volumes:
+      - ./data/authentik/media:/media
+      - ./data/authentik/certs:/certs
+      - ./data/authentik/custom-templates:/templates
+    networks:
+      - authentik
+    profiles:
+      - core
+    depends_on:
+      - authentik-redis
+
+  # Redis remains local (fast, stateless cache)
+  authentik-redis:
+    image: docker.io/library/redis:alpine
+    restart: unless-stopped
+    networks:
+      - authentik
+    profiles:
+      - core
+
+  # ============================================================================
+  # DNS (Blocky)
+  # ============================================================================
 
   blocky:
     image: spx01/blocky:latest
@@ -76,11 +156,12 @@ services:
       - "traefik.http.routers.blocky.entrypoints=websecure"
       - "traefik.http.routers.blocky.tls.certresolver=letsencrypt"
       - "traefik.http.services.blocky.loadbalancer.server.port=4000"
+      # Note: Auth handled by Cloudflare Access
     profiles:
       - core
 
   # ============================================================================
-  # MONITORING (Prometheus only, sends to Grafana Cloud)
+  # MONITORING (Prometheus + Grafana Alloy)
   # ============================================================================
 
   prometheus:
@@ -104,40 +185,31 @@ services:
       - "traefik.http.routers.prometheus.rule=Host(`prometheus.smadja.dev`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      # Note: Auth handled by Cloudflare Access
     profiles:
       - core
 
-  grafana-agent:
-    image: grafana/agent:latest
+  grafana-alloy:
+    image: grafana/alloy:latest
     restart: unless-stopped
     environment:
-      - GRAFANA_CLOUD_METRICS_URL=${GRAFANA_CLOUD_METRICS_URL}
-      - GRAFANA_CLOUD_LOGS_URL=${GRAFANA_CLOUD_LOGS_URL}
-      - GRAFANA_CLOUD_API_KEY=${GRAFANA_CLOUD_API_KEY}
+      - GCLOUD_RW_API_KEY=${GRAFANA_CLOUD_API_KEY}
+      - GCLOUD_HOSTED_METRICS_URL=${GRAFANA_CLOUD_METRICS_URL}
+      - GCLOUD_HOSTED_LOGS_URL=${GRAFANA_CLOUD_LOGS_URL}
     volumes:
-      - ./config/grafana-agent.yml:/etc/agent/agent.yml:ro
+      - ./config/alloy.config:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
     networks:
       - monitoring
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
     profiles:
       - core
-
-  # ============================================================================
-  # AI SERVICES
-  # ============================================================================
-
-  # litellm:
-  #   image: ghcr.io/berriai/litellm:main-latest
-  #   restart: unless-stopped
-  # NOTE: Disabled due to ARM64 compatibility - needs amd64 VM or self-hosted deployment
-
-  # openclaw:
-  #   image: ghcr.io/openclaw/openclaw:latest
-  #   restart: unless-stopped
-  # NOTE: Disabled due to ARM64 compatibility
 
 networks:
   proxy:
     driver: bridge
   monitoring:
+    driver: bridge
+  authentik:
     driver: bridge

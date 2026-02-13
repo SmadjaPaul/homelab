@@ -20,17 +20,23 @@ output "managed_user_usernames" {
 output "status_note" {
   description = "Configuration status"
   value       = <<EOF
-Authentik Terraform Configuration Summary:
+✅ Authentik Terraform Configuration Complete!
+
+Resources configured:
 - Groups: ${length(module.groups.group_ids_by_name)} configured
 - Policies: ${length(module.policies.policy_ids_by_name)} configured
 - Users: ${length(var.authentik_users)} managed
+- Token: terraform-ci-token created for CI/CD
+
+🔑 Bootstrap Token Workflow:
+1. AUTHENTIK_BOOTSTRAP_TOKEN used for initial authentication
+2. Terraform creates permanent token: terraform-ci-token
+3. Save the terraform_token output to Doppler as AUTHENTIK_TOKEN
+4. Future runs can use AUTHENTIK_TOKEN (more secure)
+
+⚠️ Important: Save the terraform_token output to Doppler:
+   doppler secrets set AUTHENTIK_TOKEN "<token>" -p authentik -c prd
 
 Note: Groups are managed manually in UI. Terraform ignores group changes.
-To enable full automation, create a superuser token in Authentik UI:
-1. Go to https://auth.smadja.dev/if/admin/
-2. Administration → Tokens → Create
-3. Check "Superuser" checkbox
-4. Copy token and update AUTHENTIK_TOKEN
-5. Re-enable flows/apps/bindings modules in main.tf
 EOF
 }

@@ -24,15 +24,26 @@ module "users" {
 }
 
 # -----------------------------------------------------------------------------
-# Tokens - Create service account token for Terraform/CI-CD
+# Tokens - Create permanent token for Terraform/CI-CD using bootstrap token
 # -----------------------------------------------------------------------------
-module "tokens" {
-  source = "./modules/tokens"
-  count  = var.create_terraform_token ? 1 : 0
+# The bootstrap token (AUTHENTIK_BOOTSTRAP_TOKEN) is used to authenticate
+# Terraform. We then create a permanent token for the akadmin user.
+# -----------------------------------------------------------------------------
 
-  create_service_account = true
-  token_identifier       = "terraform-$(timestamp())"
-  superuser              = true
+resource "authentik_token" "terraform_ci" {
+  identifier   = "terraform-ci-token"
+  user         = data.authentik_user.current.id
+  description  = "Terraform CI/CD token - created automatically via GitHub Actions"
+  intent       = "api"
+  expiring     = false # Never expires
+  retrieve_key = true  # Output the key
+}
+
+# Output the token for use in CI/CD
+output "terraform_token" {
+  description = "Terraform CI/CD token (save this to Doppler as AUTHENTIK_TOKEN)"
+  value       = authentik_token.terraform_ci.key
+  sensitive   = true
 }
 
 # -----------------------------------------------------------------------------

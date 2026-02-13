@@ -1,0 +1,57 @@
+name: 'Terraform with OCI Backend'
+description: 'Setup Terraform and inject OCI backend namespace'
+inputs:
+  working-directory:
+    description: 'Terraform working directory'
+    required: true
+  terraform-version:
+    description: 'Terraform version'
+    required: false
+    default: '1.14.4'
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+  init-args:
+    description: 'Additional arguments for terraform init'
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup OCI CLI
+      uses: ./.github/actions/setup-oci-cli
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+
+    - name: Inject OCI backend namespace
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Get namespace from previous step
+        NAMESPACE=$(cat ~/.oci/config | grep -o 'namespace=[^ ]*' | cut -d= -f2 || echo "")
+        if [ -z "$NAMESPACE" ]; then
+          # Fallback: try to get from Doppler
+          NAMESPACE=$(doppler secrets get OCI_OBJECT_STORAGE_NAMESPACE --plain -c prd 2>/dev/null || echo "")
+        fi
+
+        if [ -n "$NAMESPACE" ]; then
+          for file in *.tf; do
+            if [ -f "$file" ]; then
+              sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$NAMESPACE/g" "$file" 2>/dev/null || true
+            fi
+          done
+          echo "✓ Injected namespace: $NAMESPACE"
+        else
+          echo "⚠️ Warning: Could not get OCI namespace"
+        fi
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform init -reconfigure ${{ inputs.init-args }}

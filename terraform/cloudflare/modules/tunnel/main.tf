@@ -50,59 +50,89 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
     # Homepage
     ingress_rule {
       hostname = "smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
     ingress_rule {
       hostname = "www.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
-    # Authentik
+    # Authelia Auth
     ingress_rule {
       hostname = "auth.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # DNS Blocky
     ingress_rule {
       hostname = "dns.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Gitea
     ingress_rule {
       hostname = "git.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Vaultwarden
     ingress_rule {
       hostname = "vault.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # File Browser
     ingress_rule {
       hostname = "files.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Uptime Kuma
     ingress_rule {
       hostname = "status.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Prometheus
     ingress_rule {
       hostname = "prometheus.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Traefik Dashboard
     ingress_rule {
       hostname = "traefik.smadja.dev"
-      service  = "http://traefik:80"
+      service  = "https://traefik:443"
+      origin_request {
+        no_tls_verify = true
+      }
     }
 
     # Proxmox (at home)

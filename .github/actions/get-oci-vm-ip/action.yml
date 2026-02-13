@@ -1,0 +1,59 @@
+name: 'Get OCI VM IP'
+description: 'Get the public IP of the OCI management VM'
+inputs:
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+  working-directory:
+    description: 'Terraform working directory'
+    required: false
+    default: 'terraform/oracle-cloud'
+outputs:
+  vm_ip:
+    description: 'Public IP of the management VM'
+    value: ${{ steps.get-ip.outputs.vm_ip }}
+  vm_exists:
+    description: 'Whether the VM exists'
+    value: ${{ steps.get-ip.outputs.vm_exists }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup OCI CLI
+      uses: ./.github/actions/setup-oci-cli
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: '1.14.4'
+        terraform_wrapper: false
+
+    - name: Inject backend namespace
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        NAMESPACE=$(cat ~/.oci/config | grep tenancy | head -1 | awk '{print $2}' || echo "")
+        if [ -f "backend.tf" ]; then
+          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$NAMESPACE/g" backend.tf 2>/dev/null || true
+        fi
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform init -reconfigure
+
+    - name: Get VM IP
+      id: get-ip
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+        echo "vm_ip=$IP" >> $GITHUB_OUTPUT
+        echo "vm_exists=$([[ -n \"$IP\" ]] && echo \"true\" || echo \"false\")" >> $GITHUB_OUTPUT
+
+        if [ -n "$IP" ]; then
+          echo "✅ VM IP: $IP"
+        else
+          echo "⚠️ No VM IP found"
+        fi

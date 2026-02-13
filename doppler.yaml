@@ -43,6 +43,15 @@ projects:
       # SSH Keys (Required)
       - SSH_PUBLIC_KEY                  # SSH public key for VMs
       - SSH_PRIVATE_KEY                 # SSH private key for VMs
+      # Authentik (Required for Docker)
+      - AUTHENTIK_SECRET_KEY            # Secret key for Authentik (generate: openssl rand -base64 60)
+      - AUTHENTIK_POSTGRES_PASSWORD     # PostgreSQL password for Authentik
+      - AUTHENTIK_BOOTSTRAP_PASSWORD    # Bootstrap password for admin user
+      - AUTHENTIK_BOOTSTRAP_TOKEN       # Bootstrap token for API access
+      # Grafana Cloud (Required)
+      - GRAFANA_CLOUD_API_KEY           # Grafana Cloud API key (for Alloy)
+      - GRAFANA_CLOUD_METRICS_URL       # Metrics URL (e.g., https://prometheus-prod-.../api/prom/push)
+      - GRAFANA_CLOUD_LOGS_URL          # Logs URL (e.g., https://logs-prod-.../loki/api/v1/push)
       # Twingate (Optional)
       - TWINGATE_API_TOKEN
       - TWINGATE_NETWORK

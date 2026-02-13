@@ -1,0 +1,95 @@
+---
+# Authelia Configuration
+# Lightweight authentication with file-based backend
+
+server:
+  address: 'tcp://:9091'
+  disable_healthcheck: false
+
+log:
+  level: info
+  format: text
+
+default_2fa_method: ''
+
+totp:
+  issuer: smadja.dev
+  period: 30
+  skew: 1
+
+authentication_backend:
+  file:
+    path: /data/users_database.yml
+    watch: false
+    search:
+      email: false
+      case_insensitive: false
+    password:
+      algorithm: argon2id
+      iterations: 1
+      key_length: 32
+      salt_length: 16
+      memory: 64
+      parallelism: 8
+
+access_control:
+  default_policy: deny
+  rules:
+    # Traefik dashboard - admin only
+    - domain: traefik.smadja.dev
+      policy: one_factor
+      subject:
+        - "group:admins"
+
+    # Prometheus - admin only
+    - domain: prometheus.smadja.dev
+      policy: one_factor
+      subject:
+        - "group:admins"
+
+    # DNS - admin only
+    - domain: dns.smadja.dev
+      policy: one_factor
+      subject:
+        - "group:admins"
+
+    # Other internal services - any authenticated user
+    - domain:
+        - git.smadja.dev
+        - vault.smadja.dev
+        - files.smadja.dev
+        - status.smadja.dev
+      policy: one_factor
+
+session:
+  name: authelia_session
+  secret: ${AUTHELIA_SESSION_SECRET}
+  expiration: 1h
+  inactivity: 5m
+  remember_me_duration: 1M
+  cookies:
+    - name: authelia_session
+      domain: smadja.dev
+      authelia_url: https://auth.smadja.dev
+      default_redirection_url: https://smadja.dev
+      same_site: lax
+      inactivity: 5m
+      expiration: 1h
+      remember_me: 1M
+
+regulation:
+  max_retries: 3
+  find_time: 2m
+  ban_time: 5m
+
+storage:
+  local:
+    path: /data/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /data/notifications.txt
+
+identity_providers:
+  oidc:
+    enabled: false

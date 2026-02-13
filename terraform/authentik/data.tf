@@ -41,3 +41,9 @@ locals {
     data.authentik_property_mapping_provider_scope.profile.id
   ]
 }
+
+# Get the current user (akadmin) to create a token for it
+# This allows using the bootstrap token to create a permanent token
+data "authentik_user" "current" {
+  username = "akadmin"
+}

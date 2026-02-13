@@ -1,0 +1,144 @@
+name: 'Deploy Docker Compose to OCI'
+description: 'Deploy Docker Compose stack to OCI management VM'
+inputs:
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+  compose-project:
+    description: 'Docker Compose project name'
+    required: false
+    default: 'oci-core'
+  compose-profile:
+    description: 'Docker Compose profile to use'
+    required: false
+    default: 'core'
+  working-directory:
+    description: 'Working directory on remote VM'
+    required: false
+    default: '/opt/oci-core'
+  doppler-project:
+    description: 'Doppler project name'
+    required: false
+    default: 'infrastructure'
+  doppler-config:
+    description: 'Doppler config name'
+    required: false
+    default: 'prd'
+  wait-for-healthy:
+    description: 'Wait for containers to be healthy'
+    required: false
+    default: 'true'
+  health-timeout:
+    description: 'Timeout in seconds for health check'
+    required: false
+    default: '300'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup OCI CLI
+      uses: ./.github/actions/setup-oci-cli
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
+
+    - name: Setup SSH key
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        doppler secrets get SSH_PRIVATE_KEY --plain -p ${{ inputs.doppler-project }} -c ${{ inputs.doppler-config }} > ~/.ssh/oci-homelab
+        chmod 600 ~/.ssh/oci-homelab
+
+    - name: Get VM IP
+      id: get-ip
+      shell: bash
+      run: |
+        cd terraform/oracle-cloud
+        IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+        echo "vm_ip=$IP" >> $GITHUB_OUTPUT
+        echo "vm_exists=$([[ -n \"$IP\" ]] && echo \"true\" || echo \"false\")" >> $GITHUB_OUTPUT
+
+    - name: Sync files to VM
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: |
+        rsync -avz --exclude='.env' --exclude='data' --exclude='.git' \
+          -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
+          ./docker/${{ inputs.compose-project }}/ \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }}:${{ inputs.working-directory }}/
+
+    - name: Create directories
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: |
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+          "mkdir -p ${{ inputs.working-directory }}/data"
+
+    - name: Deploy with Docker Compose
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: |
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+          "cd ${{ inputs.working-directory }} && \
+           export DOPPLER_TOKEN='${{ inputs.doppler-token }}' && \
+           doppler run --project ${{ inputs.doppler-project }} --config ${{ inputs.doppler-config }} -- \
+           docker compose --profile ${{ inputs.compose-profile }} up -d --remove-orphans"
+
+    - name: Wait for healthy containers
+      if: steps.get-ip.outputs.vm_exists == 'true' && inputs.wait-for-healthy == 'true'
+      shell: bash
+      run: |
+        echo "Waiting for containers to be healthy..."
+        TIMEOUT=${{ inputs.health-timeout }}
+        START_TIME=$(date +%s)
+
+        while true; do
+          CURRENT_TIME=$(date +%s)
+          ELAPSED=$((CURRENT_TIME - START_TIME))
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "⚠️ Timeout waiting for containers"
+            break
+          fi
+
+          # Check if all containers are healthy or running
+          UNHEALTHY=$(ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+            ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+            "docker ps --filter 'health=unhealthy' --format '{{.Names}}'" 2>/dev/null)
+
+          if [ -z "$UNHEALTHY" ]; then
+            echo "✅ All containers are healthy!"
+            break
+          fi
+
+          echo "⏳ Waiting... (${ELAPSED}s elapsed)"
+          sleep 10
+        done
+
+    - name: Check container status
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: |
+        echo "=== Container Status ==="
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+          "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+
+        # Check for restarting containers
+        RESTARTING=$(ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+          "docker ps --filter 'status=restarting' --format '{{.Names}}'" 2>/dev/null || true)
+
+        if [ -n "$RESTARTING" ]; then
+          echo ""
+          echo "⚠️ WARNING: Containers restarting:"
+          echo "$RESTARTING"
+
+          for container in $RESTARTING; do
+            echo ""
+            echo "=== Logs for $container ==="
+            ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+              "docker logs --tail 30 $container" || true
+          done
+        fi

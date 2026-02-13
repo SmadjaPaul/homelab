@@ -1,0 +1,239 @@
+name: Deploy Stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'docker/**'
+      - 'ansible/**'
+      - '.github/workflows/deploy-stack.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+    inputs:
+      run_all:
+        description: 'Run all layers'
+        required: false
+        default: true
+        type: boolean
+      cloudflare:
+        description: 'Run Cloudflare'
+        required: false
+        default: false
+        type: boolean
+      oci:
+        description: 'Run OCI Infrastructure'
+        required: false
+        default: false
+        type: boolean
+      oci_mgmt:
+        description: 'Deploy Docker Compose to OCI'
+        required: false
+        default: false
+        type: boolean
+      authentik:
+        description: 'Configure Authentik'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-stack-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: '1.14.4'
+
+jobs:
+  # =============================================================================
+  # DETECT CHANGES
+  # =============================================================================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      cloudflare: ${{ steps.filter.outputs.cloudflare }}
+      oci: ${{ steps.filter.outputs.oci }}
+      authentik: ${{ steps.filter.outputs.authentik }}
+      oci_mgmt: ${{ steps.filter.outputs.oci_mgmt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cloudflare:
+              - 'terraform/cloudflare/**'
+            oci:
+              - 'terraform/oracle-cloud/**'
+            authentik:
+              - 'terraform/authentik/**'
+            oci_mgmt:
+              - 'docker/oci-core/**'
+              - 'ansible/**'
+          base: main
+
+  # =============================================================================
+  # LAYER 1: Cloudflare (DNS, Tunnel, Access)
+  # =============================================================================
+  cloudflare:
+    name: '1️⃣ Cloudflare'
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.cloudflare == true)) ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.cloudflare == 'true')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform with OCI Backend
+        uses: ./.github/actions/terraform-oci
+        with:
+          working-directory: terraform/cloudflare
+          terraform-version: ${{ env.TF_VERSION }}
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Fetch Doppler Secrets
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1.3.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        working-directory: terraform/cloudflare
+        run: terraform apply -auto-approve -lock=false
+        env:
+          TF_VAR_cloudflare_api_token: ${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_zone_id: ${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ steps.doppler.outputs.DOMAIN }}
+          TF_VAR_tunnel_id: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}
+          TF_VAR_tunnel_secret: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}
+
+  # =============================================================================
+  # LAYER 2: OCI Infrastructure (VMs, Network)
+  # =============================================================================
+  oci:
+    name: '2️⃣ OCI Infrastructure'
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.oci == true)) ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.oci == 'true')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Doppler Secrets
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1.3.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Setup Terraform with OCI Backend
+        uses: ./.github/actions/terraform-oci
+        with:
+          working-directory: terraform/oracle-cloud
+          terraform-version: ${{ env.TF_VERSION }}
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        working-directory: terraform/oracle-cloud
+        run: terraform apply -auto-approve -lock=false
+        env:
+          TF_VAR_ssh_public_key: ${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}
+          TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
+
+  # =============================================================================
+  # LAYER 3: Deploy Docker Compose (Authentik, Traefik, etc.)
+  # =============================================================================
+  oci-mgmt:
+    name: '3️⃣ Deploy Services'
+    runs-on: ubuntu-latest
+    needs: [detect-changes, oci]
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.oci_mgmt == true)) ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.oci_mgmt == 'true')
+    environment: production
+    outputs:
+      vm_ip: ${{ steps.get-ip.outputs.vm_ip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get VM IP
+        id: get-ip
+        uses: ./.github/actions/get-oci-vm-ip
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Deploy Docker Compose
+        uses: ./.github/actions/deploy-docker-compose
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          compose-project: 'oci-core'
+          compose-profile: 'core'
+          wait-for-healthy: 'true'
+          health-timeout: '300'
+
+  # =============================================================================
+  # LAYER 4: Configure Authentik (Uses Bootstrap Token)
+  # =============================================================================
+  authentik:
+    name: '4️⃣ Configure Authentik'
+    runs-on: ubuntu-latest
+    needs: [detect-changes, oci-mgmt]
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.authentik == true)) ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.authentik == 'true')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform with OCI Backend
+        uses: ./.github/actions/terraform-oci
+        with:
+          working-directory: terraform/authentik
+          terraform-version: ${{ env.TF_VERSION }}
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Fetch Doppler Secrets
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v1.3.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Wait for Authentik API
+        run: |
+          echo "Waiting for Authentik API to be ready..."
+          MAX_RETRIES=60
+          RETRY=0
+          while [ $RETRY -lt $MAX_RETRIES ]; do
+            if curl -sf -H "Authorization: Bearer ${{ steps.doppler.outputs.AUTHENTIK_BOOTSTRAP_TOKEN }}" \
+              "https://auth.${{ steps.doppler.outputs.DOMAIN }}/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
+              echo "✅ Authentik API is ready!"
+              exit 0
+            fi
+            echo "⏳ Attempt $((RETRY + 1))/$MAX_RETRIES - API not ready yet..."
+            sleep 5
+            RETRY=$((RETRY + 1))
+          done
+          echo "⚠️ API check timeout, continuing anyway..."
+        continue-on-error: true
+
+      - name: Terraform Apply
+        working-directory: terraform/authentik
+        run: terraform apply -auto-approve -lock=false
+        env:
+          AUTHENTIK_URL: https://auth.${{ steps.doppler.outputs.DOMAIN }}
+          AUTHENTIK_TOKEN: ${{ steps.doppler.outputs.AUTHENTIK_BOOTSTRAP_TOKEN }}
+        continue-on-error: true
+
+      - name: Create Terraform Service Token
+        run: |
+          echo "Creating dedicated Terraform service account token..."
+          # This will be handled by the tokens module in terraform/authentik
+          echo "Token creation is managed by Terraform configuration"

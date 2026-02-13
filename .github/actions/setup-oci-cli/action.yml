@@ -1,0 +1,33 @@
+name: 'Setup OCI CLI'
+description: 'Configure OCI CLI with credentials from Doppler'
+inputs:
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch OCI secrets from Doppler
+      id: doppler
+      uses: dopplerhq/secrets-fetch-action@v1.3.0
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
+
+    - name: Configure OCI CLI
+      shell: bash
+      run: |
+        mkdir -p ~/.oci
+        printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
+          "${{ steps.doppler.outputs.OCI_CLI_USER }}" \
+          "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" \
+          "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" \
+          "${{ steps.doppler.outputs.OCI_CLI_REGION }}" \
+          "$HOME" > ~/.oci/config
+
+    - name: Export namespace
+      id: namespace
+      shell: bash
+      run: |
+        echo "namespace=${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}" >> $GITHUB_OUTPUT
