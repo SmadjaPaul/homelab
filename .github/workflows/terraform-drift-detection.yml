@@ -1,0 +1,87 @@
+name: Terraform Drift Detection
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+env:
+  TF_WORKING_DIR: terraform/oracle-cloud
+  TF_VERSION: '1.14.4'
+
+jobs:
+  detect-drift:
+    name: Detect Infrastructure Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure OCI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Check for Drift
+        id: drift
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan -detailed-exitcode -out=tfplan || EXITCODE=$?
+          
+          if [ -z "$EXITCODE" ]; then
+            EXITCODE=0
+          fi
+          
+          echo "exitcode=$EXITCODE" >> $GITHUB_OUTPUT
+          
+          if [ "$EXITCODE" -eq 0 ]; then
+            echo "✅ No drift detected - infrastructure matches Terraform state"
+          elif [ "$EXITCODE" -eq 2 ]; then
+            echo "⚠️ Drift detected! Infrastructure has changed outside of Terraform"
+          else
+            echo "❌ Error running terraform plan"
+            exit 1
+          fi
+
+      - name: Post Drift Report
+        if: steps.drift.outputs.exitcode == '2'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Infrastructure Drift Detected',
+              body: `Infrastructure drift was detected at ${new Date().toISOString()}.
+              
+              Run: \`terraform plan\` locally to see changes.
+              
+              This means resources were modified outside of Terraform. Please review and either:
+              1. Import the changes into Terraform state
+              2. Revert the manual changes
+              3. Update Terraform code to match desired state`,
+              labels: ['infrastructure', 'drift', 'alert']
+            });
+
+      - name: Fail on Drift
+        if: steps.drift.outputs.exitcode == '2'
+        run: |
+          echo "::error::Infrastructure drift detected! Check the issue created for details."
+          exit 1

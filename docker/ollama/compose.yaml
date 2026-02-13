@@ -1,0 +1,79 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+services:
+  ollama:
+    image: ollama/ollama:0.15.6
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:0.7.2
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - 3000:8080
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - ENABLE_OAUTH_SIGNUP=true
+      - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+      - OAUTH_PROVIDER_NAME=Authentik
+      - OPENID_PROVIDER_URL=https://auth.smadja.io/application/o/open-webui/.well-known/openid-configuration
+      - OAUTH_CLIENT_ID=$OAUTH_CLIENT_ID
+      - OAUTH_CLIENT_SECRET=$OAUTH_CLIENT_SECRET
+      - OAUTH_SCOPES=openid email profile
+      - OPENID_REDIRECT_URI=https://ai.smadja.io/oauth/oidc/callback
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  searxng:
+    image: searxng/searxng@sha256:1502823ea918998e325d95f8c0cbd3db1dbd024da412dcce9f504e6244632b26
+    container_name: searxng
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /docker/appdata/searxng:/etc/searxng
+    depends_on:
+      - ollama
+      - open-webui
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+
+  subgen:
+    container_name: subgen
+    tty: true
+    image: mccloud/subgen:2026.02.0
+    environment:
+      - "WHISPER_MODEL=medium"
+      - "WHISPER_THREADS=4"
+      - "PROCADDEDMEDIA=true"
+    volumes:
+      - "/docker/appdata/whisper/subgen/models:/subgen/models"
+    ports:
+      - "9000:9000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama:
+  open-webui:

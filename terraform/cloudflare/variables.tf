@@ -193,6 +193,12 @@ variable "tunnel_secret" {
   default     = ""
 }
 
+variable "tunnel_id" {
+  description = "Existing tunnel ID to use (if empty, will create new tunnel)"
+  type        = string
+  default     = ""
+}
+
 variable "allowed_emails" {
   description = "Emails allowed for Access when not using Authentik IdP"
   type        = list(string)

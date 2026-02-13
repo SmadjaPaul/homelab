@@ -1,6 +1,6 @@
 # Authentik Terraform configuration
-# See: _bmad-output/implementation-artifacts/authentik-terraform-implementation.md
 # Auth: set AUTHENTIK_URL and AUTHENTIK_TOKEN (e.g. via .env, not committed)
+# SMTP secrets: managed in Doppler (project: authentik)
 
 terraform {
   required_providers {
@@ -12,24 +12,17 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.0"
     }
-    oci = {
-      source  = "oracle/oci"
-      version = "~> 5.0"
+    doppler = {
+      source  = "DopplerHQ/doppler"
+      version = "1.13.0"
     }
   }
 }
 
 provider "authentik" {
   url   = var.authentik_url
-  token = var.authentik_token != "" ? var.authentik_token : try(env("AUTHENTIK_TOKEN"), "")
+  token = var.authentik_token
 }
 
-provider "oci" {
-  # OCI provider configuration from environment variables:
-  # - OCI_CLI_TENANCY_OCID
-  # - OCI_CLI_USER_OCID
-  # - OCI_CLI_FINGERPRINT
-  # - OCI_CLI_KEY_FILE
-  # - OCI_CLI_REGION
-  # Or use ~/.oci/config
-}
+# Doppler provider - uses DOPPLER_TOKEN env var
+provider "doppler" {}

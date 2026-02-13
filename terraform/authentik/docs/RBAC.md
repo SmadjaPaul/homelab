@@ -8,6 +8,7 @@ Ce document décrit le modèle **RBAC** (Role-Based Access Control) utilisé dan
 |---------------------|--------------|
 | **admin**           | Administrateurs : accès aux apps d’admin (Omni, LiteLLM, OpenClaw, etc.). Non exposé aux utilisateurs famille. |
 | **family-validated**| Utilisateurs famille validés manuellement : accès aux apps famille (Nextcloud, Vaultwarden, etc.). |
+| **professionnelle** | Utilisateurs pro : accès aux services métier (Odoo, etc.). Distinct de family-validated. |
 
 Les groupes sont définis dans `modules/groups` avec des attributs optionnels (description, role) pour la traçabilité.
 
@@ -18,9 +19,10 @@ Les groupes sont définis dans `modules/groups` avec des attributs optionnels (d
 | **admin_only**           | Accès réservé aux utilisateurs du groupe `admin`. |
 | **family_validated_only**| Accès réservé au groupe `family-validated`. |
 | **admin_and_validated** | Accès si l’utilisateur est à la fois dans `admin` et `family-validated`. |
-| **block_public_enrollment** | Bloque l’enrollment sans token d’invitation. |
+| **block_public_enrollment** | Bloque l'enrollment sans token d'invitation. |
+| **professionnelle_only** | Accès réservé au groupe `professionnelle` (Odoo, etc.). |
 
-Définies dans `modules/policies`.
+Définies dans `modules/policies`. Spécification détaillée : [authentik-rbac-spec](../../../docs/authentik-rbac-spec.md).
 
 ## Matrice d’accès (applications)
 
@@ -30,10 +32,11 @@ Définies dans `modules/policies`.
 | **LiteLLM**           | admin |
 | **OpenClaw** (proxy)  | admin |
 | **OpenClaw (OIDC)**   | admin |
-| **Cloudflare Access (IdP)** | Tous les utilisateurs Authentik (policy_engine_mode = any) ; les apps côté Cloudflare peuvent filtrer par groupe si configuré. |
+| **Odoo**              | professionnelle_only |
+| **Cloudflare Access (IdP)** | Tous (ou admin_only si restreint) ; les apps côté Cloudflare peuvent filtrer par groupe. |
 | **Apps famille** (futur) | family_validated_only ou admin_and_validated selon le cas. |
 
-Les bindings sont dans `modules/bindings` (policy + group sur chaque application concernée).
+Les bindings sont dans `modules/bindings`.
 
 ## Utilisateurs dans Terraform (optionnel)
 

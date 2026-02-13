@@ -27,3 +27,6 @@ import {
   to = oci_objectstorage_bucket.velero_backups
   id = "n/axnvxxurxefp/b/homelab-velero-backups"
 }
+
+# Note: VMs will be created fresh with new SSH key
+# Previous import blocks removed after VM recreation

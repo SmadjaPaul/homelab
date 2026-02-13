@@ -12,10 +12,10 @@ variable "users" {
     username    = string
     name        = string
     email       = optional(string, "")
-    group_names = list(string) # noms des groupes (admin, family-validated)
+    group_names = list(string)
     is_active   = optional(bool, true)
     path        = optional(string, "")
-    # password : ne pas mettre en clair ici ; utiliser invitation ou recovery après création
+    password    = optional(string, "") # bcrypt hash or plaintext
   }))
   default     = []
   description = "Liste d'utilisateurs à créer. group_names doit correspondre aux clés de group_ids_by_name."

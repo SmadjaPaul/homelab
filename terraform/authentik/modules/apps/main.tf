@@ -27,6 +27,15 @@ resource "authentik_provider_proxy" "openclaw" {
   external_host      = "https://openclaw.${var.domain}"
 }
 
+# Odoo — accès réservé au groupe professionnelle (voir docs/authentik-rbac-spec.md)
+resource "authentik_provider_proxy" "odoo" {
+  name               = "odoo-proxy"
+  mode               = "forward_single"
+  authorization_flow = var.default_authorization_flow_id
+  invalidation_flow  = var.default_invalidation_flow_id
+  external_host      = "https://odoo.${var.domain}"
+}
+
 # ----- Proxy applications -----
 resource "authentik_application" "omni" {
   name               = "Omni"
@@ -49,11 +58,18 @@ resource "authentik_application" "openclaw" {
   policy_engine_mode = "any"
 }
 
+resource "authentik_application" "odoo" {
+  name               = "Odoo"
+  slug               = "odoo"
+  protocol_provider  = authentik_provider_proxy.odoo.id
+  policy_engine_mode = "any"
+}
+
 # ----- Outpost Forward Auth -----
 resource "authentik_outpost" "proxy_forward_auth" {
   name               = "Homelab Forward Auth"
   type               = "proxy"
-  protocol_providers = [authentik_provider_proxy.omni.id, authentik_provider_proxy.litellm.id, authentik_provider_proxy.openclaw.id]
+  protocol_providers = [authentik_provider_proxy.omni.id, authentik_provider_proxy.litellm.id, authentik_provider_proxy.openclaw.id, authentik_provider_proxy.odoo.id]
 }
 
 # ----- OpenClaw OIDC -----

@@ -24,9 +24,15 @@ variable "proxmox_local_ip" {
   default     = "192.168.68.51"
 }
 
+variable "tunnel_id" {
+  type        = string
+  description = "Existing tunnel ID to use (if empty, will create new tunnel)"
+  default     = ""
+}
+
 # Set to false if tunnel config create/import fails (1002 Tunnel not found / 1055 Config not found).
 variable "enable_tunnel_config" {
   type        = bool
   description = "Manage tunnel ingress config in Terraform. Set false to skip if API returns 1002/1055."
-  default     = false
+  default     = true
 }

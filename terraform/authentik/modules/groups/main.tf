@@ -28,3 +28,14 @@ resource "authentik_group" "family_validated" {
     role        = "family-validated"
   })
 }
+
+# Professionnelle : utilisateurs pro, accès aux services métier (Odoo, etc.)
+# Distinct de family-validated. Voir docs/authentik-rbac-spec.md.
+resource "authentik_group" "professionnelle" {
+  name         = "professionnelle"
+  is_superuser = false
+  attributes = jsonencode({
+    description = "Professional users: access to Odoo and other business apps"
+    role        = "professionnelle"
+  })
+}

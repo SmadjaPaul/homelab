@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.29.0-standalone-strict/service-v1.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik-ldap-lb
+  namespace: authentik
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: authentik-outpost-ldap
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: 3389
+      protocol: TCP
+    - name: ldaps
+      port: 636
+      targetPort: 6636
+      protocol: TCP

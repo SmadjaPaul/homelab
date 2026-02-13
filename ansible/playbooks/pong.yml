@@ -1,0 +1,12 @@
+---
+- name: Basic Ping Pong Playbook
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Ping the target
+      ansible.builtin.ping:
+
+    - name: Print Pong message
+      ansible.builtin.debug:
+        msg: "Pong"

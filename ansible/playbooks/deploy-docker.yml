@@ -1,0 +1,47 @@
+- name: Deploy Docker application
+  hosts: "{{ target_host }}"
+  vars:
+    repo_path: "/home/{{ ansible_user }}/homelab/docker/{{ folder }}"
+  tasks:
+    - name: Ensure the repository is up-todate
+      ansible.builtin.shell: git pull
+      args:
+        chdir: "{{ repo_path }}"
+      register: git_pull_output
+
+    - name: Display git pull output
+      ansible.builtin.debug:
+        var: git_pull_output.stdout_lines
+
+    - name: Check if Doppler CLI is installed
+      ansible.builtin.command: which doppler
+      register: doppler_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install Doppler CLI if not present
+      ansible.builtin.shell: |
+        (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sh
+      when: doppler_check.rc != 0
+
+    - name: Determine Doppler project from folder name
+      ansible.builtin.set_fact:
+        doppler_project: "{% if folder in ['arm', 'jellyfin', 'kasm', 'ollama', 'ubu', 'geohub', 'downloaders', 'ark-ripper'] %}apps{% elif folder in ['databases'] %}databases{% elif folder in ['blocky', 'npm', 'proxy', 'omni', 'caddy', 'alloy', 'exporters'] %}infrastructure{% elif folder in ['wazuh'] %}monitoring{% else %}apps{% endif %}"
+
+    - name: Deploy with Doppler
+      ansible.builtin.shell: |
+        doppler run --project {{ doppler_project }} --config prd -- docker compose up -d
+      args:
+        chdir: "{{ repo_path }}"
+      environment:
+        DOPPLER_TOKEN: "{{ lookup('env', 'DOPPLER_TOKEN') }}"
+
+    - name: Run Docker Command
+      ansible.builtin.command: docker compose ps
+      args:
+        chdir: "{{ repo_path }}"
+      register: docker_output
+
+    - name: Display Docker Output
+      ansible.builtin.debug:
+        var: docker_output.stdout_lines

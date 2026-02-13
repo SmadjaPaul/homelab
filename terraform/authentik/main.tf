@@ -1,9 +1,10 @@
 # =============================================================================
-# Authentik — Root module (orchestration)
+# Authentik — Root module (IaC for groups, policies, and users)
 # =============================================================================
-# Order: Groups → Policies → Flows → Apps → Bindings [→ Users]
-# Data sources (flows, cert) are in data.tf; SMTP locals in smtp-secrets.tf.
-# RBAC: voir docs/RBAC.md
+# Configures:
+# - Groups: admin, family-validated
+# - Policies: expression policies for access control
+# - Users: managed users (groups managed manually in UI)
 # =============================================================================
 
 module "groups" {
@@ -22,39 +23,37 @@ module "users" {
   group_ids_by_name = module.groups.group_ids_by_name
 }
 
-module "flows" {
-  source = "./modules/flows"
+# -----------------------------------------------------------------------------
+# Tokens - Create service account token for Terraform/CI-CD
+# -----------------------------------------------------------------------------
+module "tokens" {
+  source = "./modules/tokens"
+  count  = var.create_terraform_token ? 1 : 0
 
-  oci_compartment_id             = var.oci_compartment_id
-  smtp_host                      = local.smtp_host
-  smtp_port                      = local.smtp_port
-  smtp_username                  = local.smtp_username
-  smtp_password                  = local.smtp_password
-  smtp_from                      = local.smtp_from
-  default_authentication_flow_id = data.authentik_flow.default_authentication.id
-  authentik_url                  = var.authentik_url
-  authentik_token                = var.authentik_token
-  link_recovery_script_path      = abspath("${path.module}/../../scripts/link-recovery-flow.sh")
+  create_service_account = true
+  token_identifier       = "terraform-$(timestamp())"
+  superuser              = true
 }
 
-module "apps" {
+# -----------------------------------------------------------------------------
+# Google OAuth2 Provider (Social Login)
+# -----------------------------------------------------------------------------
+module "google_oauth2" {
   source = "./modules/apps"
+  count  = var.create_google_oauth2_provider ? 1 : 0
 
-  domain                          = var.domain
-  default_authorization_flow_id   = data.authentik_flow.default_authorization_flow.id
-  default_invalidation_flow_id    = data.authentik_flow.default_invalidation.id
-  default_certificate_key_pair_id = data.authentik_certificate_key_pair.default.id
-  authentik_url                   = var.authentik_url
-  cloudflare_access_team          = var.cloudflare_access_team
-  default_oidc_scope_mapping_ids  = local.default_oidc_scope_mapping_ids
-}
-
-module "bindings" {
-  source = "./modules/bindings"
-
-  admin_only_policy_id           = module.policies.admin_only_id
-  omni_application_uuid          = module.apps.omni_application_uuid
-  litellm_application_uuid       = module.apps.litellm_application_uuid
-  openclaw_application_uuid      = module.apps.openclaw_application_uuid
-  openclaw_oidc_application_uuid = module.apps.openclaw_oidc_application_uuid
+  google_oauth2_provider = {
+    name                   = "Google OAuth2"
+    client_id              = var.google_oauth2_client_id
+    client_secret          = var.google_oauth2_client_secret
+    authorization_flow     = var.default_authorization_flow_id
+    invalidation_flow      = var.default_invalidation_flow_id
+    signing_key            = var.default_certificate_key_pair_id
+    access_token_validity  = "hours=1"
+    refresh_token_validity = "days=30"
+    sub_mode               = "user_email"
+    allowed_redirect_uris = [
+      { url = "${var.authentik_url}/complete/google-oauth2/", matching_mode = "strict" }
+    ]
+  }
 }

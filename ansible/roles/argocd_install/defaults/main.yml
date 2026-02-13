@@ -1,4 +1,0 @@
-# Defaults for argocd_install role
-argocd_dir: "{{ project_root }}/kubernetes/argocd"
-namespace: "argocd"
-wait_timeout: 300

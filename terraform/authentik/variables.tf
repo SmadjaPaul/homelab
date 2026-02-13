@@ -12,14 +12,40 @@ variable "authentik_token" {
   description = "Authentik API token. Prefer AUTHENTIK_TOKEN env; never commit."
 }
 
+variable "create_terraform_token" {
+  type        = bool
+  default     = true
+  description = "Whether to create Terraform service account token"
+}
+
+variable "create_google_oauth2_provider" {
+  type        = bool
+  default     = true
+  description = "Whether to create Google OAuth2 provider"
+}
+
+variable "google_oauth2_client_id" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Google OAuth2 client ID"
+}
+
+variable "google_oauth2_client_secret" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Google OAuth2 client secret"
+}
+
 variable "oci_compartment_id" {
-  description = "OCI compartment OCID where SMTP secrets are stored (from terraform/oracle-cloud outputs). If empty, use_global_settings=true."
+  description = "[DEPRECATED] OCI compartment is no longer used. SMTP secrets now come from Doppler. Kept for backward compatibility."
   type        = string
   default     = ""
 }
 
 variable "oci_smtp_secret_names" {
-  description = "OCI Vault secret names for SMTP configuration (defaults match vault-secrets.tf)"
+  description = "[DEPRECATED] OCI Vault is no longer used. SMTP secrets now come from Doppler. Kept for backward compatibility."
   type = object({
     host     = string
     port     = string
@@ -89,6 +115,7 @@ variable "authentik_users" {
     group_names = list(string)
     is_active   = optional(bool, true)
     path        = optional(string, "")
+    password    = optional(string, "") # bcrypt hash
   }))
   default = [
     {
@@ -98,7 +125,41 @@ variable "authentik_users" {
       group_names = ["admin", "family-validated"]
       is_active   = true
       path        = ""
+      password    = "$2y$05$c9pCHpJgaoPWyRSPXg2bUeK4i5ksuXxoojsNuTAgQxLGIqV.CA9i." # PaulHomelab2026!
     }
   ]
-  description = "Liste d'utilisateurs à créer/gérer. smadja-paul (admin + family-validated) pour accès complet. Si l'utilisateur existe déjà : terraform import 'module.users[0].authentik_user.users[\"smadja-paul\"]' <pk>."
+  description = "Liste d'utilisateurs à créer. Pour importer un utilisateur existant: terraform import 'module.users[0].authentik_user.users[\"username\"]' <pk>."
+}
+
+# -----------------------------------------------------------------------------
+# Google OAuth2 Configuration
+# -----------------------------------------------------------------------------
+variable "google_oauth2_provider" {
+  type = object({
+    name                   = string
+    client_id              = string
+    client_secret          = string
+    authorization_flow     = string
+    invalidation_flow      = string
+    signing_key            = string
+    access_token_validity  = string
+    refresh_token_validity = string
+    sub_mode               = string
+    allowed_redirect_uris  = list(object({ url = string, matching_mode = string }))
+  })
+  default = {
+    name                   = "Google OAuth2"
+    client_id              = ""
+    client_secret          = ""
+    authorization_flow     = "default-provider-authorization-implicit-consent"
+    invalidation_flow      = "default-provider-invalidation-flow"
+    signing_key            = "authentik Self-signed Certificate"
+    access_token_validity  = "hours=1"
+    refresh_token_validity = "days=30"
+    sub_mode               = "user_email"
+    allowed_redirect_uris = [
+      { url = "https://auth.smadja.dev/complete/google-oauth2/", matching_mode = "strict" }
+    ]
+  }
+  description = "Google OAuth2 provider configuration"
 }

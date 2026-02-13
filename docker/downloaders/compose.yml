@@ -1,0 +1,68 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+services:
+  sabnzbd:
+    image: ghcr.io/linuxserver/sabnzbd:4.5.5
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=America/New_York
+    volumes:
+      - /docker/appdata/sabnzbd/config:/config:rw
+      ## Fix failed 7za return code 2 errors when unpacking certain nzbs
+      - /docker/appdata/sabnzbd/custom-init.sh:/custom-cont-init.d/99-fix-7z.sh
+      - /docker/appdata/sabnzbd/7zz-wrapper:/custom-cont-init.d/7zz-wrapper
+      - nas:/data:rw
+    ports:
+      - 8082:8080
+    restart: unless-stopped
+
+  qbitty:
+    image: ghcr.io/hotio/qbittorrent:release-5.1.4
+    container_name: qbitty
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - WEBUI_PORT=8080
+      - VPN_ENABLED=true
+      - VPN_CONF=wg0
+      - VPN_PROVIDER=proton
+      - VPN_KEEP_LOCAL_DNS=false
+      - VPN_AUTO_PORT_FORWARD=true
+      - VPN_LAN_NETWORK=10.0.0.0/24,10.69.69.0/24
+      - VPN_LAN_LEAK_ENABLED=false
+      - VPN_FIREWALL_TYPE=auto
+      - PRIVOXY_ENABLED=false
+      - VPN_HEALTHCHECK_ENABLED=false
+      - UNBOUND_ENABLED=false
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /docker/appdata/qbitty:/config:rw
+      - nas:/data:rw
+    ports:
+      - 8081:8080
+    restart: unless-stopped
+
+  autobrr:
+    container_name: autobrr
+    image: ghcr.io/autobrr/autobrr:v1.72.1
+    restart: unless-stopped
+    environment:
+      - TZ=America/New_York
+    user: 1000:1000
+    volumes:
+      - /docker/appdata/autobrr/config:/config
+    ports:
+      - 7474:7474
+
+volumes:
+  nas:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=nas.lan,vers=4,rw
+      device: ":/mnt/thePool/thePoolShare"

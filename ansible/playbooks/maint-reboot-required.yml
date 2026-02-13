@@ -1,0 +1,14 @@
+---
+- name: Check if system reboot is required
+  hosts: "*"
+  become: true
+  tasks:
+    - name: Check if system reboot is required
+      become: true
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+    - name: Debug message if reboot is required
+      ansible.builtin.debug:
+        msg: "Reboot is required"
+      when: reboot_required.stat.exists

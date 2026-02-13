@@ -1,0 +1,110 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gatus
+  namespace: monitoring
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: gatus
+      version: 1.4.4
+      sourceRef:
+        kind: HelmRepository
+        name: gatus-chart
+  values:
+    deployment:
+      strategy: RollingUpdate
+      annotateConfigChecksum: true
+
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+
+    ingress:
+      enabled: false # HTTPRoute
+
+    serviceMonitor:
+      enabled: false
+
+    config:
+      storage:
+        type: postgres
+        path: "postgres://gatus:${GATUS_PG_PASS}@pg-cluster-ha.databases.svc.cluster.local:5432/gatus?sslmode=disable"
+      default-endpoint: &defaults
+        interval: "1m"
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 4000"
+        alerts:
+          - type: gotify
+            sendOnResolved: true
+
+      endpoints:
+        - name: "Sabnzbd"
+          <<: *defaults
+          url: "https://sab.smadja.xyz"
+          group: servarr
+        - name: "Radarr"
+          <<: *defaults
+          url: "https://radarr.smadja.dev"
+          group: servarr
+        - name: "Sonarr"
+          <<: *defaults
+          url: "https://sonarr.smadja.dev"
+          group: servarr
+        - name: "authentik"
+          <<: *defaults
+          url: "http://authentik-server.authentik.svc.cluster.local/-/health/live/"
+        - name: "Proxmox Node 1"
+          <<: *defaults
+          group: proxmox
+          client:
+            insecure: true
+          url: "https://10.0.0.30:8006/"
+        - name: "Proxmox Node 2"
+          <<: *defaults
+          group: proxmox
+          client:
+            insecure: true
+          url: "https://10.0.0.3:8006/"
+        - name: "Proxmox Backup Server"
+          <<: *defaults
+          group: proxmox
+          client:
+            insecure: true
+          url: "https://10.0.0.80:8007/"
+        - name: "Jellyfin"
+          <<: *defaults
+          interval: "2m"
+          url: "http://10.0.0.15:8096/health"
+        - name: "Postgres"
+          url: "tcp://10.20.10.100:5432"
+          interval: 30s
+          group: databases
+          conditions:
+            - "[CONNECTED] == true"
+        - name: "Redis"
+          url: "tcp://10.20.10.100:6379"
+          interval: 30s
+          group: databases
+          conditions:
+            - "[CONNECTED] == true"
+        - name: Netbox
+          <<: *defaults
+          url: "https://netbox.local.smadja.dev"
+        - name: NAS
+          <<: *defaults
+          group: storage
+          url: "http://10.0.0.10"
+        - name: Minio
+          <<: *defaults
+          group: storage
+          url: "https://minio.smadja.xyz/"
+      alerting:
+        gotify:
+          server-url: "${GOTIFY_URL}"
+          token: "${GOTIFY_GATUS_TOKEN}"

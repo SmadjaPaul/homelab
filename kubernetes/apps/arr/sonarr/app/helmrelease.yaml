@@ -1,0 +1,152 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.0.1/charts/library/common/values.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app sonarr
+  namespace: arr
+spec:
+  interval: 15m
+  chartRef:
+    kind: OCIRepository
+    name: sonarr
+  values:
+    global:
+      fullnameOverride: *app
+      namespace: arr
+
+    controllers:
+      sonarr:
+        enabled: true
+        type: deployment
+
+        replicas: 1
+
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: &group 1000
+            fsGroup: *group
+            fsGroupChangePolicy: "OnRootMismatch"
+
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/sonarr
+              tag: 4.0.16.2946
+              pullPolicy: IfNotPresent
+            env:
+              TZ: "${TZ}"
+              SONARR__INSTANCE_NAME: *app
+              SONARR__AUTH__METHOD: External
+              SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              SONARR__AUTH__APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: recyclarr-secrets
+                    key: SONARR_API_KEY
+              SONARR__PORT: &port 8989
+              SONARR__APPLICATION_URL: "https://sonarr.${LOCAL_DOMAIN}"
+              SONARR__THEME: dark
+              SONARR__LOG_LEVEL: info
+
+            probes:
+              liveness:
+                enabled: false
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                memory: 512Mi
+
+          metrics:
+            dependsOn: app
+            image:
+              repository: ghcr.io/onedr0p/exportarr
+              tag: v2.3.0
+            env:
+              PORT: &metricsPort 9707
+              URL: "http://{{ .Release.Name }}-app.{{ .Release.Namespace }}.svc.cluster.local:8989"
+              APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: recyclarr-secrets
+                    key: SONARR_API_KEY
+            args: ["sonarr"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 100Mi
+              limits:
+                memory: 125Mi
+
+    service:
+      app:
+        primary: true
+        controller: sonarr
+        ports:
+          http:
+            port: *port
+      metrics:
+        controller: sonarr
+        ports:
+          metrics:
+            port: *metricsPort
+
+    serviceMonitor:
+      main:
+        enabled: true
+        serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" . }}-metrics'
+        endpoints:
+          - port: metrics
+            scheme: http
+            path: /metrics
+            interval: 1m
+            scrapeTimeout: 10s
+
+    route:
+      internal:
+        enabled: true
+        kind: HTTPRoute
+        hostnames: ["{{ .Release.Name }}.smadja.dev"]
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            backendRefs:
+              - name: sonarr-app
+                port: *port
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
+              - name: sonarr-metrics
+                port: *metricsPort
+        parentRefs:
+          - name: envoy-external
+            namespace: kube-system
+            sectionName: https
+
+    persistence:
+      config:
+        existingClaim: "{{ .Release.Name }}"
+        globalMounts:
+          - path: /config
+
+      data:
+        enabled: true
+        type: nfs
+        server: "${NAS_IP}"
+        path: /mnt/thePool/thePoolShare
+        globalMounts:
+          - path: /data

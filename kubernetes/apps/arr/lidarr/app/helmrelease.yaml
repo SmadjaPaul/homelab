@@ -1,0 +1,145 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.0.1/charts/library/common/values.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app lidarr
+  namespace: arr
+spec:
+  interval: 15m
+  chartRef:
+    kind: OCIRepository
+    name: lidarr
+  values:
+    global:
+      fullnameOverride: *app
+      namespace: arr
+
+    controllers:
+      lidarr:
+        enabled: true
+        type: deployment
+
+        replicas: 1
+
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: &group 1000
+            fsGroup: *group
+            fsGroupChangePolicy: "OnRootMismatch"
+
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/lidarr
+              tag: 3.1.2.4902
+              pullPolicy: IfNotPresent
+            env:
+              TZ: "${TZ}"
+              LIDARR__INSTANCE_NAME: *app
+              LIDARR__PORT: &port 8686
+              LIDARR__APPLICATION_URL: "https://lidarr.${LOCAL_DOMAIN}"
+              LIDARR__THEME: dark
+              LIDARR__LOG_LEVEL: info
+
+            probes:
+              liveness:
+                enabled: false
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                cpu: 10m
+                memory: 150Mi
+              limits:
+                memory: 512Mi
+
+          metrics:
+            dependsOn: app
+            image:
+              repository: ghcr.io/onedr0p/exportarr
+              tag: v2.3.0
+            env:
+              PORT: &metricsPort 9707
+              URL: "http://{{ .Release.Name }}-app.{{ .Release.Namespace }}.svc.cluster.local:8686"
+              APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: recyclarr-secrets
+                    key: LIDARR_API_KEY
+            args: ["lidarr"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 100Mi
+              limits:
+                memory: 125Mi
+
+    service:
+      app:
+        primary: true
+        controller: lidarr
+        ports:
+          http:
+            port: *port
+      metrics:
+        controller: lidarr
+        ports:
+          metrics:
+            port: *metricsPort
+
+    serviceMonitor:
+      main:
+        enabled: true
+        serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" . }}-metrics'
+        endpoints:
+          - port: metrics
+            scheme: http
+            path: /metrics
+            interval: 1m
+            scrapeTimeout: 10s
+
+    route:
+      internal:
+        enabled: true
+        kind: HTTPRoute
+        hostnames: ["{{ .Release.Name }}.smadja.dev"]
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            backendRefs:
+              - name: lidarr-app
+                port: *port
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
+              - name: lidarr-metrics
+                port: *metricsPort
+        parentRefs:
+          - name: envoy-external
+            namespace: kube-system
+            sectionName: https
+
+    persistence:
+      config:
+        existingClaim: "{{ .Release.Name }}"
+        globalMounts:
+          - path: /config
+
+      data:
+        enabled: true
+        type: nfs
+        server: "${NAS_IP}"
+        path: /mnt/thePool/thePoolShare
+        globalMounts:
+          - path: /data

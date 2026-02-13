@@ -1,0 +1,64 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+services:
+  nginx:
+    image: jc21/nginx-proxy-manager:2.13.7
+    container_name: nginx-proxy-manager
+    ports:
+      - 80:80
+      - 81:81
+      - 443:443
+    volumes:
+      - /docker/appdata/nginx/data:/data
+      - /docker/appdata/nginx/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+
+  fail2ban:
+    image: crazymax/fail2ban:1.1.0
+    container_name: fail2ban
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - "/docker/appdata/fail2ban/data:/data"
+      - "/var/log/auth.log:/var/log/auth.log:ro"
+      - "/docker/appdata/nginx/data/logs/:/log/npm/:ro"
+      - "/docker/appdata/fail2ban/f2b-logs:/f2b-logs:rw"
+    environment:
+      - TZ=America/New_York
+      - F2B_LOG_TARGET=/f2b-logs/fail2ban.log
+      - F2B_LOG_LEVEL=INFO
+      - F2B_DB_PURGE_AGE=1d
+      - F2B_MAX_RETRY=3
+      - SSMTP_HOST=$SSMTP_HOST
+      - SSMTP_PORT=587
+      - SSMTP_HOSTNAME=$SSMTP_HOSTNAME
+      - SSMTP_USER=$SSMTP_USER
+      - SSMTP_PASSWORD=$SSMTP_PASSWORD
+      - SSMTP_TLS=YES
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "10"
+    restart: unless-stopped
+
+  cf-tunnel:
+    restart: unless-stopped
+    image: cloudflare/cloudflared@sha256:404528c1cd63c3eb882c257ae524919e4376115e6fe57befca8d603656a91a4c
+    command: tunnel --no-autoupdate run --token $CF_TOKEN
+    container_name: cloudflared
+
+  twingate-famous-alligator:
+    image: twingate/connector@sha256:ae4cfbdaf51b17da0fc541bd06c43bb6be6598a2d8bbfb8456106c299f9c6b39
+    container_name: twingate-famous-alligator
+    restart: always
+    environment:
+      - TWINGATE_NETWORK=$TWINGATE_NETWORK
+      - TWINGATE_ACCESS_TOKEN=$TWINGATE_ACCESS_TOKEN
+      - TWINGATE_REFRESH_TOKEN=$TWINGATE_REFRESH_TOKEN
+      - TWINGATE_LABEL_HOSTNAME=${HOSTNAME}
+      - TWINGATE_LABEL_DEPLOYED_BY=docker
+    sysctls:
+      - net.ipv4.ping_group_range=0 2147483647

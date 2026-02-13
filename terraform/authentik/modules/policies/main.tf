@@ -42,3 +42,14 @@ resource "authentik_policy_expression" "block_public_enrollment" {
     return False
   EOT
 }
+
+# Professionnelle : accès réservé au groupe professionnelle (Odoo, etc.)
+resource "authentik_policy_expression" "professionnelle_only" {
+  name       = "professionnelle-group-only"
+  expression = <<-EOT
+    for group in request.user.ak_groups.all():
+        if group.name == 'professionnelle':
+            return True
+    return False
+  EOT
+}

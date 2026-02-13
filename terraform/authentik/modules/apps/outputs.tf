@@ -14,6 +14,10 @@ output "openclaw_oidc_application_uuid" {
   value = authentik_application.openclaw_oidc.uuid
 }
 
+output "odoo_application_uuid" {
+  value = authentik_application.odoo.uuid
+}
+
 output "omni_outpost_note" {
   description = "After apply: set AUTHENTIK_OUTPOST_TOKEN from Authentik UI"
   value       = "Outpost 'Homelab Forward Auth' created. Get its token in Authentik → Avant-postes → Homelab Forward Auth, then set AUTHENTIK_OUTPOST_TOKEN in docker/oci-mgmt/.env and restart authentik-outpost-proxy."

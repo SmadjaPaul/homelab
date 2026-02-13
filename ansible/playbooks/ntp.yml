@@ -1,0 +1,37 @@
+---
+- name: Configure systemd-timesyncd to use router NTP server
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Set Timezone
+      ansible.builtin.command: timedatectl set-timezone America/New_York
+      changed_when: false
+
+    - name: Ensure systemd-timesyncd is installed
+      ansible.builtin.apt:
+        name: systemd-timesyncd
+        state: present
+        update_cache: false
+
+    - name: Configure timesyncd to use the router's NTP server
+      ansible.builtin.lineinfile:
+        path: /etc/systemd/timesyncd.conf
+        regexp: "^NTP="
+        line: "NTP=10.0.0.1"
+        insertafter: '^\[Time\]'
+
+    - name: Restart systemd-timesyncd to apply changes
+      ansible.builtin.systemd:
+        name: systemd-timesyncd
+        state: restarted
+        enabled: true
+
+    - name: Verify the NTP configuration
+      ansible.builtin.command: timedatectl status
+      register: timesync_status
+      changed_when: false
+
+    - name: Show the status of time synchronization
+      ansible.builtin.debug:
+        msg: "{{ timesync_status.stdout }}"

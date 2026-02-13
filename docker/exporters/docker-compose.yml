@@ -1,0 +1,64 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+services:
+  ## Exporters
+  speedtest-exporter:
+    image: ghcr.io/miguelndecarvalho/speedtest-exporter:v3.5.4
+    container_name: speedtest-exporter
+    environment:
+      - TZ=America/New_York
+    ports:
+      - 9798:9798
+    restart: unless-stopped
+    networks:
+      - grafana
+
+  prometheus-pve-exporter:
+    init: true
+    container_name: prometheus-pve-exporter
+    environment:
+      - PVE_USER=prometheus@pve
+      - PVE_PASSWORD=${PVE_PASSWORD}
+      - PVE_VERIFY_SSL=false
+    ports:
+      - 9221:9221
+    # volumes:
+    #     - /docker/appdata/pve-exporter/pve.yml:/etc/prometheus/pve.yml
+    image: prompve/prometheus-pve-exporter:3.8.1
+    restart: unless-stopped
+
+  jellystat:
+    image: cyfershepard/jellystat:1.1.8
+    environment:
+      POSTGRES_USER: jellystat
+      POSTGRES_PASSWORD: $JS_POSTGRES_PASSWORD
+      POSTGRES_IP: 10.0.0.210
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: jellystat
+      JWT_SECRET: $JWT_SECRET
+      JS_GEOLITE_ACCOUNT_ID: 972418
+      JS_GEOLITE_LICENSE_KEY: $JS_GEOLITE_LICENSE_KEY
+      TZ: America/New_York
+      MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK: 15
+    ports:
+      - "3000:3000"
+    volumes:
+      - jellystat_data:/app/backend/backup-data
+    restart: unless-stopped
+
+  smokeping-prober:
+    image: quay.io/superq/smokeping-prober:v0.10.0
+    container_name: smokeping-prober
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/smokeping-prober/config.yaml"
+    ports:
+      - 9374:9374
+    volumes:
+      - ./config/:/etc/smokeping-prober/
+
+networks:
+  grafana:
+
+volumes:
+  jellystat_data:

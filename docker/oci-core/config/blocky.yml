@@ -1,0 +1,59 @@
+# Blocky DNS Configuration
+# Lightweight DNS proxy with ad-blocking
+
+upstream:
+  default:
+    - 1.1.1.1
+    - 1.0.0.1
+    - 8.8.8.8
+    - 8.8.4.4
+
+blocking:
+  blackLists:
+    ads:
+      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+      - https://adaway.org/hosts.txt
+      - https://v.firebog.net/hosts/AdguardDNS.txt
+    malware:
+      - https://v.firebog.net/hosts/Prigent-Malware.txt
+      - https://v.firebog.net/hosts/Prigent-Crypto.txt
+    tracking:
+      - https://v.firebog.net/hosts/Easyprivacy.txt
+      - https://v.firebog.net/hosts/AdguardTrackingProtection.txt
+  clientGroupsBlock:
+    default:
+      - ads
+      - malware
+      - tracking
+  blockType: zeroIp
+  blockTTL: 1m
+
+# Custom DNS entries for your domain
+customDNS:
+  mapping:
+    smadja.dev: 127.0.0.1
+    '*.smadja.dev': 127.0.0.1
+
+# Conditional forwarding (optional)
+conditional:
+  mapping:
+    smadja.dev: 127.0.0.1
+
+# Prometheus metrics
+prometheus:
+  enable: true
+  path: /metrics
+
+# Web UI
+httpPort: 4000
+
+# Logging
+log:
+  level: info
+  format: text
+
+# Port configuration
+ports:
+  dns: 53
+  tls: 853
+  http: 4000

@@ -15,7 +15,7 @@ terraform {
 
   backend "oci" {
     bucket    = "homelab-tfstate"
-    namespace = "YOUR_TENANCY_NAMESPACE" # CI: workflow injects via sed; local: replace then init -reconfigure
+    namespace = "axnvxxurxefp"
     key       = "cloudflare/terraform.tfstate"
     region    = "eu-paris-1"
   }
@@ -38,6 +38,7 @@ module "tunnel" {
 
   account_id           = var.cloudflare_account_id
   tunnel_secret        = var.tunnel_secret
+  tunnel_id            = var.tunnel_id
   domain               = var.domain
   proxmox_local_ip     = var.proxmox_local_ip
   enable_tunnel_config = var.enable_tunnel_config

@@ -11,12 +11,8 @@
 # After the first successful apply with imports, you can remove this file.
 # =============================================================================
 
-# Tunnel (existing: homelab-tunnel). Config is not imported (provider import fails);
-# Terraform will create/update the config at apply.
-import {
-  to = module.tunnel[0].cloudflare_zero_trust_tunnel_cloudflared.homelab
-  id = "${var.cloudflare_account_id}/e9a5dc97-457a-4a3e-b483-756e08deaca4"
-}
+# Note: When using an existing tunnel (tunnel_id in tfvars), the tunnel resource
+# uses count = 0, so no import is needed. The tunnel_id is passed directly via variable.
 
 # Access applications: if apply fails with application_already_exists, add back
 # import blocks (see git history) or run: terraform import 'module.access[0].cloudflare_zero_trust_access_application.internal_services["<name>"]' <account_id>/<app_uuid>

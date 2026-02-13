@@ -1,97 +1,158 @@
-# Terraform – Authentik configuration
+# Authentik Infrastructure as Code
 
-Configuration Authentik en IaC : **groupes RBAC**, **applications + providers**, **policies/bindings**, **flows** (recovery, security). Structure **modulaire** (inspirée de [K-FOSS](https://github.com/K-FOSS/auth.kristinejones.dev-TF), [ghndrx/authentik-terraform](https://github.com/ghndrx/authentik-terraform)).
-**Utilisateurs** : par défaut gérés dans l'UI (invitations, groupes) ; optionnellement définissables dans Terraform via `authentik_users` (voir [docs/RBAC.md](docs/RBAC.md)).
-Design : docs-site/docs/advanced/planning-conclusions.md (§4).
+Configuration Terraform complète pour l'instance Authentik `auth.smadja.dev`.
 
-## Prérequis
+## Objectifs
 
-- Authentik déjà déployé et accessible (Story 3.3.1).
-- Un token API Authentik (utilisateur admin ou service account) avec droits suffisants.
-
-## Perdu l'accès / pas de token API
-
-Si tu ne peux plus te connecter à Authentik (et donc pas créer de token) :
-
-1. **Reset du mot de passe** (utilisateur existant) — depuis la racine du repo :
-   ```bash
-   ./scripts/reset-authentik-password.sh smadja-paul@protonmail.com 'TonNouveauMotDePasse'
-   ```
-   Le script se connecte en SSH à la VM OCI management, lance `ak reset_password` (ou crée/met à jour l'utilisateur en superuser + groupe « authentik Admins »). Prérequis : accès SSH à la VM (`ubuntu@<IP>`), clé dans `~/.ssh/oci_mgmt.pem` ou équivalent. L'IP est lue depuis `terraform/oracle-cloud` si disponible, sinon tu la saisis à la demande.
-
-2. **Reset complet** (créer un nouvel admin ou tout réinitialiser) :
-   ```bash
-   ./scripts/reset-authentik-complete.sh smadja-paul@protonmail.com 'MotDePasse'
-   ```
-   Menu : reset mot de passe existant, créer un nouvel admin, ou reset complet (suppression BDD).
-
-Après le reset, connecte-toi à https://auth.smadja.dev puis :
-- Crée un token : **Directory → Tokens & App passwords → Create token** → utilise-le pour `AUTHENTIK_TOKEN` ou Terraform.
-- Si tu as encore « Flow does not apply » ou pas d’accès aux apps : ajoute ton utilisateur au groupe **admin** (Directory → Utilisateurs → ton user → Groupes → admin + family-validated), ou lance `terraform apply` pour que Terraform assigne les groupes à smadja-paul.
-
-## Backend (state)
-
-Le state est stocké dans **OCI Object Storage** (même bucket que Cloudflare/OCI), clé `authentik/terraform.tfstate`. En CI le namespace est injecté par le workflow. En local : remplacer `YOUR_TENANCY_NAMESPACE` dans `backend.tf` par ton namespace (ex. `terraform output -raw tfstate_bucket` depuis `terraform/oracle-cloud`), puis `terraform init -reconfigure`. Si tu avais un state local, utilise `terraform init -reconfigure -migrate-state` pour le copier vers OCI.
-
-## Authentification
-
-Ne pas mettre les identifiants dans le code. Utiliser les variables d'environnement :
-
-```bash
-export AUTHENTIK_URL="https://authentik.apps.example.com/"
-export AUTHENTIK_TOKEN="<your_api_token>"
-```
-
-Ou un fichier `.env` (non versionné) :
-
-```bash
-source .env
-terraform plan
-terraform apply
-```
+- [x] Compte utilisateur `smadja-paul@protonmail.com`
+- [x] Service account Terraform avec permissions superuser
+- [x] Provider Google OAuth2 pour Social Login
+- [x] Configuration complète des applications et providers
+- [x] RBAC et permissions pour l'automatisation Terraform
 
 ## Structure
 
-- **Racine** : `main.tf` (orchestration modules), `data.tf`, `provider.tf`, `variables.tf`, `outputs.tf`, `smtp-secrets.tf`
-- **modules/groups** – Groupes RBAC (admin, family-validated) + attributs
-- **modules/policies** – Policies d'expression (admin_only, family_validated_only, block_public_enrollment, etc.)
-- **modules/flows** – Recovery flow, login link, security (password, reputation)
-- **modules/apps** – Providers + applications (Omni, LiteLLM, OpenClaw, OIDC, Cloudflare Access), outpost
-- **modules/bindings** – Policy bindings (groupe + policy par app)
-- **modules/users** – (Optionnel) Utilisateurs + assignation aux groupes
-- **docs/RBAC.md** – Matrice RBAC et usage des groupes
+```
+terraform/authentik/
+├── main.tf                    # Configuration principale
+├── variables.tf               # Variables de configuration
+├── provider.tf                # Provider Authentik
+├── terraform.tfvars           # Valeurs de configuration
+├── outputs.tf                 # Outputs
+└── modules/                   # Sous-modules
+    ├── users/                  # Gestion des utilisateurs
+    ├── tokens/                 # Gestion des tokens
+    ├── apps/                   # Applications et providers
+    ├── groups/                 # Gestion des groupes
+    ├── policies/               # Gestion des politiques
+    ├── bindings/               # Liaisons
+    └── flows/                  # Gestion des flows
+```
 
-## Ordre d'exécution
+## Configuration requise
 
-1. Déployer Authentik (Docker Compose / Helm).
-2. Créer un token API dans Authentik (Directory → Tokens & App passwords).
-3. `terraform init` puis `terraform apply` dans ce répertoire.
-4. Stocker les outputs sensibles (client_secret, tokens) dans ESO/Bitwarden.
+### 1. Token API Authentik
 
-### Utilisateur admin (smadja-paul@protonmail.com)
+Créer un token API dans Authentik UI :
+1. Se connecter à `https://auth.smadja.dev`
+2. Aller dans `Admin → Token`
+3. Cliquer sur `Create Token`
+4. Copier le token généré
 
-Par défaut, `authentik_users` contient **smadja-paul** (`smadja-paul@protonmail.com`) avec les groupes **admin** et **family-validated**. Les apps Omni, LiteLLM, OpenClaw (et OIDC) ont un policy binding `admin_only` : seuls les utilisateurs du groupe **admin** y ont accès.
+### 2. Configuration Google OAuth2
 
-**Erreur « Flow does not apply to current user »** : le flow d’authentification a souvent une policy qui restreint l’accès (ex. « uniquement le groupe admin »). Vérifier que l’utilisateur est bien dans le groupe **admin** (Terraform ou UI). Si le flow `default-authentication-flow` a une policy stricte, l’ajouter au groupe admin résout l’erreur.
+Configurer Google OAuth2 dans la Google Cloud Console :
+1. Aller sur `https://console.cloud.google.com/apis/credentials`
+2. Créer un ID client OAuth2
+3. Ajouter les redirect URIs :
+   - `https://auth.smadja.dev/complete/google-oauth2/`
+   - `http://localhost:8000/complete/google-oauth2/` (pour le développement)
+4. Copier l'ID client et le secret
 
-**Si l'erreur apparaît avant même de saisir ton mail** : ce n'est pas Cloudflare (auth.smadja.dev n'est pas derrière Access). C'est le flow **default-authentication-flow** qui a une policy restreignant qui peut l'utiliser ; en visiteur anonyme tu es refusé. Après avoir récupéré l'accès (script reset) : **Flows** → default-authentication-flow → **Policy / Group Bindings** → supprime la policy qui limite l'accès au flow (le login doit être accessible à tous).
+## Utilisation
 
-**Correctif immédiat (sans Terraform)** : Authentik → **Directory → Utilisateurs** → ouvrir l’utilisateur (ex. `smadja-paul@protonmail.com`) → onglet **Groupes** → ajouter **admin** et **family-validated** → Enregistrer.
+### Initialisation
 
-**Gérer l’utilisateur avec Terraform** : si l’utilisateur existe déjà dans Authentik, l’importer puis apply pour synchroniser les groupes :
+```bash
+# Se placer dans le répertoire
+cd /Users/paul/Developer/Perso/homelab/terraform/authentik
 
-1. Récupérer le **pk** (ID numérique dans l’URL admin, ex. `.../users/5` → pk = 5). Option : `AUTHENTIK_TOKEN=xxx ./scripts/get-user-uuid.sh smadja-paul`
-2. Importer (le provider attend le **pk**, pas l’UUID) :
-   ```bash
-   export AUTHENTIK_TOKEN=<ton_token>
-   terraform import 'module.users[0].authentik_user.users["smadja-paul"]' 5
-   ```
-3. `terraform apply` pour appliquer l’assignation aux groupes.
+# Initialiser Terraform
+terraform init
 
-## Références
+# Configurer le token API (recommandé)
+export AUTHENTIK_URL="https://auth.smadja.dev"
+export AUTHENTIK_TOKEN="votre-token-api"
 
-- [Terraform Registry – goauthentik/authentik](https://registry.terraform.io/providers/goauthentik/authentik/latest/docs)
-- [Managing Authentik with Terraform (Tim Van Wassenhove)](https://timvw.be/2025/03/18/managing-authentik-with-terraform/)
-- [Manage Authentik Resources in Terraform (Christian Lempa)](https://christianlempa.de/videos/authentik-terraform/)
-- [GoAuthentik de A à Y – Gérer les accès aux applications](https://une-tasse-de.cafe/blog/goauthentik/#gerer-les-acces-aux-applications)
-- [Integrate with ArgoCD](https://integrations.goauthentik.io/infrastructure/argocd/)
+# Alternative : décommenter dans terraform.tfvars
+# authentik_token = "votre-token-api"
+```
+
+### Déploiement
+
+```bash
+# Planifier les changements
+terraform plan
+
+# Appliquer les changements
+terraform apply
+
+# Confirmer avec "yes" lorsque demandé
+```
+
+### Outputs
+
+Après le déploiement, les outputs suivants seront disponibles :
+- `terraform_token_key` : Clé du token Terraform (superuser)
+- `google_oauth2_provider_id` : ID du provider Google OAuth2
+- `smadja_paul_user_id` : ID de l'utilisateur Paul
+
+## Permissions
+
+### Service Account Terraform
+
+- **Nom** : `terraform-service`
+- **Type** : `service_account`
+- **Permissions** : Superuser (accès total à l'API)
+- **Usage** : Automation Terraform/CI-CD
+
+### Utilisateur Paul
+
+- **Email** : `smadja-paul@protonmail.com`
+- **Groupes** : `admin`, `family-validated`
+- **Mot de passe** : `PaulHomelab2026!` (bcrypt hashé)
+
+## Google OAuth2
+
+- **Provider** : Google OAuth2
+- **Mode** : `user_email`
+- **Validité** : 1 heure (access), 30 jours (refresh)
+- **Redirect URI** : `https://auth.smadja.dev/complete/google-oauth2/`
+
+## Notes
+
+1. **Sécurité** : Le token API ne doit jamais être commité
+2. **Variables** : Utiliser des variables d'environnement pour les secrets
+3. **Mises à jour** : Les slugs des flows peuvent varier selon la version d'Authentik
+4. **Développement** : Le redirect URI localhost est disponible pour le développement
+
+## Dépannage
+
+### Token API non reconnu
+```bash
+# Vérifier le token
+echo $AUTHENTIK_TOKEN
+
+# Tester la connexion
+curl -H "Authorization: Token $AUTHENTIK_TOKEN" https://auth.smadja.dev/api/v3/health
+```
+
+### Google OAuth2 ne fonctionne pas
+```bash
+# Vérifier les redirect URIs dans Google Cloud Console
+# Vérifier que le provider est bien créé
+terraform state list | grep google_oauth2
+
+# Vérifier les logs Authentik
+# Admin → Logs → Provider OAuth2
+```
+
+### Permissions insuffisantes
+```bash
+# Le service account Terraform a les permissions superuser
+# Si vous avez besoin de permissions spécifiques, modifier le module tokens
+```
+
+## Maintenance
+
+### Mettre à jour le mot de passe
+1. Modifier le hash bcrypt dans `variables.tf:102`
+2. Re-déployer avec `terraform apply`
+
+### Ajouter de nouveaux utilisateurs
+1. Ajouter à la liste `authentik_users` dans `variables.tf`
+2. Re-déployer
+
+### Mettre à jour Google OAuth2
+1. Mettre à jour les variables dans `terraform.tfvars`
+2. Re-déployer

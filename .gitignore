@@ -1,56 +1,39 @@
-# BMad Framework (external)
-_bmad/
-
-# External documentation
-cozystackwebsite/
-
-# IDE/Agent folders
-.agent/
-.claude/
-.cursor/
-
 # Terraform
 *.tfstate
-
-# SOPS - Never commit unencrypted secrets
-secrets/*.yaml
-!secrets/*.enc.yaml
-!secrets/README.md
-**/keys.txt
-terraform.tfvars
-authentik-oidc.auto.tfvars.json
-backend_override.tf
+*.tfstate.*
 .terraform/
 .terraform.lock.hcl
-*.tfstate.*
 *.tfvars
 !terraform.tfvars.example
-.terraform/
-.terraform.lock.hcl
-*.bak
-terraform.tfplan
-tfplan
-*.log
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Secrets
+.env
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+*.crt
+age.agekey
+
+# Doppler (local auth)
+.doppler/
 
 # Ansible
 *.retry
 .vault_pass
 
-# CI temp (e.g. OCI Vault SSH key file)
-.tmp/
-
-# Secrets
-*.pem
-*.key
-*.crt
-secrets.yaml
-talos-secrets.yaml
-.envrc
-.env
-
-# act (local CI runner) - secrets files
-.secrets.act
-.env.act
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
 
 # IDE
 .vscode/
@@ -59,16 +42,17 @@ talos-secrets.yaml
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-terraform/cloudflare/terraform.tfvars
-terraform/cloudflare/.terraform/
-terraform/cloudflare/terraform.tfstate*
-terraform/cloudflare/backend_override.tf
-terraform/cloudflare/backend.local.hcl
+# Kubernetes
+kubeconfig
+talosconfig
 
-# Docusaurus
-docs-site/node_modules/
-docs-site/build/
-docs-site/.docusaurus/
+# Archives
+.archive/
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Local development
+.local/

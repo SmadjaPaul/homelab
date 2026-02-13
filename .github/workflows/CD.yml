@@ -1,0 +1,120 @@
+name: Docker CD
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docker/**"
+  workflow_dispatch:
+    inputs:
+      target_host:
+        description: "Target host (ex. Ubu, ARM, Main)"
+        required: true
+        type: string
+      folder:
+        description: "Folder to deploy (ex. jellyfin, arm, all)"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pre-clean workspace directory
+        run: |
+          echo "Cleaning workspace at ${{ github.workspace }}"
+          sudo chown -R $USER:$USER "${GITHUB_WORKSPACE}"
+          sudo rm -rf "${GITHUB_WORKSPACE:?}/*"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set Git safe directory
+        run: git config --global --add safe.directory /__w/iac/iac
+
+      - name: Fetch all history for git diff
+        run: git fetch --depth=2
+
+      - name: Detect modified folders
+        id: detect-changes
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --unshallow
+          fi
+          folders=$(git diff --name-only HEAD~1 HEAD | grep '^docker/' | cut -d/ -f2 | sort | uniq)
+          echo "Modified folders: $folders"
+          echo "folders=$folders" >> $GITHUB_OUTPUT
+
+      - name: Override Target Host and Folder (Manual Run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "target_host=${{ github.event.inputs.target_host }}" >> $GITHUB_ENV
+          echo "folder=${{ github.event.inputs.folder }}" >> $GITHUB_ENV
+
+      - name: Map Folder to Host
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          IFS=' ' read -r -a folder_array <<< "${{ steps.detect-changes.outputs.folders }}"
+          hosts=""
+          folders=""
+
+          for folder in "${folder_array[@]}"; do
+            case $folder in
+              alloy) host="all" ;;
+              arm) host="ARM" ;;
+              blocky) host="blocky-HA" ;;
+              caddy) host="proxy" ;;
+              databases) host="docker" ;;
+              downloaders) host="downloaders" ;;
+              exporters) host="Ubu" ;;
+              geohub) host="Ubu" ;;
+              jellyfin) host="Ark-Ripper" ;;
+              npm) host="Nginx-Proxy-Manager" ;;
+              ollama) host="ollama" ;;
+              omni) host="omni" ;;
+              wazuh) host="wazuh" ;;
+              oci-core) host="oci-mgmt" ;;
+              *) echo "Unknown folder: $folder" && exit 1 ;;
+            esac
+
+            if [ -z "$hosts" ]; then
+              hosts="$host"
+              folders="$folder"
+            else
+              hosts="$hosts,$host"
+              folders="$folders,$folder"
+            fi
+          done
+
+          echo "Deploying to hosts: $hosts for folders: $folders"
+          echo "target_host=$hosts" >> $GITHUB_ENV
+          echo "folder=$folders" >> $GITHUB_ENV
+
+      - name: Set up SSH agent
+        run: |
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/id_rsa
+
+      - name: Install Doppler CLI
+        run: |
+          (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
+
+      - name: Run Ansible Playbook
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          ANSIBLE_CONFIG: ansible/ansible.cfg
+        run: |
+          set -e
+          ansible-playbook \
+            -i ansible/inventories/netbox/netbox.inventory.yml \
+            -i ansible/inventories/oracle/inventory.oci.yml \
+            -i ansible/inventories/proxmox/inventory.proxmox.yml \
+            ./ansible/playbooks/deploy-docker.yml \
+            --extra-vars "target_host=${target_host} folder=${folder}" \
+            | tee ansible_output.txt
+
+          if grep -q 'unreachable=1\|failed=[1-9]' ansible_output.txt; then
+            echo "Ansible reported failures or unreachable hosts."
+            exit 1
+          fi

@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://www.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - metrics-server/flux-ks.yaml
+  - flux-operator/ks.yaml
+  - flux-instance/ks.yaml
+  - tofu-controller/flux-ks.yaml
+  - snapshot-controller/flux-ks.yaml
+  - external-secrets/ks.yaml
+  - gateway-api/flux-ks.yaml
+  - rook-ceph/flux-ks.yaml
+  - envoy-gateway/flux-ks.yaml
+  - silence-operator/flux-ks.yaml
+  - cilium/ks.yaml
+  - cert-manager/ks.yaml
