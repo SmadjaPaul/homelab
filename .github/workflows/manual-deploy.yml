@@ -27,49 +27,48 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch secrets from Doppler
+
+      - name: Fetch Doppler secrets
         id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
+        uses: ./.github/actions/fetch-doppler
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-      - name: Configure OCI
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          cat > ~/.oci/config << OCIEOF
-          [DEFAULT]
-          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
-          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
-          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
-          key_file=$HOME/.oci/oci_api_key.pem
-          OCIEOF
-      - uses: hashicorp/setup-terraform@v3
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-terraform
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
       - name: Inject backend namespace
         working-directory: ${{ env.TF_CF }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.namespace }}/g" main.tf
+
       - name: Terraform Init
         working-directory: ${{ env.TF_CF }}
         run: terraform init -reconfigure
+
       - name: Create tfvars
         working-directory: ${{ env.TF_CF }}
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}"
-          zone_id = "${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}"
-          domain = "${{ steps.doppler.outputs.DOMAIN }}"
+          cloudflare_api_token = "${{ steps.doppler.outputs.cloudflare-api-token }}"
+          zone_id = "${{ steps.doppler.outputs.cloudflare-zone-id }}"
+          domain = "${{ steps.doppler.outputs.domain }}"
           enable_tunnel = true
-          cloudflare_account_id = "${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}"
-          tunnel_secret = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}"
-          tunnel_id = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}"
+          cloudflare_account_id = "${{ steps.doppler.outputs.cloudflare-account-id }}"
+          tunnel_secret = "${{ steps.doppler.outputs.cloudflare-tunnel-secret }}"
+          tunnel_id = "${{ steps.doppler.outputs.cloudflare-tunnel-id }}"
           enable_tunnel_config = true
           enable_zone_settings = false
           enable_geo_restriction = false
           enable_authentik_api_skip_challenge = false
           EOF
+
       - name: Terraform Apply
         working-directory: ${{ env.TF_CF }}
         run: terraform apply -refresh=false -auto-approve -lock=false
@@ -85,44 +84,43 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch secrets from Doppler
+
+      - name: Fetch Doppler secrets
         id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
+        uses: ./.github/actions/fetch-doppler
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-terraform
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
       - name: Set SSH public key
         run: |
           echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
-          echo "${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
+          echo "${{ steps.doppler.outputs.ssh-public-key }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-      - name: Configure OCI
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          cat > ~/.oci/config << OCIEOF
-          [DEFAULT]
-          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
-          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
-          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
-          key_file=$HOME/.oci/oci_api_key.pem
-          OCIEOF
+
       - name: Inject backend namespace
         working-directory: ${{ env.TF_OCI }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.namespace }}/g" backend.tf
+
       - name: Terraform Init
         working-directory: ${{ env.TF_OCI }}
         run: terraform init -reconfigure
+
       - name: Terraform Apply
         working-directory: ${{ env.TF_OCI }}
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
-          TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
-          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.ALERT_EMAIL }}
+          TF_VAR_compartment_id: ${{ steps.doppler.outputs.oci-compartment-id }}
+          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.alert-email }}
 
   oci-mgmt:
     name: Deploy oci-mgmt (Ansible)
@@ -132,64 +130,9 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch secrets from Doppler
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
+
+      - name: Run Ansible with verification
+        uses: ./.github/actions/run-ansible
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
-          chmod 600 ~/.ssh/oci-homelab
-      - name: Setup Terraform (get VM IP)
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-      - name: Configure OCI
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          cat > ~/.oci/config << OCIEOF
-          [DEFAULT]
-          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
-          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
-          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
-          key_file=$HOME/.oci/oci_api_key.pem
-          OCIEOF
-      - name: Inject backend namespace
-        working-directory: ${{ env.TF_OCI }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
-      - name: Terraform Init
-        working-directory: ${{ env.TF_OCI }}
-        run: terraform init -reconfigure
-      - name: Get management VM IP
-        id: get-ip
-        working-directory: ${{ env.TF_OCI }}
-        run: |
-          IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
-          echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "vm_exists=$([[ -n "$IP" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install Ansible
-        if: steps.get-ip.outputs.vm_exists == 'true'
-        run: pip install ansible
-      - name: Run Ansible Playbook
-        if: steps.get-ip.outputs.vm_exists == 'true'
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-          CLOUDFLARE_TUNNEL_TOKEN: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_TOKEN }}
-          LITELLM_MASTER_KEY: ${{ steps.doppler.outputs.LITELLM_MASTER_KEY }}
-          OPENCLAW_JWT_SECRET: ${{ steps.doppler.outputs.OPENCLAW_JWT_SECRET }}
-        run: |
-          sed -i "s/ansible_host: .*/ansible_host: ${{ steps.get-ip.outputs.public_ip }}/" ansible/inventories/oracle/hosts.yml
-          ansible-playbook -i ansible/inventories/oracle/hosts.yml ansible/playbooks/deploy-oci-core.yml \
-            --private-key ~/.ssh/oci-homelab \
-            -u ubuntu \
-            -e "doppler_token=${{ secrets.DOPPLER_SERVICE_TOKEN }}"
+          terraform-version: ${{ env.TF_VERSION }}

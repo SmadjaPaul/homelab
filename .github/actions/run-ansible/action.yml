@@ -1,0 +1,135 @@
+name: 'Run Ansible'
+description: 'Run Ansible playbook on OCI management VM'
+inputs:
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+  terraform-version:
+    description: 'Terraform version'
+    required: false
+    default: '1.14.4'
+  ansible-playbook:
+    description: 'Path to ansible playbook'
+    required: false
+    default: 'ansible/playbooks/deploy-oci-core.yml'
+  ansible-inventory:
+    description: 'Path to ansible inventory'
+    required: false
+    default: 'ansible/inventories/oracle/hosts.yml'
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch secrets from Doppler
+      id: doppler
+      uses: dopplerhq/secrets-fetch-action@v1.3.0
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
+
+    - name: Setup SSH key
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
+        chmod 600 ~/.ssh/oci-homelab
+
+    - name: Setup Terraform (get VM IP)
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+
+    - name: Configure OCI
+      shell: bash
+      run: |
+        mkdir -p ~/.oci
+        echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        cat > ~/.oci/config << OCIEOF
+        [DEFAULT]
+        user=${{ steps.doppler.outputs.OCI_CLI_USER }}
+        fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+        tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+        region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
+        key_file=$HOME/.oci/oci_api_key.pem
+        OCIEOF
+
+    - name: Inject backend namespace
+      shell: bash
+      working-directory: terraform/oracle-cloud
+      run: |
+        sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: terraform/oracle-cloud
+      run: terraform init -reconfigure
+
+    - name: Get management VM IP
+      id: get-ip
+      shell: bash
+      working-directory: terraform/oracle-cloud
+      run: |
+        IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+        echo "public_ip=$IP" >> $GITHUB_OUTPUT
+        echo "vm_exists=$([[ -n \"$IP\" ]] && echo \"true\" || echo \"false\")" >> $GITHUB_OUTPUT
+
+    - name: Setup Python
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Ansible
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: pip install ansible
+
+    - name: Run Ansible Playbook
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      env:
+        ANSIBLE_HOST_KEY_CHECKING: "False"
+        DOPPLER_TOKEN: ${{ inputs.doppler-token }}
+        CLOUDFLARE_TUNNEL_TOKEN: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_TOKEN }}
+        LITELLM_MASTER_KEY: ${{ steps.doppler.outputs.LITELLM_MASTER_KEY }}
+        OPENCLAW_JWT_SECRET: ${{ steps.doppler.outputs.OPENCLAW_JWT_SECRET }}
+      run: |
+        sed -i "s/ansible_host: .*/ansible_host: ${{ steps.get-ip.outputs.public_ip }}/" ${{ inputs.ansible-inventory }}
+        ansible-playbook -i ${{ inputs.ansible-inventory }} ${{ inputs.ansible-playbook }} \
+          --private-key ~/.ssh/oci-homelab \
+          -u ubuntu \
+          -e "doppler_token=${{ inputs.doppler-token }}"
+
+    - name: Verify deployment
+      if: steps.get-ip.outputs.vm_exists == 'true'
+      shell: bash
+      run: |
+        echo "Checking container status..."
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+
+        # Check for restarting containers
+        RESTARTING=$(ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "docker ps --filter 'status=restarting' --format '{{.Names}}'" || true)
+        if [ -n "$RESTARTING" ]; then
+          echo "⚠️ WARNING: The following containers are restarting:"
+          echo "$RESTARTING"
+
+          # Show logs for restarting containers
+          for container in $RESTARTING; do
+            echo "=== Logs for $container ==="
+            ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "docker logs --tail 20 $container" || true
+          done
+
+          # Try to fix cloudflared specifically
+          if echo "$RESTARTING" | grep -q "cloudflared"; then
+            echo "🔧 Attempting to fix cloudflared..."
+            ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "docker rm -f oci-core-cloudflared-1 2>/dev/null || true; docker rm -f cloudflared 2>/dev/null || true"
+            ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "cd /opt/oci-core && docker compose --profile core up -d cloudflared"
+            sleep 5
+          fi
+
+          # Final check
+          sleep 5
+          echo "=== Final container status ==="
+          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ steps.get-ip.outputs.public_ip }} "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+        else
+          echo "✅ All containers are running properly!"
+        fi

@@ -1,0 +1,72 @@
+name: 'Fetch Doppler Secrets'
+description: 'Fetch all secrets from Doppler and expose them as outputs'
+inputs:
+  doppler-token:
+    description: 'Doppler service token'
+    required: true
+outputs:
+  cloudflare-api-token:
+    description: 'Cloudflare API token'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}
+  cloudflare-tunnel-token:
+    description: 'Cloudflare tunnel token'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_TOKEN }}
+  cloudflare-zone-id:
+    description: 'Cloudflare zone ID'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}
+  domain:
+    description: 'Domain name'
+    value: ${{ steps.doppler.outputs.DOMAIN }}
+  cloudflare-account-id:
+    description: 'Cloudflare account ID'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}
+  cloudflare-tunnel-secret:
+    description: 'Cloudflare tunnel secret'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}
+  cloudflare-tunnel-id:
+    description: 'Cloudflare tunnel ID'
+    value: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}
+  oci-compartment-id:
+    description: 'OCI compartment ID'
+    value: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
+  alert-email:
+    description: 'Alert email'
+    value: ${{ steps.doppler.outputs.ALERT_EMAIL }}
+  ssh-public-key:
+    description: 'SSH public key'
+    value: ${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}
+  ssh-private-key:
+    description: 'SSH private key'
+    value: ${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}
+  litellm-master-key:
+    description: 'Litellm master key'
+    value: ${{ steps.doppler.outputs.LITELLM_MASTER_KEY }}
+  openclaw-jwt-secret:
+    description: 'Openclaw JWT secret'
+    value: ${{ steps.doppler.outputs.OPENCLAW_JWT_SECRET }}
+  namespace:
+    description: 'OCI namespace'
+    value: ${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}
+  oci-cli-user:
+    description: 'OCI CLI user'
+    value: ${{ steps.doppler.outputs.OCI_CLI_USER }}
+  oci-cli-fingerprint:
+    description: 'OCI CLI fingerprint'
+    value: ${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
+  oci-cli-tenancy:
+    description: 'OCI CLI tenancy'
+    value: ${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
+  oci-cli-region:
+    description: 'OCI CLI region'
+    value: ${{ steps.doppler.outputs.OCI_CLI_REGION }}
+  oci-cli-key-content:
+    description: 'OCI CLI key content'
+    value: ${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch secrets from Doppler
+      id: doppler
+      uses: dopplerhq/secrets-fetch-action@v1.3.0
+      with:
+        doppler-token: ${{ inputs.doppler-token }}
