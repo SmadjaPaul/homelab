@@ -1,13 +1,23 @@
-# OCI Core Services - Maximum Uptime Setup
-# Runs on Oracle Cloud Always Free ARM instance
-# All ingress via Cloudflare Tunnel (zero open ports)
+# Enterprise Homelab - Phase 1 (No Authentik)
+# Services: cloudflared, traefik, blocky, prometheus, litellm, openclaw
+# Monitoring: Grafana Cloud (not self-hosted)
 
 name: oci-core
 
 services:
   # ============================================================================
-  # REVERSE PROXY & INGRESS
+  # INGRESS & NETWORKING
   # ============================================================================
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - proxy
+    profiles:
+      - core
 
   traefik:
     image: traefik:v3.1
@@ -18,11 +28,12 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@smadja.dev}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--serversTransport.insecureSkipVerify=true"
       - "--log.level=INFO"
       - "--accesslog=true"
     ports:
@@ -37,142 +48,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.smadja.dev`)"
       - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.middlewares=authentik@docker"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
     profiles:
       - core
-      - all
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - proxy
-    depends_on:
-      - traefik
-    profiles:
-      - core
-      - all
-
-  # ============================================================================
-  # AUTHENTICATION (Resource Heavy - Enable when ready)
-  # ============================================================================
-
-  authentik-postgres:
-    image: postgres:16-alpine
-    container_name: authentik-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD}
-      POSTGRES_USER: authentik
-      POSTGRES_DB: authentik
-    volumes:
-      - ./data/authentik/postgres:/var/lib/postgresql/data
-    networks:
-      - authentik
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
-    profiles:
-      - authentik
-      - all
-
-  authentik-redis:
-    image: redis:alpine
-    container_name: authentik-redis
-    restart: unless-stopped
-    command: --save 60 1 --loglevel warning
-    volumes:
-      - ./data/authentik/redis:/data
-    networks:
-      - authentik
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 3s
-    profiles:
-      - authentik
-      - all
-
-  authentik-server:
-    image: ghcr.io/goauthentik/server:2024.12
-    container_name: authentik-server
-    restart: unless-stopped
-    command: server
-    environment:
-      AUTHENTIK_REDIS__HOST: authentik-redis
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
-      AUTHENTIK_EMAIL__HOST: ${SMTP_HOST:-}
-      AUTHENTIK_EMAIL__PORT: ${SMTP_PORT:-587}
-      AUTHENTIK_EMAIL__USERNAME: ${SMTP_USERNAME:-}
-      AUTHENTIK_EMAIL__PASSWORD: ${SMTP_PASSWORD:-}
-      AUTHENTIK_EMAIL__USE_TLS: "true"
-      AUTHENTIK_EMAIL__FROM: ${SMTP_FROM:-noreply@smadja.dev}
-    volumes:
-      - ./data/authentik/media:/media
-      - ./data/authentik/custom-templates:/templates
-    networks:
-      - proxy
-      - authentik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.authentik.rule=Host(`auth.smadja.dev`)"
-      - "traefik.http.routers.authentik.entrypoints=websecure"
-      - "traefik.http.routers.authentik.tls.certresolver=letsencrypt"
-      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
-      - "traefik.http.middlewares.authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
-      - "traefik.http.middlewares.authentik.forwardauth.trustForwardHeader=true"
-      - "traefik.http.middlewares.authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid"
-    depends_on:
-      - authentik-postgres
-      - authentik-redis
-    profiles:
-      - authentik
-      - all
-
-  authentik-worker:
-    image: ghcr.io/goauthentik/server:2024.12
-    container_name: authentik-worker
-    restart: unless-stopped
-    command: worker
-    environment:
-      AUTHENTIK_REDIS__HOST: authentik-redis
-      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-    user: root
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./data/authentik/media:/media
-      - ./data/authentik/certs:/certs
-      - ./data/authentik/custom-templates:/templates
-    networks:
-      - authentik
-    depends_on:
-      - authentik-postgres
-      - authentik-redis
-    profiles:
-      - authentik
-      - all
-
-  # ============================================================================
-  # DNS & NETWORKING
-  # ============================================================================
 
   blocky:
     image: spx01/blocky:latest
@@ -192,33 +71,11 @@ services:
       - "traefik.http.routers.blocky.entrypoints=websecure"
       - "traefik.http.routers.blocky.tls.certresolver=letsencrypt"
       - "traefik.http.services.blocky.loadbalancer.server.port=4000"
-      - "traefik.http.routers.blocky.middlewares=authentik@docker"
     profiles:
       - core
-      - all
 
   # ============================================================================
-  # VPN & ACCESS
-  # ============================================================================
-
-  twingate-connector:
-    image: twingate/connector:latest
-    container_name: twingate-connector
-    restart: unless-stopped
-    environment:
-      - TWINGATE_NETWORK=${TWINGATE_NETWORK}
-      - TWINGATE_ACCESS_TOKEN=${TWINGATE_ACCESS_TOKEN}
-      - TWINGATE_REFRESH_TOKEN=${TWINGATE_REFRESH_TOKEN}
-    sysctls:
-      - net.ipv4.ping_group_range=0 2147483647
-    networks:
-      - proxy
-    profiles:
-      - vpn
-      - all
-
-  # ============================================================================
-  # MONITORING (Self-hosted + Grafana Cloud)
+  # MONITORING (Prometheus only, sends to Grafana Cloud)
   # ============================================================================
 
   prometheus:
@@ -228,10 +85,10 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-lifecycle'
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./data/prometheus:/prometheus
@@ -243,166 +100,73 @@ services:
       - "traefik.http.routers.prometheus.rule=Host(`prometheus.smadja.dev`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.prometheus.middlewares=authentik@docker"
     profiles:
-      - monitoring
-      - all
-
-  uptime-kuma:
-    image: louislam/uptime-kuma:latest
-    container_name: uptime-kuma
-    restart: unless-stopped
-    volumes:
-      - ./data/uptime-kuma:/app/data
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.uptime-kuma.rule=Host(`status.smadja.dev`)"
-      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
-      - "traefik.http.routers.uptime-kuma.tls.certresolver=letsencrypt"
-      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
-    profiles:
-      - monitoring
-      - all
-
-  gotify:
-    image: gotify/server:latest
-    container_name: gotify
-    restart: unless-stopped
-    environment:
-      - GOTIFY_DEFAULTUSER_NAME=${GOTIFY_DEFAULTUSER_NAME:-admin}
-      - GOTIFY_DEFAULTUSER_PASS=${GOTIFY_DEFAULTUSER_PASS}
-    volumes:
-      - ./data/gotify:/app/data
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gotify.rule=Host(`notify.smadja.dev`)"
-      - "traefik.http.routers.gotify.entrypoints=websecure"
-      - "traefik.http.routers.gotify.tls.certresolver=letsencrypt"
-      - "traefik.http.services.gotify.loadbalancer.server.port=80"
-      - "traefik.http.routers.gotify.middlewares=authentik@docker"
-    profiles:
-      - monitoring
-      - all
+      - core
 
   grafana-agent:
     image: grafana/grafana-agent:latest
     container_name: grafana-agent
     restart: unless-stopped
+    environment:
+      - GRAFANA_CLOUD_METRICS_URL=${GRAFANA_CLOUD_METRICS_URL}
+      - GRAFANA_CLOUD_LOGS_URL=${GRAFANA_CLOUD_LOGS_URL}
+      - GRAFANA_CLOUD_API_KEY=${GRAFANA_CLOUD_API_KEY}
     volumes:
       - ./config/grafana-agent.yml:/etc/agent/agent.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - monitoring
     profiles:
-      - monitoring
-      - all
+      - core
 
   # ============================================================================
-  # APPLICATIONS
+  # AI SERVICES
   # ============================================================================
 
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - DATABASE_URL=${LITELLM_DATABASE_URL:-sqlite:///app/litellm.db}
+      - STORE_MODEL_IN_DB=True
     volumes:
-      - ./config/homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/litellm:/app
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.homepage.rule=Host(`smadja.dev`) || Host(`www.smadja.dev`)"
-      - "traefik.http.routers.homepage.entrypoints=websecure"
-      - "traefik.http.routers.homepage.tls.certresolver=letsencrypt"
-      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
-      - "traefik.http.routers.homepage.middlewares=authentik@docker"
+      - "traefik.http.routers.litellm.rule=Host(`llm.smadja.dev`)"
+      - "traefik.http.routers.litellm.entrypoints=websecure"
+      - "traefik.http.routers.litellm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.litellm.loadbalancer.server.port=4000"
     profiles:
-      - apps
-      - all
+      - core
 
-  gitea:
-    image: gitea/gitea:latest
-    container_name: gitea
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
     restart: unless-stopped
     environment:
-      - USER_UID=1000
-      - USER_GID=1000
-      - GITEA__database__DB_TYPE=sqlite3
-      - GITEA__server__DOMAIN=git.smadja.dev
-      - GITEA__server__ROOT_URL=https://git.smadja.dev
-      - GITEA__security__INSTALL_LOCK=true
-    volumes:
-      - ./data/gitea:/data
+      - OPENCLAW_LITELLM_URL=${OPENCLAW_LITELLM_URL:-http://litellm:4000}
+      - OPENCLAW_LITELLM_KEY=${OPENCLAW_LITELLM_KEY}
+      - OPENCLAW_JWT_SECRET=${OPENCLAW_JWT_SECRET}
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gitea.rule=Host(`git.smadja.dev`)"
-      - "traefik.http.routers.gitea.entrypoints=websecure"
-      - "traefik.http.routers.gitea.tls.certresolver=letsencrypt"
-      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
-      - "traefik.http.routers.gitea.middlewares=authentik@docker"
+      - "traefik.http.routers.openclaw.rule=Host(`openclaw.smadja.dev`)"
+      - "traefik.http.routers.openclaw.entrypoints=websecure"
+      - "traefik.http.routers.openclaw.tls.certresolver=letsencrypt"
+      - "traefik.http.services.openclaw.loadbalancer.server.port=3000"
+    depends_on:
+      - litellm
     profiles:
-      - apps
-      - all
-
-  vaultwarden:
-    image: vaultwarden/server:latest
-    container_name: vaultwarden
-    restart: unless-stopped
-    environment:
-      - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=false
-      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
-    volumes:
-      - ./data/vaultwarden:/data
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vaultwarden.rule=Host(`vault.smadja.dev`)"
-      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
-      - "traefik.http.routers.vaultwarden.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
-      - "traefik.http.routers.vaultwarden.middlewares=authentik@docker"
-    profiles:
-      - apps
-      - all
-
-  filebrowser:
-    image: filebrowser/filebrowser:latest
-    container_name: filebrowser
-    restart: unless-stopped
-    environment:
-      - FB_DATABASE=/database/filebrowser.db
-    volumes:
-      - ./data/filebrowser:/srv
-      - ./data/filebrowser/database:/database
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.filebrowser.rule=Host(`files.smadja.dev`)"
-      - "traefik.http.routers.filebrowser.entrypoints=websecure"
-      - "traefik.http.routers.filebrowser.tls.certresolver=letsencrypt"
-      - "traefik.http.services.filebrowser.loadbalancer.server.port=80"
-      - "traefik.http.routers.filebrowser.middlewares=authentik@docker"
-    profiles:
-      - apps
-      - all
+      - core
 
 networks:
   proxy:
-    driver: bridge
-  authentik:
     driver: bridge
   monitoring:
     driver: bridge

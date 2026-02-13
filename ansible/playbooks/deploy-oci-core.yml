@@ -1,4 +1,9 @@
 ---
+# Deploy Enterprise Homelab - Phase 1
+# Services: cloudflared, traefik, blocky, prometheus, litellm, openclaw
+# Auth: Cloudflare Access (no Authentik)
+# Monitoring: Prometheus + Grafana Cloud
+
 - name: Deploy OCI Core Services
   hosts: oci_mgmt
   vars:
@@ -9,11 +14,15 @@
     - name: Update apt cache
       ansible.builtin.apt:
         update_cache: yes
+        cache_valid_time: 3600
       when: ansible_os_family == "Debian"
 
-    - name: Ensure Docker is installed
+    - name: Install required packages
       ansible.builtin.package:
-        name: docker.io
+        name:
+          - docker.io
+          - curl
+          - jq
         state: present
 
     - name: Ensure Docker service is running
@@ -36,17 +45,15 @@
         group: ubuntu
         mode: '0755'
 
-    - name: Sync OCI Core files from local repository
-      ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../../docker/oci-core/"
-        dest: "{{ oci_core_path }}/"
-        delete: yes
-        rsync_opts:
-          - "--exclude=.env"
-          - "--exclude=data"
-          - "--exclude=.git"
+    - name: Create config directory
+      ansible.builtin.file:
+        path: "{{ oci_core_path }}/config"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
 
-    - name: Ensure data directories exist
+    - name: Create data directories
       ansible.builtin.file:
         path: "{{ oci_core_path }}/{{ item }}"
         state: directory
@@ -55,100 +62,141 @@
         mode: '0755'
       loop:
         - data/traefik/letsencrypt
-        - data/authentik/postgres
-        - data/authentik/redis
-        - data/authentik/media
-        - data/authentik/custom-templates
-        - data/authentik/certs
         - data/prometheus
-        - data/uptime-kuma
-        - data/gotify
-        - data/gitea
-        - data/vaultwarden
-        - data/filebrowser/database
-        - config
+        - data/litellm
 
-    - name: Check if Doppler CLI is installed
-      ansible.builtin.command: which doppler
-      register: doppler_check
-      ignore_errors: true
-      changed_when: false
+    - name: Copy docker-compose file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../docker/oci-core/docker-compose.yml"
+        dest: "{{ oci_core_path }}/docker-compose.yml"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
 
-    - name: Install Doppler CLI if not present
-      ansible.builtin.shell: |
-        curl -Ls https://cli.doppler.com/install.sh | sh
-      when: doppler_check.rc != 0
+    - name: Create blocky config
+      ansible.builtin.copy:
+        dest: "{{ oci_core_path }}/config/blocky.yml"
+        content: |
+          upstream:
+            default:
+              - 1.1.1.1
+              - 1.0.0.1
+          blocking:
+            blackLists:
+              ads:
+                - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+            clientGroupsBlock:
+              default:
+                - ads
+          port: 53
+          httpPort: 4000
+          logLevel: info
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
 
-    - name: Create .env file from template
+    - name: Create prometheus config
+      ansible.builtin.copy:
+        dest: "{{ oci_core_path }}/config/prometheus.yml"
+        content: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+          scrape_configs:
+            - job_name: 'prometheus'
+              static_configs:
+                - targets: ['localhost:9090']
+            - job_name: 'docker'
+              static_configs:
+                - targets: ['host.docker.internal:9323']
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Create grafana-agent config
+      ansible.builtin.copy:
+        dest: "{{ oci_core_path }}/config/grafana-agent.yml"
+        content: |
+          metrics:
+            wal_directory: /tmp/grafana-agent-wal
+            global:
+              scrape_interval: 15s
+              remote_write:
+                - url: ${GRAFANA_CLOUD_METRICS_URL}
+                  basic_auth:
+                    username: ${GRAFANA_CLOUD_USER}
+                    password: ${GRAFANA_CLOUD_API_KEY}
+          logs:
+            configs:
+              - name: default
+                clients:
+                  - url: ${GRAFANA_CLOUD_LOGS_URL}
+                    basic_auth:
+                      username: ${GRAFANA_CLOUD_USER}
+                      password: ${GRAFANA_CLOUD_API_KEY}
+                positions:
+                  filename: /tmp/positions.yaml
+                scrape_configs:
+                  - job_name: varlogs
+                    static_configs:
+                      - targets: [localhost]
+                        labels:
+                          job: varlogs
+                          __path__: /var/log/*.log
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Create environment file
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../../docker/oci-core/.env.example"
         dest: "{{ oci_core_path }}/.env"
         owner: ubuntu
         group: ubuntu
         mode: '0600'
-      vars:
-        acme_email: "admin@smadja.dev"
-        cloudflare_tunnel_token: "{{ lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') }}"
-        authentik_secret_key: "{{ lookup('env', 'AUTHENTIK_SECRET_KEY') }}"
-        authentik_postgres_password: "{{ lookup('env', 'AUTHENTIK_POSTGRES_PASSWORD') }}"
-        vaultwarden_admin_token: "{{ lookup('env', 'VAULTWARDEN_ADMIN_TOKEN') }}"
-        gotify_defaultuser_pass: "{{ lookup('env', 'GOTIFY_DEFAULTUSER_PASS') }}"
       ignore_errors: true
 
-    - name: Pull Docker images for core profile
+    - name: Deploy services with Doppler
       ansible.builtin.shell: |
-        docker compose --profile core pull
-      args:
-        chdir: "{{ oci_core_path }}"
-
-    - name: Stop systemd-resolved to free port 53
-      ansible.builtin.systemd:
-        name: systemd-resolved
-        state: stopped
-        enabled: no
-      ignore_errors: true
-
-    - name: Configure DNS resolver
-      ansible.builtin.copy:
-        content: |
-          nameserver 1.1.1.1
-        dest: /etc/resolv.conf
-        owner: root
-        group: root
-        mode: '0644'
-      ignore_errors: true
-
-    - name: Deploy core profile with Doppler
-      ansible.builtin.shell: |
-        DOPPLER_TOKEN="{{ doppler_token }}" doppler run --project infrastructure --config prd_infrastructure -- docker compose --profile core up -d
+        export DOPPLER_TOKEN="{{ doppler_token }}"
+        doppler run --project infrastructure --config prd -- \
+          docker compose --profile core pull && \
+        doppler run --project infrastructure --config prd -- \
+          docker compose --profile core up -d
       args:
         chdir: "{{ oci_core_path }}"
       environment:
         DOPPLER_TOKEN: "{{ doppler_token }}"
+      register: deploy_result
       ignore_errors: true
 
-    - name: Deploy monitoring profile
-      ansible.builtin.shell: |
-        DOPPLER_TOKEN="{{ doppler_token }}" doppler run --project infrastructure --config prd_infrastructure -- docker compose --profile monitoring up -d
-      args:
-        chdir: "{{ oci_core_path }}"
-      environment:
-        DOPPLER_TOKEN: "{{ doppler_token }}"
-      ignore_errors: true
-
-    - name: Deploy apps profile
-      ansible.builtin.shell: |
-        DOPPLER_TOKEN="{{ doppler_token }}" doppler run --project infrastructure --config prd_infrastructure -- docker compose --profile apps up -d
-      args:
-        chdir: "{{ oci_core_path }}"
-      environment:
-        DOPPLER_TOKEN: "{{ doppler_token }}"
-      ignore_errors: true
+    - name: Wait for services to start
+      ansible.builtin.wait_for:
+        timeout: 30
+      when: deploy_result is succeeded
 
     - name: Show Docker container status
       ansible.builtin.command: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
       register: docker_status
 
-    - name: Display Docker status
+    - name: Display container status
       ansible.builtin.debug:
         var: docker_status.stdout_lines
+
+    - name: Check service health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ item.port }}{{ item.path }}"
+        method: GET
+        status_code: 200
+      loop:
+        - {name: "traefik", port: 8080, path: "/api/overview"}
+        - {name: "prometheus", port: 9090, path: "/-/healthy"}
+        - {name: "blocky", port: 4000, path: "/"}
+      ignore_errors: true
+      register: health_checks
+
+    - name: Display health check results
+      ansible.builtin.debug:
+        msg: "{{ item.item.name }}: {{ '✓ Healthy' if item.status == 200 else '✗ Unhealthy' }}"
+      loop: "{{ health_checks.results }}"
+      ignore_errors: true
