@@ -36,24 +36,16 @@ module "tokens" {
 }
 
 # -----------------------------------------------------------------------------
-# Google OAuth2 Provider (Social Login)
+# Apps — Proxy (Omni, LiteLLM, OpenClaw, Odoo), OIDC, Cloudflare Access, Outpost
 # -----------------------------------------------------------------------------
-module "google_oauth2" {
+module "apps" {
   source = "./modules/apps"
-  count  = var.create_google_oauth2_provider ? 1 : 0
 
-  google_oauth2_provider = {
-    name                   = "Google OAuth2"
-    client_id              = var.google_oauth2_client_id
-    client_secret          = var.google_oauth2_client_secret
-    authorization_flow     = var.default_authorization_flow_id
-    invalidation_flow      = var.default_invalidation_flow_id
-    signing_key            = var.default_certificate_key_pair_id
-    access_token_validity  = "hours=1"
-    refresh_token_validity = "days=30"
-    sub_mode               = "user_email"
-    allowed_redirect_uris = [
-      { url = "${var.authentik_url}/complete/google-oauth2/", matching_mode = "strict" }
-    ]
-  }
+  default_authorization_flow_id   = data.authentik_flow.default_authorization_flow.id
+  default_invalidation_flow_id    = data.authentik_flow.default_invalidation.id
+  default_certificate_key_pair_id = data.authentik_certificate_key_pair.default.id
+  authentik_url                   = var.authentik_url
+  domain                          = var.domain
+  cloudflare_access_team          = var.cloudflare_access_team
+  default_oidc_scope_mapping_ids  = local.default_oidc_scope_mapping_ids
 }

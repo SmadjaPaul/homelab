@@ -4,7 +4,7 @@
 
 # Available secrets in Doppler project "servarr":
 # - SONARR_API_KEY
-# - RADARR_API_KEY  
+# - RADARR_API_KEY
 # - PROWLARR_API_KEY
 # - QBITTY_PASSWORD
 # - SABNZBD_API_KEY

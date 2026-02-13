@@ -35,33 +35,33 @@ print_error() {
 # Check prerequisites
 check_prerequisites() {
     print_status "Checking prerequisites..."
-    
+
     # Check Docker
     if ! command -v docker &> /dev/null; then
         print_error "Docker not found. Please install Docker first."
         exit 1
     fi
-    
+
     # Check Doppler
     if ! command -v doppler &> /dev/null; then
         print_error "Doppler CLI not found. Installing..."
         curl -Ls https://cli.doppler.com/install.sh | sudo sh
     fi
-    
+
     # Check Doppler login
     if ! doppler me &> /dev/null; then
         print_error "Please login to Doppler first:"
         echo "  doppler login"
         exit 1
     fi
-    
+
     print_success "Prerequisites OK"
 }
 
 # Create required directories
 create_directories() {
     print_status "Creating data directories..."
-    
+
     mkdir -p data/traefik/letsencrypt
     mkdir -p data/authentik/{postgres,redis,media,custom-templates,certs}
     mkdir -p data/prometheus
@@ -71,27 +71,27 @@ create_directories() {
     mkdir -p data/vaultwarden
     mkdir -p data/filebrowser/database
     mkdir -p config
-    
+
     print_success "Directories created"
 }
 
 # Check secrets
 check_secrets() {
     print_status "Checking Doppler secrets..."
-    
+
     required_secrets=(
         "CLOUDFLARE_TUNNEL_TOKEN"
         "ACME_EMAIL"
     )
-    
+
     missing_secrets=()
-    
+
     for secret in "${required_secrets[@]}"; do
         if ! doppler secrets -p infrastructure get "$secret" &> /dev/null; then
             missing_secrets+=("$secret")
         fi
     done
-    
+
     if [ ${#missing_secrets[@]} -ne 0 ]; then
         print_error "Missing required secrets in Doppler (infrastructure project):"
         for secret in "${missing_secrets[@]}"; do
@@ -102,39 +102,39 @@ check_secrets() {
         echo "  doppler secrets set SECRET_NAME=value -p infrastructure"
         exit 1
     fi
-    
+
     print_success "Required secrets OK"
 }
 
 # Deploy services
 deploy() {
     local profile=$1
-    
+
     print_status "Deploying profile: $profile"
-    
+
     doppler run --project infrastructure --config prd -- \
         docker compose --profile "$profile" up -d
-    
+
     print_success "Profile $profile deployed"
 }
 
 # Check service health
 check_health() {
     print_status "Checking service health..."
-    
+
     sleep 5
-    
+
     # Get running containers
     running=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep -c "Up" || true)
-    
+
     if [ "$running" -eq 0 ]; then
         print_error "No containers running!"
         docker compose ps
         exit 1
     fi
-    
+
     print_success "$running containers running"
-    
+
     # Show status
     echo ""
     docker compose ps
@@ -188,7 +188,7 @@ show_menu() {
 # Main
 main() {
     local command=${1:-menu}
-    
+
     case "$command" in
         menu)
             show_menu

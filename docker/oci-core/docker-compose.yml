@@ -8,7 +8,7 @@ services:
   # ============================================================================
   # REVERSE PROXY & INGRESS
   # ============================================================================
-  
+
   traefik:
     image: traefik:v3.1
     container_name: traefik
@@ -60,7 +60,7 @@ services:
   # ============================================================================
   # AUTHENTICATION (Resource Heavy - Enable when ready)
   # ============================================================================
-  
+
   authentik-postgres:
     image: postgres:16-alpine
     container_name: authentik-postgres
@@ -173,7 +173,7 @@ services:
   # ============================================================================
   # DNS & NETWORKING
   # ============================================================================
-  
+
   blocky:
     image: spx01/blocky:latest
     container_name: blocky
@@ -200,7 +200,7 @@ services:
   # ============================================================================
   # VPN & ACCESS
   # ============================================================================
-  
+
   twingate-connector:
     image: twingate/connector:latest
     container_name: twingate-connector
@@ -220,7 +220,7 @@ services:
   # ============================================================================
   # MONITORING (Self-hosted + Grafana Cloud)
   # ============================================================================
-  
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -304,7 +304,7 @@ services:
   # ============================================================================
   # APPLICATIONS
   # ============================================================================
-  
+
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage

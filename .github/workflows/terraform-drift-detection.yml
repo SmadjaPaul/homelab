@@ -44,13 +44,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform plan -detailed-exitcode -out=tfplan || EXITCODE=$?
-          
+
           if [ -z "$EXITCODE" ]; then
             EXITCODE=0
           fi
-          
+
           echo "exitcode=$EXITCODE" >> $GITHUB_OUTPUT
-          
+
           if [ "$EXITCODE" -eq 0 ]; then
             echo "✅ No drift detected - infrastructure matches Terraform state"
           elif [ "$EXITCODE" -eq 2 ]; then
@@ -70,9 +70,9 @@ jobs:
               repo: context.repo.repo,
               title: '🚨 Infrastructure Drift Detected',
               body: `Infrastructure drift was detected at ${new Date().toISOString()}.
-              
+
               Run: \`terraform plan\` locally to see changes.
-              
+
               This means resources were modified outside of Terraform. Please review and either:
               1. Import the changes into Terraform state
               2. Revert the manual changes

@@ -22,7 +22,7 @@ output "status_note" {
   value       = <<EOF
 Authentik Terraform Configuration Summary:
 - Groups: ${length(module.groups.group_ids_by_name)} configured
-- Policies: ${length(module.policies.policy_ids_by_name)} configured  
+- Policies: ${length(module.policies.policy_ids_by_name)} configured
 - Users: ${length(var.authentik_users)} managed
 
 Note: Groups are managed manually in UI. Terraform ignores group changes.
