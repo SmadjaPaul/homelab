@@ -232,6 +232,7 @@ jobs:
              mkdir -p data/traefik/letsencrypt data/authentik/{postgres,redis,media,custom-templates,certs} data/prometheus data/uptime-kuma data/gotify data/gitea data/vaultwarden data/filebrowser/database && \
              (sudo systemctl stop systemd-resolved 2>/dev/null || true) && \
              echo 'nameserver 1.1.1.1' | sudo tee /etc/resolv.conf && \
+             curl -Ls https://cli.doppler.com/install.sh | sudo sh && \
              export DOPPLER_TOKEN='${{ secrets.DOPPLER_SERVICE_TOKEN }}' && \
              doppler run --project infrastructure --config prd -- docker compose --profile core up -d"
 
