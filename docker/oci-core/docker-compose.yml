@@ -1,6 +1,13 @@
 # Enterprise Homelab - Phase 1 (No Authentik)
 # Services: cloudflared, traefik, blocky, prometheus, litellm, openclaw
 # Monitoring: Grafana Cloud (not self-hosted)
+#
+# Usage with Doppler:
+#   export DOPPLER_TOKEN=dp.st.prd.xxxx
+#   ./doppler-run.sh up -d
+#
+# Or manually with env file:
+#   docker compose up -d
 
 name: oci-core
 
@@ -12,6 +19,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
+    # Token injected via Doppler or .env file
     command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - proxy
