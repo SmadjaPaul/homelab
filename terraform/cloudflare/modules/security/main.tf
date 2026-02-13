@@ -37,15 +37,24 @@ resource "cloudflare_zone_settings_override" "security" {
   }
 }
 
-# Data source to check if geo restriction ruleset already exists
-data "cloudflare_rulesets" "existing_geo" {
+# Data source to check if rulesets already exist (only when needed)
+data "cloudflare_rulesets" "existing" {
+  count   = var.enable_geo_restriction || var.enable_authentik_api_skip_challenge ? 1 : 0
   zone_id = var.zone_id
 }
 
 locals {
-  geo_ruleset_exists = length([
-    for rs in data.cloudflare_rulesets.existing_geo.rulesets : rs
+  # Only check for existing rulesets if the data source was created
+  rulesets = length(data.cloudflare_rulesets.existing) > 0 ? data.cloudflare_rulesets.existing[0].rulesets : []
+
+  geo_ruleset_exists = var.enable_geo_restriction && length([
+    for rs in local.rulesets : rs
     if rs.phase == "http_request_firewall_custom" && can(regex("[Gg]eo", rs.name))
+  ]) > 0
+
+  authentik_ruleset_exists = var.enable_authentik_api_skip_challenge && length([
+    for rs in local.rulesets : rs
+    if rs.phase == "http_config_settings" && can(regex("[Aa]uthentik", rs.name))
   ]) > 0
 }
 
@@ -63,13 +72,6 @@ resource "cloudflare_ruleset" "geo_restrict" {
     description = "Block access from outside allowed countries"
     expression  = length(var.allowed_countries) == 1 ? "(ip.src.country ne \"${var.allowed_countries[0]}\")" : "(not ip.src.country in {${join(" ", formatlist("\"%s\"", var.allowed_countries))}})"
   }
-}
-
-locals {
-  authentik_ruleset_exists = length([
-    for rs in data.cloudflare_rulesets.existing_geo.rulesets : rs
-    if rs.phase == "http_config_settings" && can(regex("[Aa]uthentik", rs.name))
-  ]) > 0
 }
 
 resource "cloudflare_ruleset" "authentik_api_skip_challenge" {

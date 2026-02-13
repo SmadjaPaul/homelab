@@ -18,6 +18,11 @@ variable "domain" {
   description = "Root domain"
   type        = string
   default     = "smadja.dev"
+
+  validation {
+    condition     = length(var.domain) > 0 && !endswith(var.domain, ".")
+    error_message = "Domain must not be empty and must not end with a period."
+  }
 }
 
 # Geo-restriction: allow traffic only from these countries (ISO 3166-1 Alpha 2)

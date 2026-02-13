@@ -114,15 +114,40 @@ jobs:
       - name: Create tfvars
         working-directory: ${{ env.TF_CF }}
         run: |
+          # Validate and set defaults for Cloudflare variables
+          DOMAIN="${{ steps.doppler.outputs.DOMAIN }}"
+          ZONE_ID="${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}"
+          API_TOKEN="${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}"
+
+          # Validate required variables with fallbacks
+          if [ -z "$API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set in Doppler"
+            exit 1
+          fi
+
+          if [ -z "$DOMAIN" ]; then
+            echo "::warning::DOMAIN not set in Doppler, using default: smadja.dev"
+            DOMAIN="smadja.dev"
+          fi
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "::warning::CLOUDFLARE_ZONE_ID not set in Doppler, using default"
+            ZONE_ID="bda8e2196f6b4f1684c6c9c06d996109"
+          fi
+
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}"
-          zone_id = "${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}"
-          domain = "${{ steps.doppler.outputs.DOMAIN }}"
+          cloudflare_api_token = "$API_TOKEN"
+          zone_id = "$ZONE_ID"
+          domain = "$DOMAIN"
           enable_tunnel = true
           cloudflare_account_id = "${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}"
           tunnel_secret = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}"
           tunnel_id = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}"
           enable_tunnel_config = true
+          # Disable features requiring elevated permissions (Zone WAF)
+          enable_zone_settings = false
+          enable_geo_restriction = false
+          enable_authentik_api_skip_challenge = false
           EOF
       - name: Terraform Apply
         working-directory: ${{ env.TF_CF }}
