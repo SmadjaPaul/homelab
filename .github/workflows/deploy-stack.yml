@@ -212,7 +212,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
           chmod 600 ~/.ssh/oci-homelab
-          echo "Host 141.253.104.22" >> ~/.ssh/config
+          echo "Host ${{ steps.get-ip.outputs.public_ip }}" >> ~/.ssh/config
           echo "    IdentityFile ~/.ssh/oci-homelab" >> ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
           echo "    BatchMode yes" >> ~/.ssh/config
