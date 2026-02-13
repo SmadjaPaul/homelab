@@ -35,6 +35,18 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install required tools
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq jq rsync
+
+    - name: Install Doppler CLI
+      shell: bash
+      run: |
+        curl -sL https://cli.doppler.com/install | sh
+        echo "$HOME/.doppler/bin" >> $GITHUB_PATH
+
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
       with:
