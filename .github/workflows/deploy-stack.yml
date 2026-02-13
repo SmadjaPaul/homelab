@@ -216,6 +216,9 @@ jobs:
       - name: Inject backend namespace
         working-directory: ${{ env.TF_OCI }}
         run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+      - name: Terraform Init
+        working-directory: ${{ env.TF_OCI }}
+        run: terraform init -reconfigure
       - name: Get management VM IP
         id: get-ip
         working-directory: ${{ env.TF_OCI }}
