@@ -83,7 +83,7 @@ jobs:
     name: 1. Cloudflare
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.cloudflare == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.cloudflare == 'true' || needs.detect-changes.outputs.oci == 'true' || needs.detect-changes.outputs.oci_mgmt == 'true' || needs.detect-changes.outputs.authentik == 'true'
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +128,7 @@ jobs:
   oci:
     name: 2. OCI
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs: cloudflare
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.oci == 'true'
     environment: production
     permissions:
@@ -172,7 +172,7 @@ jobs:
   oci-mgmt:
     name: 3. Deploy oci-mgmt
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs: oci
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.oci_mgmt == 'true'
     environment: production
     steps:
@@ -234,7 +234,7 @@ jobs:
   authentik:
     name: 4. Authentik
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs: oci-mgmt
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.authentik == 'true'
     environment: production
     steps:
