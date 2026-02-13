@@ -98,11 +98,11 @@ jobs:
               echo "oci_mgmt=true" >> $GITHUB_OUTPUT
               echo "authentik=true" >> $GITHUB_OUTPUT
             else
-              # Individual job selection
-              [[ "${{ github.event.inputs.cloudflare }}" == "true" ]] && echo "cloudflare=true" >> $GITHUB_OUTPUT || echo "cloudflare=false" >> $GITHUB_OUTPUT
-              [[ "${{ github.event.inputs.oci }}" == "true" ]] && echo "oci=true" >> $GITHUB_OUTPUT || echo "oci=false" >> $GITHUB_OUTPUT
-              [[ "${{ github.event.inputs.oci_mgmt }}" == "true" ]] && echo "oci_mgmt=true" >> $GITHUB_OUTPUT || echo "oci_mgmt=false" >> $GITHUB_OUTPUT
-              [[ "${{ github.event.inputs.authentik }}" == "true" ]] && echo "authentik=true" >> $GITHUB_OUTPUT || echo "authentik=false" >> $GITHUB_OUTPUT
+              # Individual job selection - always run detect-changes but allow independent jobs
+              echo "cloudflare=${{ github.event.inputs.cloudflare }}" >> $GITHUB_OUTPUT
+              echo "oci=${{ github.event.inputs.oci }}" >> $GITHUB_OUTPUT
+              echo "oci_mgmt=${{ github.event.inputs.oci_mgmt }}" >> $GITHUB_OUTPUT
+              echo "authentik=${{ github.event.inputs.authentik }}" >> $GITHUB_OUTPUT
             fi
           else
             # Auto-detection from path filters
@@ -191,7 +191,7 @@ jobs:
   oci:
     name: 2. OCI
     runs-on: ubuntu-latest
-    needs: [detect-changes, cloudflare]
+    needs: [detect-changes]
     if: always() && (needs.detect-changes.result == 'success' && needs.cloudflare.result == 'success')
     environment: production
     permissions:
@@ -254,7 +254,7 @@ jobs:
   oci-mgmt:
     name: 3. Deploy oci-mgmt
     runs-on: ubuntu-latest
-    needs: [detect-changes, oci]
+    needs: [detect-changes]
     if: always() && (needs.detect-changes.result == 'success' && needs.oci.result == 'success')
     environment: production
     permissions:
@@ -318,36 +318,23 @@ jobs:
           echo "Host 141.253.104.22" >> ~/.ssh/config
           echo "    IdentityFile ~/.ssh/oci-homelab" >> ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "    BatchMode yes" >> ~/.ssh/config
       - name: Run Ansible Playbook
         if: steps.skip.outputs.run == 'true' && steps.get-ip.outputs.vm_exists == 'true'
         run: |
-          # Install Ansible
-          pip install ansible
-          ansible-galaxy collection install community.docker || true
-
-          # Sync oci-core to VM and deploy
+          # Sync oci-core to VM
           rsync -avz --exclude='.env' --exclude='data' --exclude='.git' \
-            -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no" \
+            -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
             ./docker/oci-core/ ubuntu@${{ steps.get-ip.outputs.public_ip }}:/opt/oci-core/
 
-          # Run deployment via SSH
-          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no ubuntu@${{ steps.get-ip.outputs.public_ip }} << 'ANSIBLE_EOF'
-            cd /opt/oci-core
-
-            # Create directories
-            mkdir -p data/traefik/letsencrypt
-            mkdir -p data/authentik/{postgres,redis,media,custom-templates,certs}
-            mkdir -p data/prometheus data/uptime-kuma data/gotify
-            mkdir -p data/gitea data/vaultwarden data/filebrowser/database
-
-            # Stop systemd-resolved
-            sudo systemctl stop systemd-resolved || true
-            echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf
-
-            # Deploy with Doppler (pass secrets via SSH)
-            export DOPPLER_TOKEN="${{ secrets.DOPPLER_SERVICE_TOKEN }}"
-            doppler run --project infrastructure --config prd -- docker compose --profile core up -d
-          ANSIBLE_EOF
+          # Run deployment via SSH (no heredoc, use inline commands)
+          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@${{ steps.get-ip.outputs.public_ip }} \
+            "cd /opt/oci-core && \
+             mkdir -p data/traefik/letsencrypt data/authentik/{postgres,redis,media,custom-templates,certs} data/prometheus data/uptime-kuma data/gotify data/gitea data/vaultwarden data/filebrowser/database && \
+             sudo systemctl stop systemd-resolved 2>/dev/null || true && \
+             echo 'nameserver 1.1.1.1' | sudo tee /etc/resolv.conf && \
+             export DOPPLER_TOKEN='${{ secrets.DOPPLER_SERVICE_TOKEN }}' && \
+             doppler run --project infrastructure --config prd -- docker compose --profile core up -d"
       - name: Skipped (no oci-mgmt changes)
         if: steps.skip.outputs.run != 'true'
         run: echo "Skipped — no changes for oci-mgmt"
@@ -356,7 +343,7 @@ jobs:
   authentik:
     name: 4. Authentik
     runs-on: ubuntu-latest
-    needs: [detect-changes, oci-mgmt]
+    needs: [detect-changes]
     if: always() && (needs.detect-changes.result == 'success' && needs.oci-mgmt.result == 'success')
     environment: production
     steps:
