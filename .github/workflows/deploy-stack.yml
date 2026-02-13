@@ -1,7 +1,3 @@
-# Deploy Stack (ordre unique : Cloudflare → OCI → oci-mgmt → Authentik)
-# Un seul workflow, un seul run. Chaque couche ne s'exécute que si ses fichiers ont changé.
-# Push main (paths) ou workflow_dispatch (tout exécuter).
-# Secrets: Tous les secrets proviennent de Doppler (infrastructure/prd)
 name: Deploy Stack
 
 on:
@@ -19,27 +15,27 @@ on:
   workflow_dispatch:
     inputs:
       run_all:
-        description: 'Run all layers (ignore path filters)'
+        description: 'Run all layers'
         required: false
         default: true
         type: boolean
       cloudflare:
-        description: 'Run Cloudflare job'
+        description: 'Run Cloudflare'
         required: false
         default: false
         type: boolean
       oci:
-        description: 'Run OCI job'
+        description: 'Run OCI'
         required: false
         default: false
         type: boolean
       oci_mgmt:
-        description: 'Run oci-mgmt job'
+        description: 'Run oci-mgmt'
         required: false
         default: false
         type: boolean
       authentik:
-        description: 'Run Authentik job'
+        description: 'Run Authentik'
         required: false
         default: false
         type: boolean
@@ -59,10 +55,10 @@ jobs:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      cloudflare: ${{ steps.outputs.outputs.cloudflare }}
-      oci: ${{ steps.outputs.outputs.oci }}
-      oci_mgmt: ${{ steps.outputs.outputs.oci_mgmt }}
-      authentik: ${{ steps.outputs.outputs.authentik }}
+      cloudflare: ${{ steps.filter.outputs.cloudflare }}
+      oci: ${{ steps.filter.outputs.oci }}
+      oci_mgmt: ${{ steps.filter.outputs.oci_mgmt }}
+      authentik: ${{ steps.filter.outputs.authentik }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,154 +69,87 @@ jobs:
           filters: |
             cloudflare:
               - 'terraform/cloudflare/**'
-              - '.github/workflows/deploy-stack.yml'
             oci:
               - 'terraform/oracle-cloud/**'
-              - 'Taskfile.yaml'
-              - '.github/workflows/deploy-stack.yml'
             oci_mgmt:
               - 'docker/oci-core/**'
               - 'ansible/**'
               - 'doppler.yaml'
-              - '.github/workflows/deploy-stack.yml'
             authentik:
               - 'terraform/authentik/**'
-              - '.github/workflows/deploy-stack.yml'
           base: main
-      - name: Set outputs (use filter or run_all)
-        id: outputs
-        run: |
-          # Manual selection via workflow_dispatch
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.event.inputs.run_all }}" == "true" ]]; then
-              echo "cloudflare=true" >> $GITHUB_OUTPUT
-              echo "oci=true" >> $GITHUB_OUTPUT
-              echo "oci_mgmt=true" >> $GITHUB_OUTPUT
-              echo "authentik=true" >> $GITHUB_OUTPUT
-            else
-              # Individual job selection - always run detect-changes but allow independent jobs
-              echo "cloudflare=${{ github.event.inputs.cloudflare }}" >> $GITHUB_OUTPUT
-              echo "oci=${{ github.event.inputs.oci }}" >> $GITHUB_OUTPUT
-              echo "oci_mgmt=${{ github.event.inputs.oci_mgmt }}" >> $GITHUB_OUTPUT
-              echo "authentik=${{ github.event.inputs.authentik }}" >> $GITHUB_OUTPUT
-            fi
-          else
-            # Auto-detection from path filters
-            echo "cloudflare=${{ steps.filter.outputs.cloudflare }}" >> $GITHUB_OUTPUT
-            echo "oci=${{ steps.filter.outputs.oci }}" >> $GITHUB_OUTPUT
-            echo "oci_mgmt=${{ steps.filter.outputs.oci_mgmt }}" >> $GITHUB_OUTPUT
-            echo "authentik=${{ steps.filter.outputs.authentik }}" >> $GITHUB_OUTPUT
-          fi
 
-  # ---- 1. Cloudflare ----
   cloudflare:
     name: 1. Cloudflare
     runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: always() && (needs.detect-changes.result == 'success')
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.run_all == 'true' || github.event.inputs.cloudflare == 'true') || needs.detect-changes.outputs.cloudflare == 'true'
     environment: production
     steps:
-      - name: Skip when no Cloudflare changes
-        id: skip
-        run: echo "run=${{ needs.detect-changes.outputs.cloudflare }}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-        if: steps.skip.outputs.run == 'true'
       - name: Fetch secrets from Doppler
-        if: steps.skip.outputs.run == 'true'
         id: doppler
         uses: dopplerhq/secrets-fetch-action@v1.3.0
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-      - name: Configure OCI for Terraform backend
-        if: steps.skip.outputs.run == 'true'
-        env:
-          OCI_CLI_KEY: ${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}
+      - name: Configure OCI
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_CLI_KEY" > ~/.oci/oci_api_key.pem
+          printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
             "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
       - uses: hashicorp/setup-terraform@v3
-        if: steps.skip.outputs.run == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
       - name: Inject backend namespace
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
-        env:
-          OCI_NAMESPACE: ${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}
-        run: |
-          [[ -z "$OCI_NAMESPACE" ]] && { echo "::error::OCI_OBJECT_STORAGE_NAMESPACE required"; exit 1; }
-          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" main.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
       - name: Terraform Init
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
         run: terraform init -reconfigure
       - name: Create tfvars
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
         run: |
           cat > terraform.tfvars << EOF
           cloudflare_api_token = "${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}"
-          zone_id = "${{ vars.CLOUDFLARE_ZONE_ID || 'bda8e2196f6b4f1684c6c9c06d996109' }}"
+          zone_id = "bda8e2196f6b4f1684c6c9c06d996109"
           domain = "smadja.dev"
           enable_tunnel = true
           cloudflare_account_id = "${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}"
           tunnel_secret = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}"
-          tunnel_id = "${{ vars.CLOUDFLARE_TUNNEL_ID }}"
-          enable_authentik_api_skip_challenge = false
-          enable_geo_restriction = false
-          enable_access_applications = false
-          enable_zone_settings = false
+          tunnel_id = "64e0b862-35f3-45e8-ab7c-f1eee6609eab"
           enable_tunnel_config = true
-          oci_management_ip = "${{ vars.OCI_MANAGEMENT_IP }}"
-          proxmox_local_ip = "${{ vars.PROXMOX_LOCAL_IP || '192.168.68.51' }}"
           EOF
       - name: Terraform Apply
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_CF }}
         run: terraform apply -refresh=false -auto-approve -lock=false
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}
-      - name: Skipped (no Cloudflare changes)
-        if: steps.skip.outputs.run != 'true'
-        run: echo "Skipped — no changes for Cloudflare"
 
-  # ---- 2. OCI ----
   oci:
     name: 2. OCI
     runs-on: ubuntu-latest
-    needs: [detect-changes, cloudflare]
-    if: always() && (needs.detect-changes.result == 'success' && needs.cloudflare.result == 'success')
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.run_all == 'true' || github.event.inputs.oci == 'true') || needs.detect-changes.outputs.oci == 'true'
     environment: production
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Skip when no OCI changes
-        id: skip
-        run: echo "run=${{ needs.detect-changes.outputs.oci }}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-        if: steps.skip.outputs.run == 'true'
       - name: Fetch secrets from Doppler
-        if: steps.skip.outputs.run == 'true'
         id: doppler
         uses: dopplerhq/secrets-fetch-action@v1.3.0
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-      - name: Set SSH public key for Terraform
-        if: steps.skip.outputs.run == 'true'
+      - name: Set SSH public key
         run: |
           echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
           printf '%s\n' "${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
       - uses: hashicorp/setup-terraform@v3
-        if: steps.skip.outputs.run == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Configure OCI Authentication
-        if: steps.skip.outputs.run == 'true'
+      - name: Configure OCI
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
@@ -228,60 +157,35 @@ jobs:
           printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
             "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
       - name: Inject backend namespace
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
       - name: Terraform Init
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: terraform init -reconfigure
       - name: Terraform Apply
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
           TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
-          TF_VAR_vault_secrets_managed_in_ci: "true"
-          TF_VAR_budget_alert_email: ${{ vars.TF_VAR_budget_alert_email || 'smadjapaul02@gmail.com' }}
-          TF_VAR_user_ocid: ${{ steps.doppler.outputs.OCI_CLI_USER }}
-          TF_VAR_admin_allowed_cidrs: ${{ secrets.ADMIN_ALLOWED_CIDRS || '[]' }}
-          TF_VAR_allow_ssh_from_anywhere: ${{ vars.ALLOW_SSH_FROM_ANYWHERE || 'false' }}
-      - name: Skipped (no OCI changes)
-        if: steps.skip.outputs.run != 'true'
-        run: echo "Skipped — no changes for OCI"
 
-  # ---- 3. Deploy OCI Management Stack ----
   oci-mgmt:
     name: 3. Deploy oci-mgmt
     runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: always() && (needs.detect-changes.result == 'success' && needs.oci.result == 'success')
+    needs: [detect-changes, oci]
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.run_all == 'true' || github.event.inputs.oci_mgmt == 'true') || needs.detect-changes.outputs.oci_mgmt == 'true'
     environment: production
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      mgmt_ip: ${{ steps.get-ip.outputs.public_ip }}
-      vm_exists: ${{ steps.get-ip.outputs.vm_exists }}
     steps:
-      - name: Skip when no oci-mgmt changes
-        id: skip
-        run: echo "run=${{ needs.detect-changes.outputs.oci_mgmt }}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-        if: steps.skip.outputs.run == 'true'
       - name: Fetch secrets from Doppler
-        if: steps.skip.outputs.run == 'true'
         id: doppler
         uses: dopplerhq/secrets-fetch-action@v1.3.0
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
       - name: Setup Terraform (get VM IP)
-        if: steps.skip.outputs.run == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Configure OCI Authentication
-        if: steps.skip.outputs.run == 'true'
+      - name: Configure OCI
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
@@ -289,28 +193,20 @@ jobs:
           printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
             "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
       - name: Inject backend namespace
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
       - name: Terraform Init
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: terraform init -reconfigure
       - name: Get management VM IP
         id: get-ip
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_OCI }}
         run: |
           IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
-          if [[ -z "$IP" ]]; then
-            echo "public_ip=" >> $GITHUB_OUTPUT
-            echo "vm_exists=false" >> $GITHUB_OUTPUT
-          else
-            echo "public_ip=$IP" >> $GITHUB_OUTPUT
-            echo "vm_exists=true" >> $GITHUB_OUTPUT
-          fi
+          echo "public_ip=$IP" >> $GITHUB_OUTPUT
+          echo "vm_exists=$([[ -n "$IP" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
       - name: Setup SSH key
-        if: steps.skip.outputs.run == 'true' && steps.get-ip.outputs.vm_exists == 'true'
+        if: steps.get-ip.outputs.vm_exists == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ steps.doppler.outputs.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
@@ -319,47 +215,35 @@ jobs:
           echo "    IdentityFile ~/.ssh/oci-homelab" >> ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
           echo "    BatchMode yes" >> ~/.ssh/config
-      - name: Run Ansible Playbook
-        if: steps.skip.outputs.run == 'true' && steps.get-ip.outputs.vm_exists == 'true'
+      - name: Deploy to VM
+        if: steps.get-ip.outputs.vm_exists == 'true'
         run: |
-          # Sync oci-core to VM
           rsync -avz --exclude='.env' --exclude='data' --exclude='.git' \
             -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
             ./docker/oci-core/ ubuntu@${{ steps.get-ip.outputs.public_ip }}:/opt/oci-core/
 
-          # Run deployment via SSH (no heredoc, use inline commands)
           ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@${{ steps.get-ip.outputs.public_ip }} \
             "cd /opt/oci-core && \
              mkdir -p data/traefik/letsencrypt data/authentik/{postgres,redis,media,custom-templates,certs} data/prometheus data/uptime-kuma data/gotify data/gitea data/vaultwarden data/filebrowser/database && \
-             sudo systemctl stop systemd-resolved 2>/dev/null || true && \
+             (sudo systemctl stop systemd-resolved 2>/dev/null || true) && \
              echo 'nameserver 1.1.1.1' | sudo tee /etc/resolv.conf && \
              export DOPPLER_TOKEN='${{ secrets.DOPPLER_SERVICE_TOKEN }}' && \
              doppler run --project infrastructure --config prd -- docker compose --profile core up -d"
-      - name: Skipped (no oci-mgmt changes)
-        if: steps.skip.outputs.run != 'true'
-        run: echo "Skipped — no changes for oci-mgmt"
 
-  # ---- 4. Authentik ----
   authentik:
     name: 4. Authentik
     runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: always() && (needs.detect-changes.result == 'success' && needs.oci-mgmt.result == 'success')
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.run_all == 'true' || github.event.inputs.authentik == 'true') || needs.detect-changes.outputs.authentik == 'true'
     environment: production
     steps:
-      - name: Skip when no Authentik changes
-        id: skip
-        run: echo "run=${{ needs.detect-changes.outputs.authentik }}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-        if: steps.skip.outputs.run == 'true'
       - name: Fetch secrets from Doppler
-        if: steps.skip.outputs.run == 'true'
         id: doppler
         uses: dopplerhq/secrets-fetch-action@v1.3.0
         with:
           doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
       - name: Configure OCI
-        if: steps.skip.outputs.run == 'true'
         run: |
           mkdir -p ~/.oci
           printf '%s\n' "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
@@ -367,31 +251,14 @@ jobs:
           printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
             "${{ steps.doppler.outputs.OCI_CLI_USER }}" "${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}" "${{ steps.doppler.outputs.OCI_CLI_TENANCY }}" "${{ steps.doppler.outputs.OCI_CLI_REGION }}" "$HOME" > ~/.oci/config
       - uses: hashicorp/setup-terraform@v3
-        if: steps.skip.outputs.run == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Inject backend namespace (OCI)
-        if: steps.skip.outputs.run == 'true'
+      - name: Inject backend namespace
         working-directory: ${{ env.TF_AUTH }}
-        env:
-          OCI_NAMESPACE: ${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}
-        run: |
-          [[ -z "$OCI_NAMESPACE" ]] && { echo "::error::OCI_OBJECT_STORAGE_NAMESPACE required for Authentik backend"; exit 1; }
-          sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$OCI_NAMESPACE/g" backend.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
       - name: Terraform Init
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_AUTH }}
         run: terraform init -reconfigure -input=false
       - name: Terraform Apply
-        if: steps.skip.outputs.run == 'true'
         working-directory: ${{ env.TF_AUTH }}
-        env:
-          AUTHENTIK_URL: ${{ steps.doppler.outputs.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
-          AUTHENTIK_TOKEN: ${{ steps.doppler.outputs.AUTHENTIK_TOKEN }}
-          TF_VAR_authentik_url: ${{ steps.doppler.outputs.AUTHENTIK_URL || 'https://auth.smadja.dev' }}
-        run: |
-          terraform plan -input=false -var="authentik_url=${{ steps.doppler.outputs.AUTHENTIK_URL || 'https://auth.smadja.dev' }}" -out=tfplan
-          terraform apply -input=false -auto-approve -lock=false tfplan || terraform apply -input=false -auto-approve -lock=false -var="authentik_url=${{ steps.doppler.outputs.AUTHENTIK_URL || 'https://auth.smadja.dev' }}"
-      - name: Skipped (no Authentik changes)
-        if: steps.skip.outputs.run != 'true'
-        run: echo "Skipped — no changes for Authentik"
+        run: terraform apply -input=false -auto-approve -lock=false -var="authentik_url=https://auth.smadja.dev"
