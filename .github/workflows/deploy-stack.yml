@@ -220,6 +220,9 @@ jobs:
       - name: Deploy to VM
         if: steps.get-ip.outputs.vm_exists == 'true'
         run: |
+          ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@${{ steps.get-ip.outputs.public_ip }} \
+            "sudo mkdir -p /opt/oci-core && sudo chown -R ubuntu:ubuntu /opt/oci-core"
+
           rsync -avz --exclude='.env' --exclude='data' --exclude='.git' \
             -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
             ./docker/oci-core/ ubuntu@${{ steps.get-ip.outputs.public_ip }}:/opt/oci-core/
