@@ -135,6 +135,16 @@ jobs:
             ZONE_ID="bda8e2196f6b4f1684c6c9c06d996109"
           fi
 
+          # Set optional feature flags with defaults
+          ENABLE_ZONE_SETTINGS="${{ steps.doppler.outputs.ENABLE_ZONE_SETTINGS }}"
+          ENABLE_GEO_RESTRICTION="${{ steps.doppler.outputs.ENABLE_GEO_RESTRICTION }}"
+          ENABLE_API_SKIP_CHALLENGE="${{ steps.doppler.outputs.ENABLE_API_SKIP_CHALLENGE }}"
+
+          # Default to false if not set
+          [ -z "$ENABLE_ZONE_SETTINGS" ] && ENABLE_ZONE_SETTINGS="false"
+          [ -z "$ENABLE_GEO_RESTRICTION" ] && ENABLE_GEO_RESTRICTION="false"
+          [ -z "$ENABLE_API_SKIP_CHALLENGE" ] && ENABLE_API_SKIP_CHALLENGE="false"
+
           cat > terraform.tfvars << EOF
           cloudflare_api_token = "$API_TOKEN"
           zone_id = "$ZONE_ID"
@@ -144,10 +154,10 @@ jobs:
           tunnel_secret = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}"
           tunnel_id = "${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}"
           enable_tunnel_config = true
-          # Disable features requiring elevated permissions (Zone WAF)
-          enable_zone_settings = false
-          enable_geo_restriction = false
-          enable_authentik_api_skip_challenge = false
+          # Zone WAF features (require Zone WAF permissions)
+          enable_zone_settings = $ENABLE_ZONE_SETTINGS
+          enable_geo_restriction = $ENABLE_GEO_RESTRICTION
+          enable_authentik_api_skip_challenge = $ENABLE_API_SKIP_CHALLENGE
           EOF
       - name: Terraform Apply
         working-directory: ${{ env.TF_CF }}
