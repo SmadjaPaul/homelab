@@ -11,9 +11,8 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - proxy
     profiles:
@@ -21,7 +20,6 @@ services:
 
   traefik:
     image: traefik:v3.1
-    container_name: traefik
     restart: unless-stopped
     command:
       - "--api.insecure=true"
@@ -55,11 +53,10 @@ services:
 
   blocky:
     image: spx01/blocky:latest
-    container_name: blocky
     restart: unless-stopped
     ports:
-      - "53:53/tcp"
-      - "53:53/udp"
+      - "5053:53/tcp"
+      - "5053:53/udp"
       - "4000:4000/tcp"
     volumes:
       - ./config/blocky.yml:/app/config.yml:ro
@@ -80,7 +77,6 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus
     restart: unless-stopped
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -104,8 +100,7 @@ services:
       - core
 
   grafana-agent:
-    image: grafana/grafana-agent:latest
-    container_name: grafana-agent
+    image: grafana/agent:latest
     restart: unless-stopped
     environment:
       - GRAFANA_CLOUD_METRICS_URL=${GRAFANA_CLOUD_METRICS_URL}
@@ -123,47 +118,15 @@ services:
   # AI SERVICES
   # ============================================================================
 
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: litellm
-    restart: unless-stopped
-    environment:
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - DATABASE_URL=${LITELLM_DATABASE_URL:-sqlite:///app/litellm.db}
-      - STORE_MODEL_IN_DB=True
-    volumes:
-      - ./data/litellm:/app
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.litellm.rule=Host(`llm.smadja.dev`)"
-      - "traefik.http.routers.litellm.entrypoints=websecure"
-      - "traefik.http.routers.litellm.tls.certresolver=letsencrypt"
-      - "traefik.http.services.litellm.loadbalancer.server.port=4000"
-    profiles:
-      - core
+  # litellm:
+  #   image: ghcr.io/berriai/litellm:main-latest
+  #   restart: unless-stopped
+  # NOTE: Disabled due to ARM64 compatibility - needs amd64 VM or self-hosted deployment
 
-  openclaw:
-    image: ghcr.io/openclaw/openclaw:latest
-    container_name: openclaw
-    restart: unless-stopped
-    environment:
-      - OPENCLAW_LITELLM_URL=${OPENCLAW_LITELLM_URL:-http://litellm:4000}
-      - OPENCLAW_LITELLM_KEY=${OPENCLAW_LITELLM_KEY}
-      - OPENCLAW_JWT_SECRET=${OPENCLAW_JWT_SECRET}
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.openclaw.rule=Host(`openclaw.smadja.dev`)"
-      - "traefik.http.routers.openclaw.entrypoints=websecure"
-      - "traefik.http.routers.openclaw.tls.certresolver=letsencrypt"
-      - "traefik.http.services.openclaw.loadbalancer.server.port=3000"
-    depends_on:
-      - litellm
-    profiles:
-      - core
+  # openclaw:
+  #   image: ghcr.io/openclaw/openclaw:latest
+  #   restart: unless-stopped
+  # NOTE: Disabled due to ARM64 compatibility
 
 networks:
   proxy:

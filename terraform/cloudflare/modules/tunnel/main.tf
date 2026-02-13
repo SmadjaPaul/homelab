@@ -50,59 +50,59 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
     # Homepage
     ingress_rule {
       hostname = "smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
     ingress_rule {
       hostname = "www.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Authentik
     ingress_rule {
       hostname = "auth.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # DNS Blocky
     ingress_rule {
       hostname = "dns.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Gitea
     ingress_rule {
       hostname = "git.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Vaultwarden
     ingress_rule {
       hostname = "vault.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # File Browser
     ingress_rule {
       hostname = "files.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Uptime Kuma
     ingress_rule {
       hostname = "status.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Prometheus
     ingress_rule {
       hostname = "prometheus.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Traefik Dashboard
     ingress_rule {
       hostname = "traefik.smadja.dev"
-      service  = "http://traefik.proxy:80"
+      service  = "http://traefik:80"
     }
 
     # Proxmox (at home)

@@ -32,11 +32,6 @@ on:
         required: false
         default: false
         type: boolean
-      authentik:
-        description: 'Run Authentik'
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: deploy-stack-${{ github.ref }}
@@ -46,7 +41,6 @@ env:
   TF_VERSION: '1.14.4'
   TF_CF: terraform/cloudflare
   TF_OCI: terraform/oracle-cloud
-  TF_AUTH: terraform/authentik
 
 jobs:
   detect-changes:
@@ -56,7 +50,6 @@ jobs:
       cloudflare: ${{ steps.filter.outputs.cloudflare }}
       oci: ${{ steps.filter.outputs.oci }}
       oci_mgmt: ${{ steps.filter.outputs.oci_mgmt }}
-      authentik: ${{ steps.filter.outputs.authentik }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,8 +64,6 @@ jobs:
               - 'terraform/oracle-cloud/**'
             oci_mgmt:
               - 'ansible/**'
-            authentik:
-              - 'terraform/authentik/**'
           base: main
 
   cloudflare:
@@ -274,6 +265,9 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_TOKEN }}
+          LITELLM_MASTER_KEY: ${{ steps.doppler.outputs.LITELLM_MASTER_KEY }}
+          OPENCLAW_JWT_SECRET: ${{ steps.doppler.outputs.OPENCLAW_JWT_SECRET }}
         run: |
           # Update inventory with dynamic IP
           sed -i "s/ansible_host: .*/ansible_host: ${{ steps.get-ip.outputs.public_ip }}/" ansible/inventories/oracle/hosts.yml
@@ -283,42 +277,3 @@ jobs:
             --private-key ~/.ssh/oci-homelab \
             -u ubuntu \
             -e "doppler_token=${{ secrets.DOPPLER_SERVICE_TOKEN }}"
-
-  authentik:
-    name: 4. Authentik
-    runs-on: ubuntu-latest
-    needs: oci-mgmt
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.authentik == 'true'
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fetch secrets from Doppler
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-      - name: Configure OCI
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ steps.doppler.outputs.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          cat > ~/.oci/config << OCIEOF
-          [DEFAULT]
-          user=${{ steps.doppler.outputs.OCI_CLI_USER }}
-          fingerprint=${{ steps.doppler.outputs.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ steps.doppler.outputs.OCI_CLI_TENANCY }}
-          region=${{ steps.doppler.outputs.OCI_CLI_REGION }}
-          key_file=$HOME/.oci/oci_api_key.pem
-          OCIEOF
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-      - name: Inject backend namespace
-        working-directory: ${{ env.TF_AUTH }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
-      - name: Terraform Init
-        working-directory: ${{ env.TF_AUTH }}
-        run: terraform init -reconfigure -input=false
-      - name: Terraform Apply
-        working-directory: ${{ env.TF_AUTH }}
-        run: terraform apply -input=false -auto-approve -lock=false -var="authentik_url=${{ steps.doppler.outputs.AUTHENTIK_URL }}"

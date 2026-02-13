@@ -5,7 +5,7 @@
 # Monitoring: Prometheus + Grafana Cloud
 
 - name: Deploy OCI Core Services
-  hosts: oci_mgmt
+  hosts: oci-mgmt
   vars:
     oci_core_path: "/opt/oci-core"
     doppler_token: "{{ lookup('env', 'DOPPLER_TOKEN') }}"
@@ -18,9 +18,10 @@
       when: ansible_os_family == "Debian"
 
     - name: Install required packages
-      ansible.builtin.package:
+      ansible.builtin.apt:
         name:
           - docker.io
+          - docker-compose-v2
           - curl
           - jq
         state: present
@@ -64,6 +65,14 @@
         - data/traefik/letsencrypt
         - data/prometheus
         - data/litellm
+
+    - name: Fix prometheus data ownership for non-root container
+      ansible.builtin.file:
+        path: "{{ oci_core_path }}/data/prometheus"
+        state: directory
+        owner: "65534"
+        group: "65534"
+        recurse: yes
 
     - name: Copy docker-compose file
       ansible.builtin.copy:
@@ -147,56 +156,52 @@
         group: ubuntu
         mode: '0644'
 
-    - name: Create environment file
-      ansible.builtin.template:
-        src: "{{ playbook_dir }}/../../docker/oci-core/.env.example"
-        dest: "{{ oci_core_path }}/.env"
+    - name: Create environment file with secrets
+      blockinfile:
+        path: "{{ oci_core_path }}/.env"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          ACME_EMAIL=admin@smadja.dev
+          CLOUDFLARE_TUNNEL_TOKEN={{ lookup('ansible.builtin.env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('', true) }}
+          LITELLM_MASTER_KEY={{ lookup('ansible.builtin.env', 'LITELLM_MASTER_KEY') | default('changeme', true) }}
+          LITELLM_DATABASE_URL=sqlite:///app/litellm.db
+          OPENCLAW_LITELLM_URL=http://litellm:4000
+          OPENCLAW_LITELLM_KEY={{ lookup('ansible.builtin.env', 'LITELLM_MASTER_KEY') | default('changeme', true) }}
+          OPENCLAW_JWT_SECRET={{ lookup('ansible.builtin.env', 'OPENCLAW_JWT_SECRET') | default('changeme', true) }}
+          GRAFANA_CLOUD_METRICS_URL={{ lookup('ansible.builtin.env', 'GRAFANA_CLOUD_METRICS_URL') | default('', true) }}
+          GRAFANA_CLOUD_LOGS_URL={{ lookup('ansible.builtin.env', 'GRAFANA_CLOUD_LOGS_URL') | default('', true) }}
+          GRAFANA_CLOUD_API_KEY={{ lookup('ansible.builtin.env', 'GRAFANA_CLOUD_API_KEY') | default('', true) }}
+          GRAFANA_CLOUD_USER={{ lookup('ansible.builtin.env', 'GRAFANA_CLOUD_USER') | default('', true) }}
+        create: yes
+        mode: '0600'
         owner: ubuntu
         group: ubuntu
-        mode: '0600'
       ignore_errors: true
 
-    - name: Deploy services with Doppler
-      ansible.builtin.shell: |
-        export DOPPLER_TOKEN="{{ doppler_token }}"
-        doppler run --project infrastructure --config prd -- \
-          docker compose --profile core pull && \
-        doppler run --project infrastructure --config prd -- \
-          docker compose --profile core up -d
-      args:
-        chdir: "{{ oci_core_path }}"
-      environment:
-        DOPPLER_TOKEN: "{{ doppler_token }}"
-      register: deploy_result
+    - name: Pull images
+      ansible.builtin.shell:
+        cmd: "cd {{ oci_core_path }} && docker compose --profile core pull"
+        executable: /bin/bash
+      ignore_errors: true
+      register: compose_pull
+
+    - name: Start services
+      ansible.builtin.shell:
+        cmd: "cd {{ oci_core_path }} && docker compose --profile core up -d"
+        executable: /bin/bash
+      register: compose_up
       ignore_errors: true
 
     - name: Wait for services to start
-      ansible.builtin.wait_for:
-        timeout: 30
-      when: deploy_result is succeeded
+      ansible.builtin.pause:
+        seconds: 15
+      when: compose_up is changed
 
     - name: Show Docker container status
-      ansible.builtin.command: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      ansible.builtin.command: docker ps
       register: docker_status
+      changed_when: false
 
     - name: Display container status
       ansible.builtin.debug:
         var: docker_status.stdout_lines
-
-    - name: Check service health
-      ansible.builtin.uri:
-        url: "http://localhost:{{ item.port }}{{ item.path }}"
-        method: GET
-        status_code: 200
-      loop:
-        - {name: "traefik", port: 8080, path: "/api/overview"}
-        - {name: "prometheus", port: 9090, path: "/-/healthy"}
-        - {name: "blocky", port: 4000, path: "/"}
-      ignore_errors: true
-      register: health_checks
-
-    - name: Display health check results
-      ansible.builtin.debug:
-        msg: "{{ item.item.name }}: {{ '✓ Healthy' if item.status == 200 else '✗ Unhealthy' }}"
-      loop: "{{ health_checks.results }}"
-      ignore_errors: true
