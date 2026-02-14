@@ -276,6 +276,7 @@ jobs:
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
 
       - name: Terraform Apply
+        continue-on-error: true
         working-directory: terraform/authentik
         run: terraform apply -auto-approve -lock=false
         env:
