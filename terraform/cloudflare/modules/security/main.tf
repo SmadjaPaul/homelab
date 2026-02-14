@@ -93,3 +93,34 @@ resource "cloudflare_ruleset" "authentik_api_skip_challenge" {
     }
   }
 }
+
+locals {
+  # Check if WAF skip ruleset already exists
+  api_waf_skip_exists = var.enable_authentik_api_skip_challenge && length([
+    for rs in local.rulesets : rs
+    if rs.phase == "http_request_firewall_custom" && can(regex("[Aa]uthentik.*[Ss]kip", rs.name))
+  ]) > 0
+}
+
+# WAF rule to skip all Cloudflare protections for Authentik API paths
+# This is needed because http_config_settings doesn't disable Browser Integrity Check
+resource "cloudflare_ruleset" "authentik_api_waf_skip" {
+  count = var.enable_authentik_api_skip_challenge && !local.api_waf_skip_exists ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "Authentik API - WAF skip"
+  description = "Skip all WAF rules for auth.*/api/v3/* (allows Terraform/CI API calls)"
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    action      = "skip"
+    description = "Skip all protections for Authentik API endpoints"
+    expression  = "(http.host eq \"auth.${var.domain}\" and starts_with(http.request.uri.path, \"/api/v3/\"))"
+
+    action_parameters {
+      # Skip all WAF rules including Browser Integrity Check
+      products = ["bic", "hot", "score", "sql", "xss", "uaBlock"]
+    }
+  }
+}
