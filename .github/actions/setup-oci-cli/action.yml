@@ -40,11 +40,11 @@ runs:
           "$HOME" > ~/.oci/config
 
         # Export as environment variables for Terraform provider and backend
+        # Note: OCI_CLI_KEY_CONTENT is not exported as env var (multiline) - it's in the config file
         echo "OCI_CLI_USER=${{ inputs.oci-cli-user }}" >> $GITHUB_ENV
         echo "OCI_CLI_FINGERPRINT=${{ inputs.oci-cli-fingerprint }}" >> $GITHUB_ENV
         echo "OCI_CLI_TENANCY=${{ inputs.oci-cli-tenancy }}" >> $GITHUB_ENV
         echo "OCI_CLI_REGION=${{ inputs.oci-cli-region }}" >> $GITHUB_ENV
-        echo "OCI_CLI_KEY_CONTENT=${{ inputs.oci-cli-key-content }}" >> $GITHUB_ENV
         echo "OCI_OBJECT_STORAGE_NAMESPACE=${{ inputs.oci-object-storage-namespace }}" >> $GITHUB_ENV
 
         if [ -n "${{ inputs.oci-compartment-id }}" ]; then
