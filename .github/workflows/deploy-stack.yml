@@ -253,9 +253,20 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker ps --format 'table {{.Names}}\t{{.Ports}}'"
 
+          echo "=== Container health ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker inspect --format='{{.State.Health.Status}}' oci-core-authentik-server-1 || echo 'No health check'"
+
+          echo "=== Last 30 lines of container logs ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker logs --tail 30 oci-core-authentik-server-1"
+
           echo "=== Testing API from VM ==="
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "curl -sf http://localhost:9000/api/v3/core/users/ && echo 'API OK' || echo 'API Failed'"
+
+      - name: Wait for container to fully start
+        run: echo "Waiting 30s for container to initialize..." && sleep 30
 
       - name: Setup Terraform with OCI Backend
         uses: ./.github/actions/terraform-oci
