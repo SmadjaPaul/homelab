@@ -1,14 +1,10 @@
 # Enterprise Homelab - Authentik + Cloudflare Access Architecture
-# Services: cloudflared, traefik, authentik, blocky, prometheus
+# Services: cloudflared, traefik, authentik, prometheus
 # Monitoring: Grafana Cloud (via Alloy)
-# Database: Supabase PostgreSQL (external)
+# Database: Aiven PostgreSQL (external)
 #
 # Architecture:
 #   User → Cloudflare Access → Authentik (IdP) → Cloudflare → Traefik → Service
-#
-# Usage with Doppler:
-#   export DOPPLER_TOKEN=dp.st.prd.xxxx
-#   ./doppler-run.sh up -d
 
 name: oci-core
 
@@ -132,31 +128,6 @@ services:
     restart: unless-stopped
     networks:
       - authentik
-    profiles:
-      - core
-
-  # ============================================================================
-  # DNS (Blocky)
-  # ============================================================================
-
-  blocky:
-    image: spx01/blocky:latest
-    restart: unless-stopped
-    ports:
-      - "5053:53/tcp"
-      - "5053:53/udp"
-      - "4000:4000/tcp"
-    volumes:
-      - ./config/blocky.yml:/app/config.yml:ro
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.blocky.rule=Host(`dns.smadja.dev`)"
-      - "traefik.http.routers.blocky.entrypoints=websecure"
-      - "traefik.http.routers.blocky.tls.certresolver=letsencrypt"
-      - "traefik.http.services.blocky.loadbalancer.server.port=4000"
-      # Note: Auth handled by Cloudflare Access
     profiles:
       - core
 

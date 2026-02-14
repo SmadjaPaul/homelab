@@ -13,6 +13,45 @@ inputs:
     description: 'Path to ansible inventory'
     required: false
     default: 'ansible/inventories/oracle/hosts.yml'
+  # OCI Credentials
+  oci-cli-user:
+    description: 'OCI CLI User'
+    required: true
+  oci-cli-fingerprint:
+    description: 'OCI CLI Fingerprint'
+    required: true
+  oci-cli-tenancy:
+    description: 'OCI CLI Tenancy'
+    required: true
+  oci-cli-region:
+    description: 'OCI CLI Region'
+    required: true
+  oci-cli-key-content:
+    description: 'OCI CLI Private Key Content'
+    required: true
+  oci-object-storage-namespace:
+    description: 'OCI Object Storage Namespace'
+    required: true
+  oci-mgmt-ip:
+    description: 'OCI Management VM IP (optional)'
+    required: false
+    default: ''
+  # SSH
+  ssh-private-key:
+    description: 'SSH Private Key'
+    required: true
+  # Secrets for Ansible
+  cloudflare-tunnel-token:
+    description: 'Cloudflare Tunnel Token'
+    required: true
+  litellm-master-key:
+    description: 'Litellm Master Key'
+    required: false
+    default: ''
+  openclaw-jwt-secret:
+    description: 'OpenClaw JWT Secret'
+    required: false
+    default: ''
 runs:
   using: 'composite'
   steps:
@@ -20,7 +59,7 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
+        echo "${{ inputs.ssh-private-key }}" > ~/.ssh/oci-homelab
         chmod 600 ~/.ssh/oci-homelab
 
     - name: Setup Terraform (get VM IP)
@@ -32,14 +71,14 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.oci
-        echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+        echo "${{ inputs.oci-cli-key-content }}" > ~/.oci/oci_api_key.pem
         chmod 600 ~/.oci/oci_api_key.pem
         cat > ~/.oci/config << OCIEOF
         [DEFAULT]
-        user=${{ secrets.OCI_CLI_USER }}
-        fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
-        tenancy=${{ secrets.OCI_CLI_TENANCY }}
-        region=${{ secrets.OCI_CLI_REGION }}
+        user=${{ inputs.oci-cli-user }}
+        fingerprint=${{ inputs.oci-cli-fingerprint }}
+        tenancy=${{ inputs.oci-cli-tenancy }}
+        region=${{ inputs.oci-cli-region }}
         key_file=$HOME/.oci/oci_api_key.pem
         OCIEOF
 
@@ -47,7 +86,7 @@ runs:
       shell: bash
       working-directory: terraform/oracle-cloud
       run: |
-        sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
+        sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ inputs.oci-object-storage-namespace }}/g" backend.tf
 
     - name: Terraform Init
       shell: bash
@@ -59,10 +98,10 @@ runs:
       shell: bash
       working-directory: terraform/oracle-cloud
       run: |
-        # Prefer OCI_MGMT_IP from environment secrets if set
-        if [[ -n "${{ secrets.OCI_MGMT_IP }}" ]]; then
-          IP="${{ secrets.OCI_MGMT_IP }}"
-          echo "Using OCI_MGMT_IP from environment: $IP"
+        # Prefer OCI_MGMT_IP from inputs if provided
+        if [[ -n "${{ inputs.oci-mgmt-ip }}" ]]; then
+          IP="${{ inputs.oci-mgmt-ip }}"
+          echo "Using OCI_MGMT_IP from inputs: $IP"
         else
           IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
           echo "Using IP from Terraform: $IP"
@@ -86,10 +125,10 @@ runs:
       shell: bash
       env:
         ANSIBLE_HOST_KEY_CHECKING: "False"
-        OCI_MGMT_IP: ${{ secrets.OCI_MGMT_IP }}
-        CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-        LITELLM_MASTER_KEY: ${{ secrets.LITELLM_MASTER_KEY }}
-        OPENCLAW_JWT_SECRET: ${{ secrets.OPENCLAW_JWT_SECRET }}
+        OCI_MGMT_IP: ${{ steps.get-ip.outputs.public_ip }}
+        CLOUDFLARE_TUNNEL_TOKEN: ${{ inputs.cloudflare-tunnel-token }}
+        LITELLM_MASTER_KEY: ${{ inputs.litellm-master-key }}
+        OPENCLAW_JWT_SECRET: ${{ inputs.openclaw-jwt-secret }}
       run: |
         ansible-playbook -i ${{ inputs.ansible-inventory }} ${{ inputs.ansible-playbook }} \
           --private-key ~/.ssh/oci-homelab \

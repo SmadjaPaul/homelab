@@ -14,6 +14,14 @@ jobs:
     name: Detect Infrastructure Drift
     runs-on: ubuntu-latest
     environment: production
+    env:
+      # OCI credentials for backend access (injected from Doppler sync)
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 

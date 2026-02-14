@@ -21,6 +21,100 @@ inputs:
     description: 'Timeout in seconds for health check'
     required: false
     default: '300'
+  # OCI Credentials
+  oci-cli-user:
+    description: 'OCI CLI User'
+    required: true
+  oci-cli-fingerprint:
+    description: 'OCI CLI Fingerprint'
+    required: true
+  oci-cli-tenancy:
+    description: 'OCI CLI Tenancy'
+    required: true
+  oci-cli-region:
+    description: 'OCI CLI Region'
+    required: true
+  oci-cli-key-content:
+    description: 'OCI CLI Private Key Content'
+    required: true
+  oci-object-storage-namespace:
+    description: 'OCI Object Storage Namespace'
+    required: true
+  # SSH
+  ssh-private-key:
+    description: 'SSH Private Key'
+    required: true
+  # VM IP
+  vm-ip:
+    description: 'VM IP address (optional, will be fetched if not provided)'
+    required: false
+    default: ''
+  # Secrets for .env file
+  acme-email:
+    description: 'ACME Email'
+    required: true
+  cloudflare-tunnel-token:
+    description: 'Cloudflare Tunnel Token'
+    required: true
+  authentik-secret-key:
+    description: 'Authentik Secret Key'
+    required: false
+    default: ''
+  authentik-bootstrap-token:
+    description: 'Authentik Bootstrap Token'
+    required: false
+    default: ''
+  authentik-bootstrap-password:
+    description: 'Authentik Bootstrap Password'
+    required: false
+    default: ''
+  authentik-postgres-host:
+    description: 'Authentik PostgreSQL Host'
+    required: false
+    default: ''
+  authentik-postgres-port:
+    description: 'Authentik PostgreSQL Port'
+    required: false
+    default: ''
+  authentik-postgres-name:
+    description: 'Authentik PostgreSQL Database Name'
+    required: false
+    default: ''
+  authentik-postgres-user:
+    description: 'Authentik PostgreSQL User'
+    required: false
+    default: ''
+  authentik-postgres-password:
+    description: 'Authentik PostgreSQL Password'
+    required: false
+    default: ''
+  litellm-master-key:
+    description: 'Litellm Master Key'
+    required: false
+    default: ''
+  openclaw-litellm-key:
+    description: 'OpenClaw Litellm Key'
+    required: false
+    default: ''
+  openclaw-jwt-secret:
+    description: 'OpenClaw JWT Secret'
+    required: false
+    default: ''
+  grafana-cloud-metrics-url:
+    description: 'Grafana Cloud Metrics URL'
+    required: false
+    default: ''
+  grafana-cloud-logs-url:
+    description: 'Grafana Cloud Logs URL'
+    required: false
+    default: ''
+  grafana-cloud-api-key:
+    description: 'Grafana Cloud API Key'
+    required: false
+    default: ''
+  domain:
+    description: 'Domain'
+    required: true
 runs:
   using: 'composite'
   steps:
@@ -32,24 +126,37 @@ runs:
 
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
+      with:
+        oci-cli-user: ${{ inputs.oci-cli-user }}
+        oci-cli-fingerprint: ${{ inputs.oci-cli-fingerprint }}
+        oci-cli-tenancy: ${{ inputs.oci-cli-tenancy }}
+        oci-cli-region: ${{ inputs.oci-cli-region }}
+        oci-cli-key-content: ${{ inputs.oci-cli-key-content }}
+        oci-object-storage-namespace: ${{ inputs.oci-object-storage-namespace }}
 
     - name: Setup SSH key
       shell: bash
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
+        echo "${{ inputs.ssh-private-key }}" > ~/.ssh/oci-homelab
         chmod 600 ~/.ssh/oci-homelab
 
     - name: Get VM IP
       id: get-ip
       shell: bash
       run: |
-        # Prefer OCI_MGMT_IP from environment secrets if set
-        if [[ -n "${{ secrets.OCI_MGMT_IP }}" ]]; then
-          IP="${{ secrets.OCI_MGMT_IP }}"
-          echo "Using OCI_MGMT_IP from environment: $IP"
+        # Use provided VM IP or query Terraform
+        if [[ -n "${{ inputs.vm-ip }}" ]]; then
+          IP="${{ inputs.vm-ip }}"
+          echo "Using provided VM IP: $IP"
         else
           cd terraform/oracle-cloud
+          # Inject namespace first
+          NAMESPACE="${{ inputs.oci-object-storage-namespace }}"
+          if [ -f "backend.tf" ]; then
+            sed -i.bak "s/YOUR_TENANCY_NAMESPACE/$NAMESPACE/g" backend.tf 2>/dev/null || true
+          fi
+          terraform init -reconfigure
           IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
           echo "Using IP from Terraform: $IP"
         fi
@@ -62,35 +169,35 @@ runs:
       run: |
         cat > /tmp/oci-core.env << 'EOF'
         # Core
-        ACME_EMAIL=${{ secrets.ACME_EMAIL }}
-        CLOUDFLARE_TUNNEL_TOKEN=${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        ACME_EMAIL=${{ inputs.acme-email }}
+        CLOUDFLARE_TUNNEL_TOKEN=${{ inputs.cloudflare-tunnel-token }}
 
-        # Authentik (if needed)
-        AUTHENTIK_SECRET_KEY=${{ secrets.AUTHENTIK_SECRET_KEY }}
-        AUTHENTIK_BOOTSTRAP_TOKEN=${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-        AUTHENTIK_BOOTSTRAP_PASSWORD=${{ secrets.AUTHENTIK_BOOTSTRAP_PASSWORD }}
+        # Authentik
+        AUTHENTIK_SECRET_KEY=${{ inputs.authentik-secret-key }}
+        AUTHENTIK_BOOTSTRAP_TOKEN=${{ inputs.authentik-bootstrap-token }}
+        AUTHENTIK_BOOTSTRAP_PASSWORD=${{ inputs.authentik-bootstrap-password }}
 
-        # PostgreSQL (if needed)
-        AUTHENTIK_POSTGRES_HOST=${{ secrets.AUTHENTIK_POSTGRES_HOST }}
-        AUTHENTIK_POSTGRES_PORT=${{ secrets.AUTHENTIK_POSTGRES_PORT }}
-        AUTHENTIK_POSTGRES_NAME=${{ secrets.AUTHENTIK_POSTGRES_NAME }}
-        AUTHENTIK_POSTGRES_USER=${{ secrets.AUTHENTIK_POSTGRES_USER }}
-        AUTHENTIK_POSTGRES_PASSWORD=${{ secrets.AUTHENTIK_POSTGRES_PASSWORD }}
+        # PostgreSQL
+        AUTHENTIK_POSTGRES_HOST=${{ inputs.authentik-postgres-host }}
+        AUTHENTIK_POSTGRES_PORT=${{ inputs.authentik-postgres-port }}
+        AUTHENTIK_POSTGRES_NAME=${{ inputs.authentik-postgres-name }}
+        AUTHENTIK_POSTGRES_USER=${{ inputs.authentik-postgres-user }}
+        AUTHENTIK_POSTGRES_PASSWORD=${{ inputs.authentik-postgres-password }}
 
         # Litellm
-        LITELLM_MASTER_KEY=${{ secrets.LITELLM_MASTER_KEY }}
+        LITELLM_MASTER_KEY=${{ inputs.litellm-master-key }}
 
         # OpenClaw
-        OPENCLAW_LITELLM_KEY=${{ secrets.OPENCLAW_LITELLM_KEY }}
-        OPENCLAW_JWT_SECRET=${{ secrets.OPENCLAW_JWT_SECRET }}
+        OPENCLAW_LITELLM_KEY=${{ inputs.openclaw-litellm-key }}
+        OPENCLAW_JWT_SECRET=${{ inputs.openclaw-jwt-secret }}
 
         # Grafana Cloud
-        GRAFANA_CLOUD_METRICS_URL=${{ secrets.GRAFANA_CLOUD_METRICS_URL }}
-        GRAFANA_CLOUD_LOGS_URL=${{ secrets.GRAFANA_CLOUD_LOGS_URL }}
-        GRAFANA_CLOUD_API_KEY=${{ secrets.GRAFANA_CLOUD_API_KEY }}
+        GRAFANA_CLOUD_METRICS_URL=${{ inputs.grafana-cloud-metrics-url }}
+        GRAFANA_CLOUD_LOGS_URL=${{ inputs.grafana-cloud-logs-url }}
+        GRAFANA_CLOUD_API_KEY=${{ inputs.grafana-cloud-api-key }}
 
         # Domain
-        DOMAIN=${{ secrets.DOMAIN }}
+        DOMAIN=${{ inputs.domain }}
         EOF
         echo "✅ Created .env file with secrets"
 

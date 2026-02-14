@@ -25,45 +25,41 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.step == 'all' || github.event.inputs.step == 'cloudflare'
     environment: production
+    env:
+      # OCI credentials for backend access
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup OCI CLI
-        uses: ./.github/actions/setup-oci-cli
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform with OCI Backend
+        uses: ./.github/actions/terraform-oci
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Inject backend namespace
-        working-directory: ${{ env.TF_CF }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
-
-      - name: Terraform Init
-        working-directory: ${{ env.TF_CF }}
-        run: terraform init -reconfigure
-
-      - name: Create tfvars
-        working-directory: ${{ env.TF_CF }}
-        run: |
-          cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
-          zone_id = "${{ secrets.CLOUDFLARE_ZONE_ID }}"
-          domain = "${{ secrets.DOMAIN }}"
-          enable_tunnel = true
-          cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
-          tunnel_id = "${{ secrets.CLOUDFLARE_TUNNEL_ID }}"
-          enable_tunnel_config = true
-          enable_zone_settings = false
-          enable_geo_restriction = false
-          enable_authentik_api_skip_challenge = false
-          EOF
+          working-directory: ${{ env.TF_CF }}
+          terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_CF }}
         run: terraform apply -refresh=false -auto-approve -lock=false
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+          TF_VAR_tunnel_id: ${{ secrets.CLOUDFLARE_TUNNEL_ID }}
+          TF_VAR_tunnel_secret: ${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_create_root_record: "false"
+          TF_VAR_enable_authentik_api_skip_challenge: "true"
 
   oci:
     name: OCI Infrastructure
@@ -71,38 +67,35 @@ jobs:
     needs: cloudflare
     if: (github.event.inputs.step == 'all' || github.event.inputs.step == 'oci') && (needs.cloudflare.result == 'success' || needs.cloudflare.result == 'skipped')
     environment: production
-    permissions:
-      contents: read
-      id-token: write
+    env:
+      # OCI credentials for backend access
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup OCI CLI
-        uses: ./.github/actions/setup-oci-cli
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform with OCI Backend
+        uses: ./.github/actions/terraform-oci
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Set SSH public key
-        run: |
-          echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Inject backend namespace
-        working-directory: ${{ env.TF_OCI }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
-
-      - name: Terraform Init
-        working-directory: ${{ env.TF_OCI }}
-        run: terraform init -reconfigure
+          working-directory: ${{ env.TF_OCI }}
+          terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          oci-compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_OCI }}
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
           TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
@@ -115,7 +108,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Ansible with verification
-        uses: ./.github/actions/run-ansible
+      - name: Get VM IP
+        id: get-ip
+        uses: ./.github/actions/get-oci-vm-ip
         with:
-          terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+
+      - name: Deploy Docker Compose
+        uses: ./.github/actions/deploy-docker-compose
+        with:
+          compose-project: 'oci-core'
+          compose-profile: 'core'
+          wait-for-healthy: 'true'
+          health-timeout: '300'
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          vm-ip: ${{ steps.get-ip.outputs.vm_ip }}
+          acme-email: ${{ secrets.ACME_EMAIL }}
+          cloudflare-tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          authentik-secret-key: ${{ secrets.AUTHENTIK_SECRET_KEY }}
+          authentik-bootstrap-token: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
+          authentik-bootstrap-password: ${{ secrets.AUTHENTIK_BOOTSTRAP_PASSWORD }}
+          authentik-postgres-host: ${{ secrets.AUTHENTIK_POSTGRES_HOST }}
+          authentik-postgres-port: ${{ secrets.AUTHENTIK_POSTGRES_PORT }}
+          authentik-postgres-name: ${{ secrets.AUTHENTIK_POSTGRES_NAME }}
+          authentik-postgres-user: ${{ secrets.AUTHENTIK_POSTGRES_USER }}
+          authentik-postgres-password: ${{ secrets.AUTHENTIK_POSTGRES_PASSWORD }}
+          litellm-master-key: ${{ secrets.LITELLM_MASTER_KEY }}
+          openclaw-litellm-key: ${{ secrets.OPENCLAW_LITELLM_KEY }}
+          openclaw-jwt-secret: ${{ secrets.OPENCLAW_JWT_SECRET }}
+          grafana-cloud-metrics-url: ${{ secrets.GRAFANA_CLOUD_METRICS_URL }}
+          grafana-cloud-logs-url: ${{ secrets.GRAFANA_CLOUD_LOGS_URL }}
+          grafana-cloud-api-key: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
+          domain: ${{ secrets.DOMAIN }}

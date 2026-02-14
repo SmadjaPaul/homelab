@@ -87,6 +87,14 @@ jobs:
       (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.cloudflare == true)) ||
       (github.event_name == 'push' && needs.detect-changes.outputs.cloudflare == 'true')
     environment: production
+    env:
+      # OCI credentials for backend access (injected from GitHub secrets)
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +103,12 @@ jobs:
         with:
           working-directory: terraform/cloudflare
           terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
 
       - name: Terraform Apply
         working-directory: terraform/cloudflare
@@ -120,6 +134,14 @@ jobs:
       (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.oci == true)) ||
       (github.event_name == 'push' && needs.detect-changes.outputs.oci == 'true')
     environment: production
+    env:
+      # OCI credentials for backend access (injected from GitHub secrets)
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -128,6 +150,13 @@ jobs:
         with:
           working-directory: terraform/oracle-cloud
           terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          oci-compartment-id: ${{ secrets.OCI_COMPARTMENT_ID }}
 
       - name: Terraform Apply
         working-directory: terraform/oracle-cloud
@@ -156,6 +185,14 @@ jobs:
       - name: Get VM IP
         id: get-ip
         uses: ./.github/actions/get-oci-vm-ip
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          oci-mgmt-ip: ${{ secrets.OCI_MGMT_IP }}
 
       - name: Deploy Docker Compose
         uses: ./.github/actions/deploy-docker-compose
@@ -164,6 +201,30 @@ jobs:
           compose-profile: 'core'
           wait-for-healthy: 'true'
           health-timeout: '300'
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          acme-email: ${{ secrets.ACME_EMAIL }}
+          cloudflare-tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          authentik-secret-key: ${{ secrets.AUTHENTIK_SECRET_KEY }}
+          authentik-bootstrap-token: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
+          authentik-bootstrap-password: ${{ secrets.AUTHENTIK_BOOTSTRAP_PASSWORD }}
+          authentik-postgres-host: ${{ secrets.AUTHENTIK_POSTGRES_HOST }}
+          authentik-postgres-port: ${{ secrets.AUTHENTIK_POSTGRES_PORT }}
+          authentik-postgres-name: ${{ secrets.AUTHENTIK_POSTGRES_NAME }}
+          authentik-postgres-user: ${{ secrets.AUTHENTIK_POSTGRES_USER }}
+          authentik-postgres-password: ${{ secrets.AUTHENTIK_POSTGRES_PASSWORD }}
+          litellm-master-key: ${{ secrets.LITELLM_MASTER_KEY }}
+          openclaw-litellm-key: ${{ secrets.OPENCLAW_LITELLM_KEY }}
+          openclaw-jwt-secret: ${{ secrets.OPENCLAW_JWT_SECRET }}
+          grafana-cloud-metrics-url: ${{ secrets.GRAFANA_CLOUD_METRICS_URL }}
+          grafana-cloud-logs-url: ${{ secrets.GRAFANA_CLOUD_LOGS_URL }}
+          grafana-cloud-api-key: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
+          domain: ${{ secrets.DOMAIN }}
 
   # =============================================================================
   # LAYER 4: Configure Authentik (Uses Bootstrap Token)
@@ -176,6 +237,14 @@ jobs:
       (github.event_name == 'workflow_dispatch' && (inputs.run_all == true || inputs.authentik == true)) ||
       (github.event_name == 'push' && needs.detect-changes.outputs.authentik == 'true')
     environment: production
+    env:
+      # OCI credentials for backend access (injected from GitHub secrets)
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -184,6 +253,12 @@ jobs:
         with:
           working-directory: terraform/authentik
           terraform-version: ${{ env.TF_VERSION }}
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
 
       - name: Wait for Authentik API
         run: |

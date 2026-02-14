@@ -12,11 +12,41 @@ inputs:
     description: 'Additional arguments for terraform init'
     required: false
     default: ''
+  oci-cli-user:
+    description: 'OCI CLI User'
+    required: true
+  oci-cli-fingerprint:
+    description: 'OCI CLI Fingerprint'
+    required: true
+  oci-cli-tenancy:
+    description: 'OCI CLI Tenancy'
+    required: true
+  oci-cli-region:
+    description: 'OCI CLI Region'
+    required: true
+  oci-cli-key-content:
+    description: 'OCI CLI Private Key Content'
+    required: true
+  oci-object-storage-namespace:
+    description: 'OCI Object Storage Namespace'
+    required: true
+  oci-compartment-id:
+    description: 'OCI Compartment ID'
+    required: false
+    default: ''
 runs:
   using: 'composite'
   steps:
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
+      with:
+        oci-cli-user: ${{ inputs.oci-cli-user }}
+        oci-cli-fingerprint: ${{ inputs.oci-cli-fingerprint }}
+        oci-cli-tenancy: ${{ inputs.oci-cli-tenancy }}
+        oci-cli-region: ${{ inputs.oci-cli-region }}
+        oci-cli-key-content: ${{ inputs.oci-cli-key-content }}
+        oci-object-storage-namespace: ${{ inputs.oci-object-storage-namespace }}
+        oci-compartment-id: ${{ inputs.oci-compartment-id }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -28,7 +58,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        NAMESPACE="${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
+        NAMESPACE="${{ inputs.oci-object-storage-namespace }}"
 
         if [ -n "$NAMESPACE" ]; then
           for file in *.tf; do
