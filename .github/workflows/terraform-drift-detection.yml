@@ -13,6 +13,7 @@ jobs:
   detect-drift:
     name: Detect Infrastructure Drift
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 

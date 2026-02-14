@@ -1,9 +1,6 @@
 name: 'Get OCI VM IP'
 description: 'Get the public IP of the OCI management VM'
 inputs:
-  doppler-token:
-    description: 'Doppler service token'
-    required: true
   working-directory:
     description: 'Terraform working directory'
     required: false
@@ -20,8 +17,6 @@ runs:
   steps:
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
-      with:
-        doppler-token: ${{ inputs.doppler-token }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -48,9 +43,16 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+        # Prefer OCI_MGMT_IP from environment secrets if set
+        if [[ -n "${{ secrets.OCI_MGMT_IP }}" ]]; then
+          IP="${{ secrets.OCI_MGMT_IP }}"
+          echo "Using OCI_MGMT_IP from environment: $IP"
+        else
+          IP=$(terraform output -json 2>/dev/null | jq -r '.management_vm.value.public_ip // empty')
+          echo "Using IP from Terraform: $IP"
+        fi
         echo "vm_ip=$IP" >> $GITHUB_OUTPUT
-        echo "vm_exists=$([[ -n \"$IP\" ]] && echo \"true\" || echo \"false\")" >> $GITHUB_OUTPUT
+        echo "vm_exists=$([[ -n "$IP" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
 
         if [ -n "$IP" ]; then
           echo "✅ VM IP: $IP"

@@ -8,9 +8,6 @@ inputs:
     description: 'Terraform version'
     required: false
     default: '1.14.4'
-  doppler-token:
-    description: 'Doppler service token'
-    required: true
   init-args:
     description: 'Additional arguments for terraform init'
     required: false
@@ -20,8 +17,6 @@ runs:
   steps:
     - name: Setup OCI CLI
       uses: ./.github/actions/setup-oci-cli
-      with:
-        doppler-token: ${{ inputs.doppler-token }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -33,12 +28,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        # Get namespace from previous step
-        NAMESPACE=$(cat ~/.oci/config | grep -o 'namespace=[^ ]*' | cut -d= -f2 || echo "")
-        if [ -z "$NAMESPACE" ]; then
-          # Fallback: try to get from Doppler
-          NAMESPACE=$(doppler secrets get OCI_OBJECT_STORAGE_NAMESPACE --plain -c prd 2>/dev/null || echo "")
-        fi
+        NAMESPACE="${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}"
 
         if [ -n "$NAMESPACE" ]; then
           for file in *.tf; do

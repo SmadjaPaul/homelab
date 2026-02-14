@@ -13,7 +13,7 @@
 | Service | URL | Status | Description |
 |---------|-----|--------|-------------|
 | **Blocky DNS** | https://dns.smadja.dev | ✅ Active | DNS ad-blocker (port 5053) |
-| **Blocky Admin** | http://158.178.210.98:4000 | ✅ Active | Direct access to DNS admin |
+| **Blocky Admin** | http://<OCI_VM_IP>:4000 | ⚠️ Needs Update | Direct access to DNS admin |
 
 ## AI Services (Disabled - ARM64)
 
@@ -62,8 +62,8 @@ dig smadja.dev +short
 ## SSH Access
 
 ```bash
-# Connect to management VM
-ssh -i ~/.ssh/oci-homelab ubuntu@158.178.210.98
+# Connect to management VM (replace with your OCI VM IP)
+ssh -i ~/.ssh/oci-homelab ubuntu@<OCI_VM_IP>
 
 # Check services
 docker ps

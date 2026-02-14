@@ -95,24 +95,17 @@ jobs:
         with:
           working-directory: terraform/cloudflare
           terraform-version: ${{ env.TF_VERSION }}
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
-      - name: Fetch Doppler Secrets
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Terraform Apply
         working-directory: terraform/cloudflare
         run: terraform apply -auto-approve -lock=false
         env:
-          TF_VAR_cloudflare_api_token: ${{ steps.doppler.outputs.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ steps.doppler.outputs.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_zone_id: ${{ steps.doppler.outputs.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_domain: ${{ steps.doppler.outputs.DOMAIN }}
-          TF_VAR_tunnel_id: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}
-          TF_VAR_tunnel_secret: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+          TF_VAR_tunnel_id: ${{ secrets.CLOUDFLARE_TUNNEL_ID }}
+          TF_VAR_tunnel_secret: ${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}
           TF_VAR_create_root_record: "false"
           TF_VAR_enable_authentik_api_skip_challenge: "true"
 
@@ -130,26 +123,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Doppler Secrets
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
       - name: Setup Terraform with OCI Backend
         uses: ./.github/actions/terraform-oci
         with:
           working-directory: terraform/oracle-cloud
           terraform-version: ${{ env.TF_VERSION }}
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Terraform Apply
         working-directory: terraform/oracle-cloud
         run: terraform apply -auto-approve -lock=false
         env:
-          TF_VAR_ssh_public_key: ${{ steps.doppler.outputs.SSH_PUBLIC_KEY }}
-          TF_VAR_compartment_id: ${{ steps.doppler.outputs.OCI_COMPARTMENT_ID }}
-          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.ALERT_EMAIL }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+          TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
   # =============================================================================
   # LAYER 3: Deploy Docker Compose (Authentik, Traefik, etc.)
@@ -170,13 +156,10 @@ jobs:
       - name: Get VM IP
         id: get-ip
         uses: ./.github/actions/get-oci-vm-ip
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Deploy Docker Compose
         uses: ./.github/actions/deploy-docker-compose
         with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
           compose-project: 'oci-core'
           compose-profile: 'core'
           wait-for-healthy: 'true'
@@ -201,13 +184,6 @@ jobs:
         with:
           working-directory: terraform/authentik
           terraform-version: ${{ env.TF_VERSION }}
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
-      - name: Fetch Doppler Secrets
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v1.3.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Wait for Authentik API
         run: |
@@ -215,8 +191,8 @@ jobs:
           MAX_RETRIES=60
           RETRY=0
           while [ $RETRY -lt $MAX_RETRIES ]; do
-            if curl -sf -H "Authorization: Bearer ${{ steps.doppler.outputs.AUTHENTIK_BOOTSTRAP_TOKEN }}" \
-              "https://auth.${{ steps.doppler.outputs.DOMAIN }}/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
+            if curl -sf -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
+              "$AUTHENTIK_URL/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
               echo "✅ Authentik API is ready!"
               exit 0
             fi
@@ -226,17 +202,19 @@ jobs:
           done
           echo "⚠️ API check timeout, continuing anyway..."
         continue-on-error: true
+        env:
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
+          AUTHENTIK_URL: https://auth.${{ secrets.DOMAIN }}
 
       - name: Terraform Apply
         working-directory: terraform/authentik
         run: terraform apply -auto-approve -lock=false
         env:
-          AUTHENTIK_URL: https://auth.${{ steps.doppler.outputs.DOMAIN }}
-          AUTHENTIK_TOKEN: ${{ steps.doppler.outputs.AUTHENTIK_BOOTSTRAP_TOKEN }}
+          AUTHENTIK_URL: https://auth.${{ secrets.DOMAIN }}
+          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
         continue-on-error: true
 
       - name: Create Terraform Service Token
         run: |
           echo "Creating dedicated Terraform service account token..."
-          # This will be handled by the tokens module in terraform/authentik
           echo "Token creation is managed by Terraform configuration"

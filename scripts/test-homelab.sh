@@ -1,8 +1,14 @@
 #!/bin/bash
 # Test script for homelab services
 # Usage: ./test-homelab.sh [domain]
+#
+# Environment variables:
+#   OCI_MGMT_IP - OCI VM IP address (required for SSH checks)
+#   DOMAIN     - Domain name (default: smadja.dev)
 
-DOMAIN=${1:-smadja.dev}
+DOMAIN=${1:-$DOMAIN}
+DOMAIN=${DOMAIN:-smadja.dev}
+OCI_MGMT_IP=${OCI_MGMT_IP:-}
 TIMEOUT=10
 
 echo "🧪 Testing Homelab Services"
@@ -80,23 +86,28 @@ echo "🐳 Testing Docker Services (via SSH):"
 echo "--------------------------------------"
 
 # Check if we can SSH and verify containers
-if ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=5 ubuntu@158.178.210.98 "docker ps" > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ SSH Connection OK${NC}"
-
-    # Get container status
-    echo ""
-    echo "Container Status:"
-    ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no ubuntu@158.178.210.98 "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'" 2>/dev/null || echo -e "${RED}❌ Failed to get container status${NC}"
-
-    # Check for restarting containers
-    restarting=$(ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no ubuntu@158.178.210.98 "docker ps --filter 'status=restarting' --format '{{.Names}}'" 2>/dev/null)
-    if [ -n "$restarting" ]; then
-        echo ""
-        echo -e "${YELLOW}⚠️  WARNING: The following containers are restarting:${NC}"
-        echo "$restarting"
-    fi
+if [ -z "$OCI_MGMT_IP" ]; then
+    echo -e "${YELLOW}⚠️  OCI_MGMT_IP not set - skipping Docker checks${NC}"
 else
-    echo -e "${RED}❌ SSH Connection FAILED${NC}"
+    echo -e "${GREEN}Using OCI VM: $OCI_MGMT_IP${NC}"
+    if ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o ConnectTimeout=5 ubuntu@"$OCI_MGMT_IP" "docker ps" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ SSH Connection OK${NC}"
+
+        # Get container status
+        echo ""
+        echo "Container Status:"
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no ubuntu@"$OCI_MGMT_IP" "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'" 2>/dev/null || echo -e "${RED}❌ Failed to get container status${NC}"
+
+        # Check for restarting containers
+        restarting=$(ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no ubuntu@"$OCI_MGMT_IP" "docker ps --filter 'status=restarting' --format '{{.Names}}'" 2>/dev/null)
+        if [ -n "$restarting" ]; then
+            echo ""
+            echo -e "${YELLOW}⚠️  WARNING: The following containers are restarting:${NC}"
+            echo "$restarting"
+        fi
+    else
+        echo -e "${RED}❌ SSH Connection FAILED${NC}"
+    fi
 fi
 
 echo ""

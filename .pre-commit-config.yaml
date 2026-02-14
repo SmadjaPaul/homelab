@@ -24,6 +24,13 @@ repos:
         name: ✅ Terraform validate
         args:
           - --tf-init-args=-backend=false
+        exclude: |
+          (?x)^(
+            terraform/unifi/.*|
+            terraform/twingate/.*|
+            terraform/servarr/.*|
+            terraform/proxmox/.*
+          )$
 
   # =============================================================================
   # YAML

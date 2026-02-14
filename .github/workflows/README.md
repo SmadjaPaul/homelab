@@ -89,10 +89,7 @@ This directory contains GitHub Actions workflows for the homelab infrastructure 
 
 ### SSH Keys
 - `SSH_PUBLIC_KEY` - Public SSH key for VM access
-- `OCI_MGMT_SSH_PRIVATE_KEY` - Private key for OCI management VM
-
-### Doppler
-- `DOPPLER_TOKEN` - Doppler service token for Docker deployments
+- `SSH_PRIVATE_KEY` - Private key for OCI management VM
 
 ### GitHub (optional)
 - `GH_TOKEN` - GitHub PAT for updating secrets automatically

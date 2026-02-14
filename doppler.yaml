@@ -33,6 +33,7 @@ projects:
       - OCI_CLI_KEY_CONTENT             # OCI API Private Key content
       - OCI_COMPARTMENT_ID              # OCI Compartment OCID
       - OCI_OBJECT_STORAGE_NAMESPACE    # OCI Object Storage Namespace
+      - OCI_MGMT_IP                     # OCI Management VM Public IP
       # OCI (Optional)
       - ALERT_EMAIL                     # Email for OCI budget alerts
       - OCI_PRIVATE_KEY                 # Alternative: path to OCI key

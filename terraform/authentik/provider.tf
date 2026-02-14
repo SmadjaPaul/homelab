@@ -25,4 +25,12 @@ provider "authentik" {
 }
 
 # Doppler provider - uses DOPPLER_TOKEN env var
-provider "doppler" {}
+provider "doppler" {
+  doppler_token = var.doppler_token
+}
+
+variable "doppler_token" {
+  type        = string
+  default     = ""
+  description = "Doppler token for secrets (defaults to DOPPLER_TOKEN env)"
+}

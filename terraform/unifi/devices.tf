@@ -5,24 +5,24 @@ resource "unifi_device" "dream_router" {
   mac               = "1c:0b:8b:42:36:90"
 
   port_override {
-    number = 5
-    name   = "10GB Link"
+    index = 5
+    name  = "10GB Link"
   }
 
   port_override {
-    number   = 1
+    index    = 1
     name     = "Main PC"
     poe_mode = "off"
   }
 
   port_override {
-    number = 3
-    name   = "Port 3"
+    index = 3
+    name  = "Port 3"
   }
 
   port_override {
-    number = 4
-    name   = "WAN"
+    index = 4
+    name  = "WAN"
   }
 
   ## Getting Error: api.err.NotSupportQosConfig (400 ) for PUT https://10.0.0.1/proxy/network/api/s/default/rest/device
@@ -42,62 +42,62 @@ resource "unifi_device" "flex_poe_8" {
   forget_on_destroy = false
   mac               = "84:78:48:fc:3a:e0"
   port_override {
-    number  = 9
+    index   = 9
     name    = "PoE Injector Power In"
     op_mode = "switch"
   }
 
   port_override {
-    number   = 1
+    index    = 1
     name     = "Port 1"
     op_mode  = "switch"
     poe_mode = "off"
   }
 
   port_override {
-    number          = 2
+    index           = 2
     name            = "Port 2"
     poe_mode        = "auto"
     port_profile_id = unifi_port_profile.poe_enabled.id
   }
 
   port_override {
-    number   = 3
+    index    = 3
     name     = "Port 3"
     op_mode  = "switch"
     poe_mode = "off"
   }
 
   port_override {
-    number   = 4
+    index    = 4
     name     = "Port 4"
     op_mode  = "switch"
     poe_mode = "off"
   }
 
   port_override {
-    number   = 5
+    index    = 5
     name     = "Port 5"
     op_mode  = "switch"
     poe_mode = "off"
   }
 
   port_override {
-    number          = 6
+    index           = 6
     name            = "AP"
     poe_mode        = "auto"
     port_profile_id = unifi_port_profile.poe_enabled.id
   }
 
   port_override {
-    number   = 7
+    index    = 7
     name     = "Port 7"
     op_mode  = "switch"
     poe_mode = "off"
   }
 
   port_override {
-    number   = 8
+    index    = 8
     name     = "Port 8"
     op_mode  = "switch"
     poe_mode = "off"

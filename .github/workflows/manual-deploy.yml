@@ -28,25 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Doppler secrets
-        id: doppler
-        uses: ./.github/actions/fetch-doppler
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
       - name: Setup OCI CLI
-        uses: ./.github/actions/setup-oci
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+        uses: ./.github/actions/setup-oci-cli
 
       - name: Setup Terraform
-        uses: ./.github/actions/setup-terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Inject backend namespace
         working-directory: ${{ env.TF_CF }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.namespace }}/g" main.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" main.tf
 
       - name: Terraform Init
         working-directory: ${{ env.TF_CF }}
@@ -56,13 +48,13 @@ jobs:
         working-directory: ${{ env.TF_CF }}
         run: |
           cat > terraform.tfvars << EOF
-          cloudflare_api_token = "${{ steps.doppler.outputs.cloudflare-api-token }}"
-          zone_id = "${{ steps.doppler.outputs.cloudflare-zone-id }}"
-          domain = "${{ steps.doppler.outputs.domain }}"
+          cloudflare_api_token = "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          zone_id = "${{ secrets.CLOUDFLARE_ZONE_ID }}"
+          domain = "${{ secrets.DOMAIN }}"
           enable_tunnel = true
-          cloudflare_account_id = "${{ steps.doppler.outputs.cloudflare-account-id }}"
-          tunnel_secret = "${{ steps.doppler.outputs.cloudflare-tunnel-secret }}"
-          tunnel_id = "${{ steps.doppler.outputs.cloudflare-tunnel-id }}"
+          cloudflare_account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          tunnel_secret = "${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}"
+          tunnel_id = "${{ secrets.CLOUDFLARE_TUNNEL_ID }}"
           enable_tunnel_config = true
           enable_zone_settings = false
           enable_geo_restriction = false
@@ -85,31 +77,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Doppler secrets
-        id: doppler
-        uses: ./.github/actions/fetch-doppler
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
       - name: Setup OCI CLI
-        uses: ./.github/actions/setup-oci
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+        uses: ./.github/actions/setup-oci-cli
 
       - name: Setup Terraform
-        uses: ./.github/actions/setup-terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Set SSH public key
         run: |
           echo "TF_VAR_ssh_public_key<<EOF" >> $GITHUB_ENV
-          echo "${{ steps.doppler.outputs.ssh-public-key }}" >> $GITHUB_ENV
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Inject backend namespace
         working-directory: ${{ env.TF_OCI }}
-        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ steps.doppler.outputs.namespace }}/g" backend.tf
+        run: sed -i.bak "s/YOUR_TENANCY_NAMESPACE/${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}/g" backend.tf
 
       - name: Terraform Init
         working-directory: ${{ env.TF_OCI }}
@@ -119,8 +103,8 @@ jobs:
         working-directory: ${{ env.TF_OCI }}
         run: terraform apply -refresh=false -auto-approve -lock=false
         env:
-          TF_VAR_compartment_id: ${{ steps.doppler.outputs.oci-compartment-id }}
-          TF_VAR_budget_alert_email: ${{ steps.doppler.outputs.alert-email }}
+          TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+          TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
   oci-mgmt:
     name: Deploy oci-mgmt (Ansible)
@@ -134,5 +118,4 @@ jobs:
       - name: Run Ansible with verification
         uses: ./.github/actions/run-ansible
         with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
           terraform-version: ${{ env.TF_VERSION }}

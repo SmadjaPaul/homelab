@@ -34,6 +34,6 @@ data "doppler_secrets" "twingate" {
 }
 
 provider "twingate" {
-  api_token = data.doppler_secrets.infrastructure.map.TWINGATE_API_TOKEN
+  api_token = data.doppler_secrets.twingate.map.TWINGATE_API_TOKEN
   network   = "smadja"
 }
