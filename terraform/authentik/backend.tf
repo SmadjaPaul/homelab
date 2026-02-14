@@ -4,7 +4,7 @@
 terraform {
   backend "oci" {
     bucket    = "homelab-tfstate"
-    namespace = "axnvxxurxefp"
+    namespace = "YOUR_TENANCY_NAMESPACE"
     key       = "authentik/terraform.tfstate"
     region    = "eu-paris-1"
   }
