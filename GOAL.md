@@ -518,6 +518,42 @@ Odoo n'a pas de provider Terraform officiel. Options:
 - [ ] Nextcloud
 - [ ] Obsidian + Syncthing
 
+### Phase 7: Sécurité CI/CD & Authentik (Post-Setup)
+**Status: Architecture codée mais non activée (phase de setup)**
+
+| Sécurité | Status | Fichier |
+|----------|--------|---------|
+| **CODEOWNERS** | ✅ Codé | `.github/CODEOWNERS` - Protection review obligatoire |
+| **GitHub Environment** | ⚠️ À configurer | Environment `authentik-production` avec approbation manuelle |
+| **Policy as Code** | ✅ Codé | `policies/authentik-policies.yaml` - Checkov rules |
+| **Security Scan** | ✅ Codé | `.github/workflows/security-scan.yml` - CI scan |
+| **Audit Logs** | ✅ Codé | Logs dans GitHub Actions |
+
+**Architecture 4 couches:**
+1. **GitOps**: CODEOWNERS + Branch protection (PR obligatoire)
+2. **Environment**: Approbation manuelle avant déploiement Authentik
+3. **Policy as Code**: Checkov bloque superuser creation, bootstrap modification
+4. **Audit**: Tous les déploiements logués avec timestamp + actor
+
+**Activation post-setup:**
+```bash
+# 1. Configurer branch protection
+Settings > Branches > Add rule (main)
+  ✓ Require pull request reviews: 1
+  ✓ Require review from CODEOWNERS
+
+# 2. Créer environment protégé
+Settings > Environments > New environment
+  Name: authentik-production
+  ✓ Required reviewers: 1
+  ✓ Wait timer: 5 minutes
+
+# 3. Vérifier CODEOWNERS
+.github/CODEOWNERS  # Déjà configuré
+```
+
+**Documentation complète:** `docs/SECURITY.md`
+
 ---
 
 ## 📝 Notes
