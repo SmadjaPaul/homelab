@@ -114,6 +114,7 @@ jobs:
           TF_VAR_tunnel_id: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_ID }}
           TF_VAR_tunnel_secret: ${{ steps.doppler.outputs.CLOUDFLARE_TUNNEL_SECRET }}
           TF_VAR_create_root_record: "false"
+          TF_VAR_enable_authentik_api_skip_challenge: "true"
 
   # =============================================================================
   # LAYER 2: OCI Infrastructure (VMs, Network)
