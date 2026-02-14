@@ -1,8 +1,8 @@
 # Optional: override URL/token via variables (otherwise use env)
 variable "authentik_url" {
   type        = string
-  default     = "https://auth.smadja.dev"
-  description = "Authentik base URL (e.g. https://auth.smadja.dev). Override with TF_VAR_authentik_url or AUTHENTIK_URL in CI."
+  default     = "http://localhost:9000"
+  description = "Authentik API URL. Default: localhost via SSH tunnel (bypasses Cloudflare). For direct access, use: https://auth.smadja.dev"
 }
 
 variable "authentik_token" {

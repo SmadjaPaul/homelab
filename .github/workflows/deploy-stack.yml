@@ -248,6 +248,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Authentik API Tunnel
+        id: authentik-tunnel
+        uses: ./.github/actions/setup-authentik-tunnel
+        with:
+          vm-ip: ${{ needs.oci-mgmt.outputs.vm_ip }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Setup Terraform with OCI Backend
         uses: ./.github/actions/terraform-oci
         with:
@@ -262,34 +269,27 @@ jobs:
 
       - name: Wait for Authentik API
         run: |
-          echo "Waiting for Authentik API to be ready..."
-          MAX_RETRIES=60
+          echo "Waiting for Authentik API to be ready (via SSH tunnel)..."
+          MAX_RETRIES=30
           RETRY=0
           while [ $RETRY -lt $MAX_RETRIES ]; do
             if curl -sf -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
-              "$AUTHENTIK_URL/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
+              "http://localhost:9000/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
               echo "✅ Authentik API is ready!"
               exit 0
             fi
             echo "⏳ Attempt $((RETRY + 1))/$MAX_RETRIES - API not ready yet..."
-            sleep 5
+            sleep 2
             RETRY=$((RETRY + 1))
           done
-          echo "⚠️ API check timeout, continuing anyway..."
-        continue-on-error: true
+          echo "❌ API check failed after $MAX_RETRIES attempts"
+          exit 1
         env:
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-          AUTHENTIK_URL: https://auth.${{ secrets.DOMAIN }}
 
       - name: Terraform Apply
         working-directory: terraform/authentik
         run: terraform apply -auto-approve -lock=false
         env:
-          AUTHENTIK_URL: https://auth.${{ secrets.DOMAIN }}
+          AUTHENTIK_URL: http://localhost:9000
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-        continue-on-error: true
-
-      - name: Create Terraform Service Token
-        run: |
-          echo "Creating dedicated Terraform service account token..."
-          echo "Token creation is managed by Terraform configuration"
