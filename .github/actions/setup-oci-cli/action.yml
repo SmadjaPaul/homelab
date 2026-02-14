@@ -3,6 +3,19 @@ description: 'Configure OCI CLI with credentials from environment secrets'
 runs:
   using: 'composite'
   steps:
+    - name: Debug secrets
+      shell: bash
+      run: |
+        echo "OCI_CLI_USER: ${OCI_CLI_USER:-not set}"
+        echo "OCI_CLI_TENANCY: ${OCI_CLI_TENANCY:-not set}"
+        echo "OCI_CLI_REGION: ${OCI_CLI_REGION:-not set}"
+        echo "OCI_OBJECT_STORAGE_NAMESPACE: ${OCI_OBJECT_STORAGE_NAMESPACE:-not set}"
+        echo "---"
+        echo "secrets.OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT != '' && 'set' || 'NOT SET' }}"
+        echo "secrets.OCI_CLI_USER: ${{ secrets.OCI_CLI_USER != '' && 'set' || 'NOT SET' }}"
+        echo "secrets.OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY != '' && 'set' || 'NOT SET' }}"
+        echo "secrets.OCI_OBJECT_STORAGE_NAMESPACE: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE != '' && 'set' || 'NOT SET' }}"
+
     - name: Configure OCI CLI
       shell: bash
       run: |
