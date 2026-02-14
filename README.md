@@ -1,5 +1,8 @@
 # Homelab Infrastructure
 
+> **⚠️ Work in Progress** - This homelab is currently under construction.
+> **Do not use as a reference or model** - Code may be broken, incomplete, or change frequently.
+
 Personal homelab running on Proxmox VE with Kubernetes (Talos Linux), managed via GitOps with Flux CD.
 
 ## Architecture
