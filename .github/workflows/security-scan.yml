@@ -1,0 +1,61 @@
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+
+jobs:
+  security-scan:
+    name: '🔒 Security Scan'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          config_file: policies/checkov-config.yaml
+          output_format: sarif
+          output_file_path: reports/
+          skip_check: "CKV_TF_1"  # Skip Terraform module version check
+
+      - name: Check for Authentik security violations
+        run: |
+          echo "Checking Authentik security policies..."
+
+          # Check for superuser creation
+          if grep -r "is_superuser.*=.*true" terraform/authentik/; then
+            echo "❌ ERROR: Creation of superuser accounts is forbidden"
+            exit 1
+          fi
+
+          # Check for bootstrap modification
+          if grep -r "bootstrap" terraform/authentik/ | grep -v "bootstrap_token"; then
+            echo "❌ ERROR: Bootstrap account modifications are forbidden"
+            exit 1
+          fi
+
+          echo "✅ Security checks passed"
+
+      - name: Terraform fmt check
+        run: |
+          terraform fmt -check -recursive terraform/
+
+      - name: Terraform validate
+        working-directory: terraform/authentik
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/results.sarif
