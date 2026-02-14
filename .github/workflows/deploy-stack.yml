@@ -243,6 +243,20 @@ jobs:
           vm-ip: ${{ secrets.OCI_MGMT_IP }}
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Debug - Check what's listening on port 9000
+        run: |
+          echo "=== Checking ports on VM ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "ss -tlnp | grep 9000 || echo 'Nothing on 9000'"
+
+          echo "=== Docker containers ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker ps --format 'table {{.Names}}\t{{.Ports}}'"
+
+          echo "=== Testing API from VM ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "curl -sf http://localhost:9000/api/v3/core/users/ && echo 'API OK' || echo 'API Failed'"
+
       - name: Setup Terraform with OCI Backend
         uses: ./.github/actions/terraform-oci
         with:
@@ -256,27 +270,28 @@ jobs:
           oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
 
       - name: Wait for Authentik API
-        continue-on-error: true
         run: |
           echo "Waiting for Authentik API to be ready (via SSH tunnel)..."
-          MAX_RETRIES=30
+          MAX_RETRIES=60
           RETRY=0
           while [ $RETRY -lt $MAX_RETRIES ]; do
-            if curl -sf -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
-              "http://localhost:9000/api/v3/core/users/?page_size=1" > /dev/null 2>&1; then
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
+              "http://localhost:9000/api/v3/core/users/?page_size=1" 2>&1)
+            if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ Authentik API is ready!"
               exit 0
             fi
-            echo "⏳ Attempt $((RETRY + 1))/$MAX_RETRIES - API not ready yet..."
-            sleep 2
+            echo "⏳ Attempt $((RETRY + 1))/$MAX_RETRIES - HTTP $HTTP_CODE - API not ready yet..."
+            sleep 3
             RETRY=$((RETRY + 1))
           done
-          echo "⚠️ API check timeout, continuing anyway..."
+          echo "❌ API check timeout after $MAX_RETRIES attempts"
+          exit 1
         env:
           AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
 
       - name: Terraform Apply
-        continue-on-error: true
         working-directory: terraform/authentik
         run: terraform apply -auto-approve -lock=false
         env:
