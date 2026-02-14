@@ -51,4 +51,3 @@ runs:
       shell: bash
       run: |
         echo "AUTHENTIK_URL=http://localhost:${{ inputs.authentik-port }}" >> $GITHUB_ENV
-        echo "auth_url=http://localhost:${{ inputs.authentik-port }}" >> $GITHUB_OUTPUT
