@@ -248,6 +248,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get VM IP
+        id: get-ip
+        uses: ./.github/actions/get-oci-vm-ip
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
+          oci-mgmt-ip: ${{ secrets.OCI_MGMT_IP }}
+
       - name: Audit Log - Deployment Started
         run: |
           echo "📝 AUDIT LOG - Authentik Deployment"
@@ -262,7 +274,7 @@ jobs:
         id: authentik-tunnel
         uses: ./.github/actions/setup-authentik-tunnel
         with:
-          vm-ip: ${{ needs.oci-mgmt.outputs.vm_ip }}
+          vm-ip: ${{ steps.get-ip.outputs.vm_ip }}
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Setup Terraform with OCI Backend
