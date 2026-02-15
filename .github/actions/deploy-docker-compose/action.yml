@@ -232,7 +232,7 @@ runs:
       run: |
         ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
           ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
-          "cd ${{ inputs.working-directory }} && docker compose --profile ${{ inputs.compose-profile }} up -d --remove-orphans"
+          "cd ${{ inputs.working-directory }} && docker compose --profile ${{ inputs.compose-profile }} up -d --force-recreate --remove-orphans"
 
     - name: Wait for healthy containers
       if: steps.get-ip.outputs.vm_exists == 'true' && inputs.wait-for-healthy == 'true'
