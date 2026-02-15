@@ -281,9 +281,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker exec oci-core-authentik-server-1 bash -c 'apt-get update > /dev/null 2>&1 && apt-get install -y postgresql-client > /dev/null 2>&1 && timeout 10 psql -h authentik-db-homelab-smadja.k.aivencloud.com -p 14351 -U avnadmin -d defaultdb -c \"SELECT 1\" && echo DB_OK || echo DB_FAILED'"
 
-          echo "=== Test PostgreSQL with verbose output ==="
+          echo "=== Test if port 14351 is reachable ==="
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker exec oci-core-authentik-server-1 bash -c 'PGPASSWORD=\${AUTHENTIK_POSTGRESQL__PASSWORD} psql -h authentik-db-homelab-smadja.k.aivencloud.com -p 14351 -U avnadmin -d defaultdb -c \"SELECT version()\" 2>&1 | head -20'"
+            "nc -zv authentik-db-homelab-smadja.k.aivencloud.com 14351 && echo PORT_OPEN || echo PORT_CLOSED"
 
       - name: Wait for container to fully start
         run: echo "Waiting 30s for container to initialize..." && sleep 30
