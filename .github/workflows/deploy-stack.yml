@@ -178,42 +178,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          cat >> ~/.ssh/config <<EOF
-          Host vm
-            HostName ${{ secrets.OCI_MGMT_IP }}
-            User ubuntu
-            IdentityFile ~/.ssh/id_rsa
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-          EOF
-          chmod 600 ~/.ssh/config
-
       - name: Deploy to VM
+        env:
+          DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
+          DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
         run: |
+          # Setup SSH options (no config file needed)
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa"
+          VM_IP="${{ secrets.OCI_MGMT_IP }}"
+
           # Create directory on VM
-          ssh vm "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+          ssh $SSH_OPTS ubuntu@$VM_IP "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
 
           # Sync files
-          rsync -avz --delete -e "ssh -F ~/.ssh/config" ./docker/ vm:/opt/docker/
+          rsync -avz --delete -e "ssh $SSH_OPTS" ./docker/ ubuntu@$VM_IP:/opt/docker/
 
-          # Deploy services
-          ssh vm << 'EOF'
+          # Deploy services via SSH with heredoc
+          ssh $SSH_OPTS ubuntu@$VM_IP << DEPLOY_EOF
             set -e
             cd /opt/docker
 
-            # Install Doppler CLI if not present
+            # Install Doppler CLI
             if ! command -v doppler &> /dev/null; then
-              echo 'Installing Doppler CLI...'
+              echo '📦 Installing Doppler CLI...'
               curl -Ls https://cli.doppler.com/install.sh | sh
-              sudo mv /usr/local/bin/doppler /usr/bin/ || true
+              sudo mv /usr/local/bin/doppler /usr/bin/ 2>/dev/null || true
             fi
 
             # Create networks
+            echo '🌐 Creating Docker networks...'
             docker network inspect traefik-public &>/dev/null || docker network create traefik-public
             docker network inspect authentik-private &>/dev/null || docker network create authentik-private
             docker network inspect monitoring &>/dev/null || docker network create monitoring
@@ -221,6 +214,7 @@ jobs:
 
             # Deploy Core
             echo '🚀 Deploying Core...'
+            export DOPPLER_TOKEN="$DOPPLER_TOKEN_INFRA"
             doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
             sleep 5
 
@@ -235,17 +229,18 @@ jobs:
 
             # Deploy Comet
             echo '🚀 Deploying Comet...'
+            export DOPPLER_TOKEN="$DOPPLER_TOKEN_STREAM"
             doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
 
-            echo '✅ All services deployed'
-          EOF
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+            echo '✅ Deployment complete!'
+          DEPLOY_EOF
 
-      - name: Health Check
-        run: |
+          # Health Check
+          echo '⏳ Waiting for services to start...'
           sleep 30
-          ssh vm "
+
+          echo '🏥 Running health checks...'
+          ssh $SSH_OPTS ubuntu@$VM_IP "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
@@ -255,6 +250,6 @@ jobs:
             curl -sf http://localhost:8000/manifest.json > /dev/null && echo '✅ Comet' || echo '❌ Comet'
           "
 
-      - name: Backup
-        run: |
-          ssh vm "cd /opt/docker && ./scripts/backup.sh all || true"
+          # Backup
+          echo '💾 Running backup...'
+          ssh $SSH_OPTS ubuntu@$VM_IP "cd /opt/docker && ./scripts/backup.sh all || true"
