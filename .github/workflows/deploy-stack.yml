@@ -273,6 +273,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_LENGTH: \${#AUTHENTIK_POSTGRESQL__PASSWORD}'"
 
+          echo "=== Check password first 5 chars ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_PREFIX: \${AUTHENTIK_POSTGRESQL__PASSWORD:0:5}'"
+
       - name: Wait for container to fully start
         run: echo "Waiting 30s for container to initialize..." && sleep 30
 
