@@ -47,16 +47,21 @@ jobs:
             StrictHostKeyChecking no
           EOF
 
+      - name: Create directory on VM
+        run: |
+          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+
       - name: Sync files to VM
         run: |
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/oci-homelab" \
             ./docker/ \
-            oci:/opt/docker/
+            ubuntu@${{ secrets.OCI_MGMT_IP }}:/opt/docker/
 
       - name: Deploy with Doppler
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
+          DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
         run: |
           ssh -i ~/.ssh/oci-homelab oci "
             cd /opt/docker
@@ -66,9 +71,6 @@ jobs:
               echo 'Installing Doppler CLI...'
               curl -Ls https://cli.doppler.com/install.sh | sh
             fi
-
-            # Setup Doppler token
-            export DOPPLER_TOKEN='$DOPPLER_TOKEN'
 
             # Create networks if they don't exist
             docker network inspect traefik-public &>/dev/null || docker network create traefik-public
@@ -80,23 +82,29 @@ jobs:
             case '${{ github.event.inputs.service || 'all' }}' in
               all)
                 echo 'Deploying all services...'
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_INFRA'
                 doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
                 sleep 5
                 doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
                 sleep 10
                 doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_STREAM'
                 doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
                 ;;
               core)
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_INFRA'
                 doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
                 ;;
               authentik)
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_INFRA'
                 doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
                 ;;
               monitoring)
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_INFRA'
                 doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
                 ;;
               comet)
+                export DOPPLER_TOKEN='$DOPPLER_TOKEN_STREAM'
                 doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
                 ;;
             esac
@@ -106,7 +114,7 @@ jobs:
         run: |
           sleep 30
 
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
@@ -123,7 +131,7 @@ jobs:
       - name: Backup (if deploying all)
         if: github.event.inputs.service == 'all' || github.event.inputs.service == ''
         run: |
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "
             cd /opt/docker
             ./scripts/backup.sh all || true
           "
