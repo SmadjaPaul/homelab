@@ -1,0 +1,111 @@
+# Comet - Stremio Addon with Real-Debrid
+# Deployed WITHOUT Cloudflare Tunnel (direct IP access)
+# See GOAL_STREAMING.md for architecture details
+
+name: comet
+
+services:
+  # PostgreSQL for Comet cache
+  postgres:
+    image: postgres:15-alpine
+    container_name: comet-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=comet
+      - POSTGRES_PASSWORD=${COMET_POSTGRES_PASSWORD}
+      - POSTGRES_DB=comet
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - streaming
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zilean - DMM Scraper (metadata)
+  zilean:
+    image: ghcr.io/rivenmedia/zilean:latest
+    container_name: zilean
+    restart: unless-stopped
+    environment:
+      - ZILEAN__LOG_LEVEL=info
+    volumes:
+      - zilean_data:/app/data
+    networks:
+      - streaming
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Comet - Stremio Addon
+  comet:
+    image: ghcr.io/g0ldyy/comet:latest
+    container_name: comet
+    restart: unless-stopped
+    environment:
+      # Core settings
+      - COMET_HOST=0.0.0.0
+      - COMET_PORT=8000
+      # Real-Debrid
+      - RD_API_KEY=${RD_API_KEY}
+      # Database
+      - DATABASE_URL=postgresql://comet:${COMET_POSTGRES_PASSWORD}@postgres:5432/comet
+      # Proxy settings (for multi-IP)
+      - PROXY_URL=${PROXY_URL:-}
+      - PROXY_USERNAME=${PROXY_USERNAME:-}
+      - PROXY_PASSWORD=${PROXY_PASSWORD:-}
+      # Cache
+      - CACHE_TTL=${CACHE_TTL:-86400}
+      # Rate limiting
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+    ports:
+      - "8000:8000"
+    networks:
+      - streaming
+      - traefik-public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zilean:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.comet.rule=Host(`comet.${DOMAIN}`)"
+      - "traefik.http.routers.comet.entrypoints=websecure"
+      - "traefik.http.routers.comet.tls.certresolver=letsencrypt"
+      - "traefik.http.services.comet.loadbalancer.server.port=8000"
+      # No authentication middleware - direct access for streaming
+      # Rate limiting
+      - "traefik.http.middlewares.comet-ratelimit.ratelimit.average=60"
+      - "traefik.http.middlewares.comet-ratelimit.ratelimit.burst=100"
+      - "traefik.http.routers.comet.middlewares=comet-ratelimit"
+
+  # CrowdSec - Security
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: comet-crowdsec
+    restart: unless-stopped
+    environment:
+      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/http-cve
+    volumes:
+      - crowdsec_data:/var/lib/crowdsec/data
+      - crowdsec_config:/etc/crowdsec
+      - /var/log:/var/log:ro
+    networks:
+      - streaming
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  streaming:
+    external: true
+  traefik-public:
+    external: true
+
+volumes:
+  postgres_data:
+  zilean_data:
+  crowdsec_data:
+  crowdsec_config:

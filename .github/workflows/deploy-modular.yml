@@ -1,0 +1,129 @@
+name: Deploy Modular Stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/deploy-modular.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - core
+          - authentik
+          - monitoring
+          - comet
+
+env:
+  VM_IP: ${{ secrets.OCI_MGMT_IP }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+jobs:
+  deploy:
+    name: Deploy to OCI
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/oci-homelab
+          chmod 600 ~/.ssh/oci-homelab
+          cat >> ~/.ssh/config <<EOF
+          Host oci
+            HostName $VM_IP
+            User ubuntu
+            IdentityFile ~/.ssh/oci-homelab
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Sync files to VM
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/oci-homelab" \
+            ./docker/ \
+            oci:/opt/docker/
+
+      - name: Deploy with Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/oci-homelab oci "
+            cd /opt/docker
+
+            # Install Doppler CLI if not present
+            if ! command -v doppler &> /dev/null; then
+              echo 'Installing Doppler CLI...'
+              curl -Ls https://cli.doppler.com/install.sh | sh
+            fi
+
+            # Setup Doppler token
+            export DOPPLER_TOKEN='$DOPPLER_TOKEN'
+
+            # Create networks if they don't exist
+            docker network inspect traefik-public &>/dev/null || docker network create traefik-public
+            docker network inspect authentik-private &>/dev/null || docker network create authentik-private
+            docker network inspect monitoring &>/dev/null || docker network create monitoring
+            docker network inspect streaming &>/dev/null || docker network create streaming
+
+            # Deploy requested service
+            case '${{ github.event.inputs.service || 'all' }}' in
+              all)
+                echo 'Deploying all services...'
+                doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
+                sleep 5
+                doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
+                sleep 10
+                doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
+                doppler run -p infrastructure -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
+                ;;
+              core)
+                doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
+                ;;
+              authentik)
+                doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
+                ;;
+              monitoring)
+                doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
+                ;;
+              comet)
+                doppler run -p infrastructure -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
+                ;;
+            esac
+          "
+
+      - name: Health Check
+        run: |
+          sleep 30
+
+          ssh -i ~/.ssh/oci-homelab oci "
+            echo '=== Container Status ==='
+            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+
+            echo ''
+            echo '=== Unhealthy Containers ==='
+            docker ps --filter 'health=unhealthy' --format '{{.Names}}'
+
+            # Check specific services
+            echo ''
+            echo '=== Authentik Health ==='
+            curl -sf http://localhost:9000/-/health/ready/ && echo '✅ Authentik ready' || echo '❌ Authentik not ready'
+          "
+
+      - name: Backup (if deploying all)
+        if: github.event.inputs.service == 'all' || github.event.inputs.service == ''
+        run: |
+          ssh -i ~/.ssh/oci-homelab oci "
+            cd /opt/docker
+            ./scripts/backup.sh all || true
+          "

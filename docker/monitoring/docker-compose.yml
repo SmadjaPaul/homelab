@@ -1,0 +1,52 @@
+# Monitoring Stack
+# Services: Prometheus, Grafana Alloy (Grafana Cloud)
+
+name: monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.prometheus.middlewares=auth@file"
+
+  grafana-alloy:
+    image: grafana/alloy:latest
+    container_name: grafana-alloy
+    restart: unless-stopped
+    environment:
+      - GCLOUD_RW_API_KEY
+      - GCLOUD_HOSTED_METRICS_URL
+      - GCLOUD_HOSTED_LOGS_URL
+    volumes:
+      - ./alloy.config:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+    networks:
+      - monitoring
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+
+networks:
+  monitoring:
+    external: true
+  traefik-public:
+    external: true
+
+volumes:
+  prometheus_data:
