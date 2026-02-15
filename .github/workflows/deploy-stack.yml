@@ -253,6 +253,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker ps --format 'table {{.Names}}\t{{.Ports}}'"
 
+          echo "=== Container env (without secrets) ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker exec oci-core-authentik-server-1 env | grep -E 'AUTHENTIK_POSTGRESQL_|AUTHENTIK_REDIS' | sed 's/PASSWORD=.*/PASSWORD=***/'"
+
           echo "=== Container health ==="
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker inspect --format='{{.State.Health.Status}}' oci-core-authentik-server-1 || echo 'No health check'"
