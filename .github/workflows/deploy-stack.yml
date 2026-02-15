@@ -178,6 +178,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Doppler
+        uses: dopplerhq/cli@v1
+        with:
+          token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          project: ${{ secrets.DOPPLER_PROJECT }}
+          environment: ${{ secrets.DOPPLER_ENVIRONMENT }}
+
       - name: Get VM IP
         id: get-ip
         uses: ./.github/actions/get-oci-vm-ip

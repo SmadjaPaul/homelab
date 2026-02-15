@@ -167,39 +167,19 @@ runs:
       if: steps.get-ip.outputs.vm_exists == 'true'
       shell: bash
       run: |
-        cat > /tmp/oci-core.env << 'EOF'
-        # Core
-        ACME_EMAIL=${{ inputs.acme-email }}
-        CLOUDFLARE_TUNNEL_TOKEN=${{ inputs.cloudflare-tunnel-token }}
+        # Fetch secrets from Doppler
+        doppler secrets download --no-file --format env > /tmp/doppler.env
 
-        # Authentik
-        AUTHENTIK_SECRET_KEY=${{ inputs.authentik-secret-key }}
-        AUTHENTIK_BOOTSTRAP_TOKEN=${{ inputs.authentik-bootstrap-token }}
-        AUTHENTIK_BOOTSTRAP_PASSWORD=${{ inputs.authentik-bootstrap-password }}
+        # Add custom variables
+        cat >> /tmp/doppler.env << 'EOF'
 
-        # PostgreSQL
-        AUTHENTIK_POSTGRES_HOST=${{ inputs.authentik-postgres-host }}
-        AUTHENTIK_POSTGRES_PORT=${{ inputs.authentik-postgres-port }}
-        AUTHENTIK_POSTGRES_NAME=${{ inputs.authentik-postgres-name }}
-        AUTHENTIK_POSTGRES_USER=${{ inputs.authentik-postgres-user }}
-        AUTHENTIK_POSTGRES_PASSWORD=${{ inputs.authentik-postgres-password }}
-
-        # Litellm
-        LITELLM_MASTER_KEY=${{ inputs.litellm-master-key }}
-
-        # OpenClaw
-        OPENCLAW_LITELLM_KEY=${{ inputs.openclaw-litellm-key }}
-        OPENCLAW_JWT_SECRET=${{ inputs.openclaw-jwt-secret }}
-
-        # Grafana Cloud
-        GRAFANA_CLOUD_METRICS_URL=${{ inputs.grafana-cloud-metrics-url }}
-        GRAFANA_CLOUD_LOGS_URL=${{ inputs.grafana-cloud-logs-url }}
-        GRAFANA_CLOUD_API_KEY=${{ inputs.grafana-cloud-api-key }}
-
-        # Domain
+        # Domain override
         DOMAIN=${{ inputs.domain }}
         EOF
-        echo "✅ Created .env file with secrets"
+        echo "✅ Created .env file with Doppler secrets"
+
+        # Debug: show first 5 chars of password (safe)
+        grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/PASSWORD=/PASSWORD=/' | sed 's/^\(.\{20\}\).*/\1***/'
 
     - name: Sync files to VM
       if: steps.get-ip.outputs.vm_exists == 'true'
@@ -215,7 +195,7 @@ runs:
       shell: bash
       run: |
         scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
-          /tmp/oci-core.env \
+          /tmp/doppler.env \
           ubuntu@${{ steps.get-ip.outputs.vm_ip }}:${{ inputs.working-directory }}/.env
 
     - name: Create directories
