@@ -79,10 +79,12 @@ services:
       - AUTHENTIK_BOOTSTRAP_PASSWORD=${AUTHENTIK_BOOTSTRAP_PASSWORD}
       - AUTHENTIK_BOOTSTRAP_TOKEN=${AUTHENTIK_BOOTSTRAP_TOKEN}
       - AUTHENTIK_ERROR_REPORTING__ENABLED=false
+      - AUTHENTIK_POSTGRESQL__SSL_CERT=/etc/ssl/certs/aiven-ca.pem
     volumes:
       - ./data/authentik/media:/media
       - ./data/authentik/certs:/certs
       - ./data/authentik/custom-templates:/templates
+      - ./config/aiven-ca.pem:/etc/ssl/certs/aiven-ca.pem:ro
     networks:
       - proxy
       - authentik
@@ -113,11 +115,13 @@ services:
       - AUTHENTIK_POSTGRESQL__PASSWORD=${AUTHENTIK_POSTGRES_PASSWORD}
       - AUTHENTIK_POSTGRESQL__PORT=${AUTHENTIK_POSTGRES_PORT:-14351}
       - AUTHENTIK_POSTGRESQL__SSLMODE=require
+      - AUTHENTIK_POSTGRESQL__SSL_CERT=/etc/ssl/certs/aiven-ca.pem
       - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY}
     volumes:
       - ./data/authentik/media:/media
       - ./data/authentik/certs:/certs
       - ./data/authentik/custom-templates:/templates
+      - ./config/aiven-ca.pem:/etc/ssl/certs/aiven-ca.pem:ro
     networks:
       - authentik
     profiles:
