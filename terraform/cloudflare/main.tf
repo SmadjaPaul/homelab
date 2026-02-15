@@ -95,3 +95,15 @@ module "security" {
   allowed_countries                   = var.allowed_countries
   enable_authentik_api_skip_challenge = var.enable_authentik_api_skip_challenge
 }
+
+# -----------------------------------------------------------------------------
+# Comet Cache Rules — optimize caching for streaming service
+# -----------------------------------------------------------------------------
+module "comet_cache" {
+  source = "./modules/comet-cache-rules"
+  count  = var.enable_comet_cache_rules ? 1 : 0
+
+  zone_id                  = var.zone_id
+  domain                   = var.domain
+  enable_comet_cache_rules = var.enable_comet_cache_rules
+}

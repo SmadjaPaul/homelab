@@ -282,3 +282,10 @@ variable "enable_stream_record" {
   description = "Create DNS record for stream.smadja.dev (Comet) - DNS only, points to OCI management IP"
   default     = false
 }
+
+# Enable Cloudflare cache rules for Comet
+variable "enable_comet_cache_rules" {
+  type        = bool
+  description = "Enable Cloudflare cache rules for Comet streaming service (bypass cache for API, cache static assets)"
+  default     = false
+}
