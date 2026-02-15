@@ -188,6 +188,8 @@ jobs:
           doppler secrets download /tmp/doppler.env --format env
           echo "✅ Downloaded Doppler secrets"
           grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/^\(.\{20\}\).*/\1***/'
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Upload Doppler secrets to VM
         run: |
