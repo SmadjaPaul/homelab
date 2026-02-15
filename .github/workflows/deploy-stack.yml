@@ -185,7 +185,7 @@ jobs:
 
       - name: Download Doppler secrets
         run: |
-          doppler secrets download --no-file --format env --out-file /tmp/doppler.env
+          doppler secrets download /tmp/doppler.env --format env
           echo "✅ Downloaded Doppler secrets"
           grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/^\(.\{20\}\).*/\1***/'
 
