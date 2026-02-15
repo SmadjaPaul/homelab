@@ -85,7 +85,7 @@ jobs:
                 doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
                 sleep 10
                 doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
-                doppler run -p infrastructure -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
+                doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
                 ;;
               core)
                 doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
@@ -97,7 +97,7 @@ jobs:
                 doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
                 ;;
               comet)
-                doppler run -p infrastructure -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
+                doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
                 ;;
             esac
           "
