@@ -166,11 +166,64 @@ runs:
     - name: Create .env file with secrets
       if: steps.get-ip.outputs.vm_exists == 'true'
       shell: bash
+      env:
+        ACME_EMAIL: ${{ inputs.acme-email }}
+        DOMAIN: ${{ inputs.domain }}
+        CLOUDFLARE_TUNNEL_TOKEN: ${{ inputs.cloudflare-tunnel-token }}
+        AUTHENTIK_SECRET_KEY: ${{ inputs.authentik-secret-key }}
+        AUTHENTIK_BOOTSTRAP_TOKEN: ${{ inputs.authentik-bootstrap-token }}
+        AUTHENTIK_BOOTSTRAP_PASSWORD: ${{ inputs.authentik-bootstrap-password }}
+        AUTHENTIK_POSTGRES_HOST: ${{ inputs.authentik-postgres-host }}
+        AUTHENTIK_POSTGRES_PORT: ${{ inputs.authentik-postgres-port }}
+        AUTHENTIK_POSTGRES_NAME: ${{ inputs.authentik-postgres-name }}
+        AUTHENTIK_POSTGRES_USER: ${{ inputs.authentik-postgres-user }}
+        AUTHENTIK_POSTGRES_PASSWORD: ${{ inputs.authentik-postgres-password }}
+        LITELLM_MASTER_KEY: ${{ inputs.litellm-master-key }}
+        OPENCLAW_LITELLM_KEY: ${{ inputs.openclaw-litellm-key }}
+        OPENCLAW_JWT_SECRET: ${{ inputs.openclaw-jwt-secret }}
+        GRAFANA_CLOUD_METRICS_URL: ${{ inputs.grafana-cloud-metrics-url }}
+        GRAFANA_CLOUD_LOGS_URL: ${{ inputs.grafana-cloud-logs-url }}
+        GRAFANA_CLOUD_API_KEY: ${{ inputs.grafana-cloud-api-key }}
       run: |
-        # Check if .env exists on VM (uploaded from workflow)
+        # Create .env file with all secrets
+        echo "# ACME / Let's Encrypt" > /tmp/env-secrets
+        echo "ACME_EMAIL=$ACME_EMAIL" >> /tmp/env-secrets
+        echo "DOMAIN=$DOMAIN" >> /tmp/env-secrets
+        echo "" >> /tmp/env-secrets
+        echo "# Cloudflare Tunnel" >> /tmp/env-secrets
+        echo "CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN" >> /tmp/env-secrets
+        echo "" >> /tmp/env-secrets
+        echo "# Authentik" >> /tmp/env-secrets
+        echo "AUTHENTIK_SECRET_KEY=$AUTHENTIK_SECRET_KEY" >> /tmp/env-secrets
+        echo "AUTHENTIK_BOOTSTRAP_TOKEN=$AUTHENTIK_BOOTSTRAP_TOKEN" >> /tmp/env-secrets
+        echo "AUTHENTIK_BOOTSTRAP_PASSWORD=$AUTHENTIK_BOOTSTRAP_PASSWORD" >> /tmp/env-secrets
+        echo "AUTHENTIK_POSTGRES_HOST=$AUTHENTIK_POSTGRES_HOST" >> /tmp/env-secrets
+        echo "AUTHENTIK_POSTGRES_PORT=$AUTHENTIK_POSTGRES_PORT" >> /tmp/env-secrets
+        echo "AUTHENTIK_POSTGRES_NAME=$AUTHENTIK_POSTGRES_NAME" >> /tmp/env-secrets
+        echo "AUTHENTIK_POSTGRES_USER=$AUTHENTIK_POSTGRES_USER" >> /tmp/env-secrets
+        echo "AUTHENTIK_POSTGRES_PASSWORD=$AUTHENTIK_POSTGRES_PASSWORD" >> /tmp/env-secrets
+        echo "" >> /tmp/env-secrets
+        echo "# LiteLLM" >> /tmp/env-secrets
+        echo "LITELLM_MASTER_KEY=$LITELLM_MASTER_KEY" >> /tmp/env-secrets
+        echo "OPENCLAW_LITELLM_KEY=$OPENCLAW_LITELLM_KEY" >> /tmp/env-secrets
+        echo "OPENCLAW_JWT_SECRET=$OPENCLAW_JWT_SECRET" >> /tmp/env-secrets
+        echo "" >> /tmp/env-secrets
+        echo "# Grafana Cloud" >> /tmp/env-secrets
+        echo "GRAFANA_CLOUD_METRICS_URL=$GRAFANA_CLOUD_METRICS_URL" >> /tmp/env-secrets
+        echo "GRAFANA_CLOUD_LOGS_URL=$GRAFANA_CLOUD_LOGS_URL" >> /tmp/env-secrets
+        echo "GRAFANA_CLOUD_API_KEY=$GRAFANA_CLOUD_API_KEY" >> /tmp/env-secrets
+
+        # Upload .env file to VM
+        scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
+          /tmp/env-secrets \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }}:${{ inputs.working-directory }}/.env
+
+        echo "✅ Created .env file on VM"
+
+        # Verify file exists
         ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
           ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
-          "test -f ${{ inputs.working-directory }}/.env && echo 'Env file exists' || echo 'Env file missing'"
+          "test -f ${{ inputs.working-directory }}/.env && echo '✅ .env file exists' || echo '❌ .env file missing'"
 
     - name: Sync files to VM
       if: steps.get-ip.outputs.vm_exists == 'true'

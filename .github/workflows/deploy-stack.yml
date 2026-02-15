@@ -178,19 +178,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Doppler
-        uses: dopplerhq/cli-action@v1
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
-      - name: Download Doppler secrets
-        run: |
-          doppler secrets download /tmp/doppler.env --format env
-          echo "✅ Downloaded Doppler secrets"
-          grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/^\(.\{20\}\).*/\1***/'
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
       - name: Get VM IP
         id: get-ip
         uses: ./.github/actions/get-oci-vm-ip
@@ -208,15 +195,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
           chmod 600 ~/.ssh/oci-homelab
-
-      - name: Upload Doppler secrets to VM
-        run: |
-          scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
-            /tmp/doppler.env \
-            ubuntu@${{ steps.get-ip.outputs.vm_ip }}:/opt/oci-core/.env
-          echo "✅ Uploaded .env file to VM"
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Deploy Docker Compose
         uses: ./.github/actions/deploy-docker-compose

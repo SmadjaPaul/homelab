@@ -195,6 +195,53 @@ flowchart LR
 | **Authentik** | IdP (SSO, SAML, OIDC) | OCI VM 1 | ✅ Provider |
 | **Cloudflare Zero Trust** | Accès sécurisé | Cloud | ✅ Provider |
 
+#### 🔄 Alternatives à Authentik
+
+Si Authentik pose trop de problèmes, voici une stack alternative complète pour remplacer Microsoft Entra/Intune :
+
+**Source**: [Open Source Alternatives to Microsoft Entra](https://github.com/Lalatenduswain/Open-Source-Alternatives-to-Microsoft-Entra-Conditional-Access-and-Intune)
+
+| Service | Rôle | Avantages | Inconvénients |
+|---------|------|-----------|---------------|
+| **Keycloak** | IdP (SSO, MFA, SAML, OIDC) | Mature (Red Hat), CNCF, très complet | Complexe, lourd |
+| **Authelia** | Auth lightweight | <20MB, simple, intègre Traefik/NGINX | Pas de social login natif |
+| **Authentik** | IdP moderne | Facile à configurer, bonne UI | Moins mature que Keycloak |
+
+**Stack complète recommandée:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AUTHENTICATION LAYER                      │
+├─────────────────────────────────────────────────────────────┤
+│  Keycloak/Authelia/Authentik  →  SSO, MFA, SAML, OIDC       │
+│  Open Policy Agent (OPA)      →  Policy-as-code             │
+│  Traefik/NGINX                →  Reverse proxy + forward auth│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  ENDPOINT MANAGEMENT                         │
+├─────────────────────────────────────────────────────────────┤
+│  FleetDM + Osquery            →  Monitoring temps réel      │
+│  Wazuh                        →  SIEM + EDR                 │
+│  Rudder                       →  Configuration management   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  DNS & NETWORK FILTERING                     │
+├─────────────────────────────────────────────────────────────┤
+│  pfSense + pfBlockerNG        →  Firewall + DNS filtering   │
+│  Pi-hole                      →  DNS sinkhole (optionnel)   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Recommandation:**
+- **Authelia** : Pour un setup simple avec Traefik (déjà en place)
+- **Keycloak** : Si besoin de features enterprise (LDAP, AD, brokering)
+- **FleetDM** : Déjà planifié pour MDM
+- **Wazuh** : Déjà planifié pour SIEM
+
 ### 🏢 ERP & Business
 
 | Service | Rôle | Emplacement | Terraform |
