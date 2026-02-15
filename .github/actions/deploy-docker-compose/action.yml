@@ -167,19 +167,10 @@ runs:
       if: steps.get-ip.outputs.vm_exists == 'true'
       shell: bash
       run: |
-        # Fetch secrets from Doppler
-        doppler secrets download --no-file --format env > /tmp/doppler.env
-
-        # Add custom variables
-        cat >> /tmp/doppler.env << 'EOF'
-
-        # Domain override
-        DOMAIN=${{ inputs.domain }}
-        EOF
-        echo "✅ Created .env file with Doppler secrets"
-
-        # Debug: show first 5 chars of password (safe)
-        grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/PASSWORD=/PASSWORD=/' | sed 's/^\(.\{20\}\).*/\1***/'
+        # Check if .env exists on VM (uploaded from workflow)
+        ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes \
+          ubuntu@${{ steps.get-ip.outputs.vm_ip }} \
+          "test -f ${{ inputs.working-directory }}/.env && echo 'Env file exists' || echo 'Env file missing'"
 
     - name: Sync files to VM
       if: steps.get-ip.outputs.vm_exists == 'true'
@@ -189,14 +180,6 @@ runs:
           -e "ssh -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no -o BatchMode=yes" \
           ./docker/${{ inputs.compose-project }}/ \
           ubuntu@${{ steps.get-ip.outputs.vm_ip }}:${{ inputs.working-directory }}/
-
-    - name: Upload .env file to VM
-      if: steps.get-ip.outputs.vm_exists == 'true'
-      shell: bash
-      run: |
-        scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
-          /tmp/doppler.env \
-          ubuntu@${{ steps.get-ip.outputs.vm_ip }}:${{ inputs.working-directory }}/.env
 
     - name: Create directories
       if: steps.get-ip.outputs.vm_exists == 'true'

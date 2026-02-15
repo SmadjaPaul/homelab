@@ -179,11 +179,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Doppler
-        uses: dopplerhq/cli@v1
-        with:
-          token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-          project: ${{ secrets.DOPPLER_PROJECT }}
-          environment: ${{ secrets.DOPPLER_ENVIRONMENT }}
+        run: |
+          curl -Ls https://cli.doppler.com/install.sh | sh
+          doppler secrets download --no-file --format env --out-file /tmp/doppler.env
+          echo "✅ Downloaded Doppler secrets"
+          grep AUTHENTIK_POSTGRES_PASSWORD /tmp/doppler.env | sed 's/^\(.\{20\}\).*/\1***/'
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+          DOPPLER_ENVIRONMENT: ${{ secrets.DOPPLER_ENVIRONMENT }}
+
+      - name: Upload Doppler secrets to VM
+        run: |
+          scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
+            /tmp/doppler.env \
+            ubuntu@${{ steps.get-ip.outputs.vm_ip }}:/opt/oci-core/.env
+          echo "✅ Uploaded .env file to VM"
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Get VM IP
         id: get-ip
