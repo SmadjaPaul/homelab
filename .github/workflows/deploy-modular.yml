@@ -49,21 +49,21 @@ jobs:
 
       - name: Create directory on VM
         run: |
-          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+          ssh oci "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
 
       - name: Sync files to VM
         run: |
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/oci-homelab" \
+            -e "ssh -F ~/.ssh/config" \
             ./docker/ \
-            ubuntu@${{ secrets.OCI_MGMT_IP }}:/opt/docker/
+            oci:/opt/docker/
 
       - name: Deploy with Doppler
         env:
           DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
           DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
         run: |
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh oci "
             cd /opt/docker
 
             # Install Doppler CLI if not present
@@ -114,7 +114,7 @@ jobs:
         run: |
           sleep 30
 
-          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "
+          ssh oci "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
@@ -131,7 +131,7 @@ jobs:
       - name: Backup (if deploying all)
         if: github.event.inputs.service == 'all' || github.event.inputs.service == ''
         run: |
-          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "
+          ssh oci "
             cd /opt/docker
             ./scripts/backup.sh all || true
           "

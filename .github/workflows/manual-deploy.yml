@@ -104,58 +104,6 @@ jobs:
           TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
           TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
-  oci-mgmt-disabled:
-    name: Deploy oci-mgmt (Legacy - Disabled)
-    runs-on: ubuntu-latest
-    needs: oci
-    if: false  # Disabled - oci-core archived, use deploy-modular instead
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get VM IP
-        id: get-ip
-        uses: ./.github/actions/get-oci-vm-ip
-        with:
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
-
-      - name: Deploy Docker Compose
-        uses: ./.github/actions/deploy-docker-compose
-        with:
-          compose-project: 'oci-core'
-          compose-profile: 'core'
-          wait-for-healthy: 'true'
-          health-timeout: '300'
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          vm-ip: ${{ steps.get-ip.outputs.vm_ip }}
-          acme-email: ${{ secrets.ACME_EMAIL }}
-          cloudflare-tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-          authentik-secret-key: ${{ secrets.AUTHENTIK_SECRET_KEY }}
-          authentik-bootstrap-token: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-          authentik-bootstrap-password: ${{ secrets.AUTHENTIK_BOOTSTRAP_PASSWORD }}
-          authentik-postgres-host: ${{ secrets.AUTHENTIK_POSTGRES_HOST }}
-          authentik-postgres-port: ${{ secrets.AUTHENTIK_POSTGRES_PORT }}
-          authentik-postgres-name: ${{ secrets.AUTHENTIK_POSTGRES_NAME }}
-          authentik-postgres-user: ${{ secrets.AUTHENTIK_POSTGRES_USER }}
-          authentik-postgres-password: ${{ secrets.AUTHENTIK_POSTGRES_PASSWORD }}
-          litellm-master-key: ${{ secrets.LITELLM_MASTER_KEY }}
-          openclaw-litellm-key: ${{ secrets.OPENCLAW_LITELLM_KEY }}
-          openclaw-jwt-secret: ${{ secrets.OPENCLAW_JWT_SECRET }}
-          grafana-cloud-metrics-url: ${{ secrets.GRAFANA_CLOUD_METRICS_URL }}
-          grafana-cloud-logs-url: ${{ secrets.GRAFANA_CLOUD_LOGS_URL }}
-          grafana-cloud-api-key: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
-          domain: ${{ secrets.DOMAIN }}
 
   deploy-modular:
     name: Deploy Modular Stack

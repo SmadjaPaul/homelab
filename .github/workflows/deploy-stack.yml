@@ -164,70 +164,6 @@ jobs:
           TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
           TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
-  # =============================================================================
-  # LAYER 3: Deploy Docker Compose (Legacy - Disabled)
-  # =============================================================================
-  # NOTE: This job is disabled. Use "4️⃣ Deploy Modular Stack" instead.
-  # The oci-core directory has been archived.
-  oci-mgmt-disabled:
-    name: '3️⃣ Deploy Services (Legacy - Disabled)'
-    runs-on: ubuntu-latest
-    needs: [detect-changes, oci]
-    if: false  # Disabled - use deploy-modular instead
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get VM IP
-        id: get-ip
-        uses: ./.github/actions/get-oci-vm-ip
-        with:
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
-          oci-mgmt-ip: ${{ secrets.OCI_MGMT_IP }}
-
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
-          chmod 600 ~/.ssh/oci-homelab
-
-      - name: Deploy Docker Compose
-        uses: ./.github/actions/deploy-docker-compose
-        with:
-          compose-project: 'oci-core'
-          compose-profile: 'core'
-          wait-for-healthy: 'true'
-          health-timeout: '300'
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          vm-ip: ${{ steps.get-ip.outputs.vm_ip }}
-          acme-email: ${{ secrets.ACME_EMAIL }}
-          cloudflare-tunnel-token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-          authentik-secret-key: ${{ secrets.AUTHENTIK_SECRET_KEY }}
-          authentik-bootstrap-token: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-          authentik-bootstrap-password: ${{ secrets.AUTHENTIK_BOOTSTRAP_PASSWORD }}
-          authentik-postgres-host: ${{ secrets.AUTHENTIK_POSTGRES_HOST }}
-          authentik-postgres-port: ${{ secrets.AUTHENTIK_POSTGRES_PORT }}
-          authentik-postgres-name: ${{ secrets.AUTHENTIK_POSTGRES_NAME }}
-          authentik-postgres-user: ${{ secrets.AUTHENTIK_POSTGRES_USER }}
-          authentik-postgres-password: ${{ secrets.AUTHENTIK_POSTGRES_PASSWORD }}
-          litellm-master-key: ${{ secrets.LITELLM_MASTER_KEY }}
-          openclaw-litellm-key: ${{ secrets.OPENCLAW_LITELLM_KEY }}
-          openclaw-jwt-secret: ${{ secrets.OPENCLAW_JWT_SECRET }}
-          grafana-cloud-metrics-url: ${{ secrets.GRAFANA_CLOUD_METRICS_URL }}
-          grafana-cloud-logs-url: ${{ secrets.GRAFANA_CLOUD_LOGS_URL }}
-          grafana-cloud-api-key: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
-          domain: ${{ secrets.DOMAIN }}
 
   # =============================================================================
   # LAYER 4: Deploy Modular Stack (New Architecture)
@@ -258,21 +194,21 @@ jobs:
 
       - name: Create directory on VM
         run: |
-          ssh -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+          ssh oci "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
 
       - name: Sync files to VM
         run: |
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/oci-homelab" \
+            -e "ssh -F ~/.ssh/config" \
             ./docker/ \
-            ubuntu@${{ secrets.OCI_MGMT_IP }}:/opt/docker/
+            oci:/opt/docker/
 
       - name: Deploy with Doppler
         env:
           DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
           DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
         run: |
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh oci "
             cd /opt/docker
 
             # Install Doppler CLI if not present
@@ -314,7 +250,7 @@ jobs:
         run: |
           sleep 30
 
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh oci "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
@@ -333,121 +269,7 @@ jobs:
 
       - name: Backup
         run: |
-          ssh -i ~/.ssh/oci-homelab oci "
+          ssh oci "
             cd /opt/docker
             ./scripts/backup.sh all || true
           "
-
-  # =============================================================================
-  # LAYER 5: Configure Authentik Terraform (Optional)
-  # =============================================================================
-  authentik:
-    name: '5️⃣ Configure Authentik'
-    runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-modular]
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.authentik == true) ||
-      (github.event_name == 'push' && needs.detect-changes.outputs.authentik == 'true')
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup SSH Tunnel to Authentik
-        uses: ./.github/actions/setup-authentik-tunnel
-        with:
-          vm-ip: ${{ secrets.OCI_MGMT_IP }}
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Debug - Check what's listening on port 9000
-        run: |
-          echo "=== Checking ports on VM ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "ss -tlnp | grep 9000 || echo 'Nothing on 9000'"
-
-          echo "=== Docker containers ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker ps --format 'table {{.Names}}\t{{.Ports}}'"
-
-          echo "=== Container env (without secrets) ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker exec oci-core-authentik-server-1 env | grep -E 'AUTHENTIK_POSTGRESQL_|AUTHENTIK_REDIS' | sed 's/PASSWORD=.*/PASSWORD=***/'"
-
-          echo "=== Container health ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker inspect --format='{{.State.Health.Status}}' oci-core-authentik-server-1 || echo 'No health check'"
-
-          echo "=== Last 30 lines of container logs ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker logs --tail 30 oci-core-authentik-server-1"
-
-          echo "=== Testing API from VM ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "curl -sf http://localhost:9000/api/v3/core/users/ && echo 'API OK' || echo 'API Failed'"
-
-          echo "=== Check if password is set ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_LENGTH: \${#AUTHENTIK_POSTGRESQL__PASSWORD}'"
-
-          echo "=== Check password first 5 chars ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_PREFIX: \${AUTHENTIK_POSTGRESQL__PASSWORD:0:5}'"
-
-          echo "=== Check .env file content on VM ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "cat /opt/oci-core/.env | grep AUTHENTIK_POSTGRES"
-
-          echo "=== Check .env file on VM ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "grep AUTHENTIK_POSTGRES /opt/oci-core/.env | head -3"
-
-          echo "=== Test PostgreSQL connectivity from container ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "docker exec oci-core-authentik-server-1 bash -c 'apt-get update > /dev/null 2>&1 && apt-get install -y postgresql-client > /dev/null 2>&1 && timeout 10 psql -h authentik-db-homelab-smadja.k.aivencloud.com -p 14351 -U avnadmin -d defaultdb -c \"SELECT 1\" && echo DB_OK || echo DB_FAILED'"
-
-          echo "=== Test if port 14351 is reachable ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
-            "nc -zv authentik-db-homelab-smadja.k.aivencloud.com 14351 && echo PORT_OPEN || echo PORT_CLOSED"
-
-      - name: Wait for container to fully start
-        run: echo "Waiting 30s for container to initialize..." && sleep 30
-
-      - name: Setup Terraform with OCI Backend
-        uses: ./.github/actions/terraform-oci
-        with:
-          working-directory: terraform/authentik
-          terraform-version: ${{ env.TF_VERSION }}
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-          oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
-
-      - name: Wait for Authentik API
-        run: |
-          echo "Waiting for Authentik API to be ready (via SSH tunnel)..."
-          MAX_RETRIES=60
-          RETRY=0
-          while [ $RETRY -lt $MAX_RETRIES ]; do
-            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $AUTHENTIK_TOKEN" \
-              "http://localhost:9000/api/v3/core/users/?page_size=1" 2>&1)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Authentik API is ready!"
-              exit 0
-            fi
-            echo "⏳ Attempt $((RETRY + 1))/$MAX_RETRIES - HTTP $HTTP_CODE - API not ready yet..."
-            sleep 3
-            RETRY=$((RETRY + 1))
-          done
-          echo "❌ API check timeout after $MAX_RETRIES attempts"
-          exit 1
-        env:
-          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
-
-      - name: Terraform Apply
-        working-directory: terraform/authentik
-        run: terraform apply -auto-approve -lock=false
-        env:
-          AUTHENTIK_URL: http://localhost:9000
-          AUTHENTIK_TOKEN: ${{ secrets.AUTHENTIK_BOOTSTRAP_TOKEN }}
