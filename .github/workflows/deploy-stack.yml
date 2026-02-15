@@ -277,6 +277,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_PREFIX: \${AUTHENTIK_POSTGRESQL__PASSWORD:0:5}'"
 
+          echo "=== Test PostgreSQL connectivity from container ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "docker exec oci-core-authentik-server-1 bash -c 'apt-get update > /dev/null 2>&1 && apt-get install -y postgresql-client > /dev/null 2>&1 && timeout 10 psql -h authentik-db-homelab-smadja.k.aivencloud.com -p 14351 -U avnadmin -d defaultdb -c \"SELECT 1\" && echo DB_OK || echo DB_FAILED'"
+
       - name: Wait for container to fully start
         run: echo "Waiting 30s for container to initialize..." && sleep 30
 
