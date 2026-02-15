@@ -305,6 +305,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "docker exec oci-core-authentik-server-1 bash -c 'echo PASSWORD_PREFIX: \${AUTHENTIK_POSTGRESQL__PASSWORD:0:5}'"
 
+          echo "=== Check .env file content on VM ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
+            "cat /opt/oci-core/.env | grep AUTHENTIK_POSTGRES"
+
           echo "=== Check .env file on VM ==="
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/oci-homelab ubuntu@${{ secrets.OCI_MGMT_IP }} \
             "grep AUTHENTIK_POSTGRES /opt/oci-core/.env | head -3"
