@@ -191,15 +191,6 @@ jobs:
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
-      - name: Upload Doppler secrets to VM
-        run: |
-          scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
-            /tmp/doppler.env \
-            ubuntu@${{ steps.get-ip.outputs.vm_ip }}:/opt/oci-core/.env
-          echo "✅ Uploaded .env file to VM"
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-
       - name: Get VM IP
         id: get-ip
         uses: ./.github/actions/get-oci-vm-ip
@@ -211,6 +202,15 @@ jobs:
           oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
           oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
           oci-mgmt-ip: ${{ secrets.OCI_MGMT_IP }}
+
+      - name: Upload Doppler secrets to VM
+        run: |
+          scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
+            /tmp/doppler.env \
+            ubuntu@${{ steps.get-ip.outputs.vm_ip }}:/opt/oci-core/.env
+          echo "✅ Uploaded .env file to VM"
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
 
       - name: Deploy Docker Compose
         uses: ./.github/actions/deploy-docker-compose
