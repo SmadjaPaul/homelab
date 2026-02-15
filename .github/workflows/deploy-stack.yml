@@ -203,6 +203,12 @@ jobs:
           oci-object-storage-namespace: ${{ secrets.OCI_OBJECT_STORAGE_NAMESPACE }}
           oci-mgmt-ip: ${{ secrets.OCI_MGMT_IP }}
 
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
+          chmod 600 ~/.ssh/oci-homelab
+
       - name: Upload Doppler secrets to VM
         run: |
           scp -i ~/.ssh/oci-homelab -o StrictHostKeyChecking=no \
