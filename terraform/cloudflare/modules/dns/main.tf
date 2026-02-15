@@ -87,6 +87,19 @@ resource "cloudflare_record" "tunnel_cname" {
   allow_overwrite = true
 }
 
+# Stream (Comet) - DNS only for direct IP access (no Cloudflare proxy)
+resource "cloudflare_record" "stream" {
+  count = var.enable_stream_record && var.oci_management_ip != "" ? 1 : 0
+
+  zone_id = var.zone_id
+  name    = "stream"
+  content = var.oci_management_ip
+  type    = "A"
+  proxied = false
+  ttl     = 300
+  comment = "Comet streaming service - direct IP (no proxy)"
+}
+
 # SPF
 resource "cloudflare_record" "spf" {
   zone_id         = var.zone_id

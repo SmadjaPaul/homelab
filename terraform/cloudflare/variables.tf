@@ -275,3 +275,10 @@ variable "create_root_record" {
   description = "Create root domain A record (set to false if already exists manually)"
   default     = true
 }
+
+# Enable DNS record for stream.smadja.dev (Comet streaming service)
+variable "enable_stream_record" {
+  type        = bool
+  description = "Create DNS record for stream.smadja.dev (Comet) - DNS only, points to OCI management IP"
+  default     = false
+}
