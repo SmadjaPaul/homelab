@@ -45,9 +45,9 @@ env:
   TF_VERSION: '1.14.4'
 
 jobs:
-  # =============================================================================
+  # ==========================================================================
   # DETECT CHANGES
-  # =============================================================================
+  # ==========================================================================
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
@@ -72,13 +72,13 @@ jobs:
             authentik:
               - 'terraform/authentik/**'
             oci_mgmt:
-              - 'docker/oci-core/**'
+              - 'docker/**'
               - 'ansible/**'
           base: main
 
-  # =============================================================================
-  # LAYER 1: Cloudflare (DNS, Tunnel, Access)
-  # =============================================================================
+  # ==========================================================================
+  # LAYER 1: Cloudflare
+  # ==========================================================================
   cloudflare:
     name: '1️⃣ Cloudflare'
     runs-on: ubuntu-latest
@@ -122,9 +122,9 @@ jobs:
           TF_VAR_create_root_record: "false"
           TF_VAR_enable_authentik_api_skip_challenge: "true"
 
-  # =============================================================================
-  # LAYER 2: OCI Infrastructure (VMs, Network)
-  # =============================================================================
+  # ==========================================================================
+  # LAYER 2: OCI Infrastructure
+  # ==========================================================================
   oci:
     name: '2️⃣ OCI Infrastructure'
     runs-on: ubuntu-latest
@@ -164,12 +164,11 @@ jobs:
           TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
           TF_VAR_budget_alert_email: ${{ secrets.ALERT_EMAIL }}
 
-
-  # =============================================================================
-  # LAYER 4: Deploy Modular Stack (New Architecture)
-  # =============================================================================
+  # ==========================================================================
+  # LAYER 3: Deploy Modular Stack
+  # ==========================================================================
   deploy-modular:
-    name: '4️⃣ Deploy Modular Stack'
+    name: '3️⃣ Deploy Modular Stack'
     runs-on: ubuntu-latest
     needs: [detect-changes, cloudflare, oci]
     if: |
@@ -182,94 +181,80 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/oci-homelab
-          chmod 600 ~/.ssh/oci-homelab
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
           cat >> ~/.ssh/config <<EOF
-          Host oci
+          Host vm
             HostName ${{ secrets.OCI_MGMT_IP }}
             User ubuntu
-            IdentityFile ~/.ssh/oci-homelab
+            IdentityFile ~/.ssh/id_rsa
             StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
           EOF
+          chmod 600 ~/.ssh/config
 
-      - name: Create directory on VM
+      - name: Deploy to VM
         run: |
-          ssh oci "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+          # Create directory on VM
+          ssh vm "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
 
-      - name: Sync files to VM
-        run: |
-          rsync -avz --delete \
-            -e "ssh -F ~/.ssh/config" \
-            ./docker/ \
-            oci:/opt/docker/
+          # Sync files
+          rsync -avz --delete -e "ssh -F ~/.ssh/config" ./docker/ vm:/opt/docker/
 
-      - name: Deploy with Doppler
-        env:
-          DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
-          DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
-        run: |
-          ssh oci "
+          # Deploy services
+          ssh vm << 'EOF'
+            set -e
             cd /opt/docker
 
             # Install Doppler CLI if not present
             if ! command -v doppler &> /dev/null; then
               echo 'Installing Doppler CLI...'
               curl -Ls https://cli.doppler.com/install.sh | sh
+              sudo mv /usr/local/bin/doppler /usr/bin/ || true
             fi
 
-            # Create networks if they don't exist
+            # Create networks
             docker network inspect traefik-public &>/dev/null || docker network create traefik-public
             docker network inspect authentik-private &>/dev/null || docker network create authentik-private
             docker network inspect monitoring &>/dev/null || docker network create monitoring
             docker network inspect streaming &>/dev/null || docker network create streaming
 
             # Deploy Core
-            echo 'Deploying Core...'
-            export DOPPLER_TOKEN='$DOPPLER_TOKEN_INFRA'
+            echo '🚀 Deploying Core...'
             doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
             sleep 5
 
             # Deploy Authentik
-            echo 'Deploying Authentik...'
+            echo '🚀 Deploying Authentik...'
             doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
             sleep 10
 
             # Deploy Monitoring
-            echo 'Deploying Monitoring...'
+            echo '🚀 Deploying Monitoring...'
             doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
 
-            # Deploy Comet (using stream project)
-            echo 'Deploying Comet...'
-            export DOPPLER_TOKEN='$DOPPLER_TOKEN_STREAM'
+            # Deploy Comet
+            echo '🚀 Deploying Comet...'
             doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
 
             echo '✅ All services deployed'
-          "
+          EOF
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
       - name: Health Check
         run: |
           sleep 30
-
-          ssh oci "
+          ssh vm "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
             echo ''
-            echo '=== Unhealthy Containers ==='
-            docker ps --filter 'health=unhealthy' --format '{{.Names}}'
-
-            echo ''
-            echo '=== Authentik Health ==='
-            curl -sf http://localhost:9000/-/health/ready/ && echo '✅ Authentik ready' || echo '❌ Authentik not ready'
-
-            echo ''
-            echo '=== Comet Health ==='
-            curl -sf http://localhost:8000/manifest.json > /dev/null && echo '✅ Comet responding' || echo '❌ Comet not responding'
+            echo '=== Health Checks ==='
+            curl -sf http://localhost:9000/-/health/ready/ && echo '✅ Authentik' || echo '❌ Authentik'
+            curl -sf http://localhost:8000/manifest.json > /dev/null && echo '✅ Comet' || echo '❌ Comet'
           "
 
       - name: Backup
         run: |
-          ssh oci "
-            cd /opt/docker
-            ./scripts/backup.sh all || true
-          "
+          ssh vm "cd /opt/docker && ./scripts/backup.sh all || true"

@@ -1,0 +1,97 @@
+---
+- name: Deploy Homelab Modular Stack
+  hosts: homelab
+  become: yes
+  vars:
+    docker_dir: /opt/docker
+    doppler_token_infra: "{{ lookup('env', 'DOPPLER_TOKEN_INFRA') }}"
+    doppler_token_stream: "{{ lookup('env', 'DOPPLER_TOKEN_STREAM') }}"
+
+  tasks:
+    - name: Ensure Docker is installed
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure Doppler CLI is installed
+      shell: |
+        if ! command -v doppler &> /dev/null; then
+          curl -Ls https://cli.doppler.com/install.sh | sh
+        fi
+      args:
+        creates: /usr/local/bin/doppler
+
+    - name: Create Docker networks
+      docker_network:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - traefik-public
+        - authentik-private
+        - monitoring
+        - streaming
+
+    - name: Ensure docker directory exists
+      file:
+        path: "{{ docker_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Deploy Core (Traefik + Cloudflared)
+      shell: |
+        export DOPPLER_TOKEN={{ doppler_token_infra }}
+        doppler run -p infrastructure -c prd -- docker-compose -f core/docker-compose.yml up -d
+      args:
+        chdir: "{{ docker_dir }}"
+      environment:
+        DOPPLER_TOKEN: "{{ doppler_token_infra }}"
+
+    - name: Wait for Core to be ready
+      wait_for:
+        port: 80
+        delay: 5
+        timeout: 60
+
+    - name: Deploy Authentik
+      shell: |
+        doppler run -p infrastructure -c prd -- docker-compose -f authentik/docker-compose.yml up -d
+      args:
+        chdir: "{{ docker_dir }}"
+      environment:
+        DOPPLER_TOKEN: "{{ doppler_token_infra }}"
+
+    - name: Wait for Authentik to be ready
+      wait_for:
+        port: 9000
+        delay: 10
+        timeout: 120
+
+    - name: Deploy Monitoring
+      shell: |
+        doppler run -p infrastructure -c prd -- docker-compose -f monitoring/docker-compose.yml up -d
+      args:
+        chdir: "{{ docker_dir }}"
+      environment:
+        DOPPLER_TOKEN: "{{ doppler_token_infra }}"
+
+    - name: Deploy Comet
+      shell: |
+        doppler run -p stream -c prd -- docker-compose -f services/comet/docker-compose.yml up -d
+      args:
+        chdir: "{{ docker_dir }}"
+      environment:
+        DOPPLER_TOKEN: "{{ doppler_token_stream }}"
+
+    - name: Check container status
+      shell: docker ps --format "table {{.Names}}\t{{.Status}}"
+      register: container_status
+
+    - name: Display container status
+      debug:
+        var: container_status.stdout_lines

@@ -49,7 +49,7 @@ jobs:
 
       - name: Create directory on VM
         run: |
-          ssh oci "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
+          ssh vm "sudo mkdir -p /opt/docker && sudo chown ubuntu:ubuntu /opt/docker"
 
       - name: Sync files to VM
         run: |
@@ -63,7 +63,7 @@ jobs:
           DOPPLER_TOKEN_INFRA: ${{ secrets.DOPPLER_TOKEN }}
           DOPPLER_TOKEN_STREAM: ${{ secrets.DOPPLER_TOKEN_STREAM }}
         run: |
-          ssh oci "
+          ssh vm "
             cd /opt/docker
 
             # Install Doppler CLI if not present
@@ -114,7 +114,7 @@ jobs:
         run: |
           sleep 30
 
-          ssh oci "
+          ssh vm "
             echo '=== Container Status ==='
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
@@ -131,7 +131,7 @@ jobs:
       - name: Backup (if deploying all)
         if: github.event.inputs.service == 'all' || github.event.inputs.service == ''
         run: |
-          ssh oci "
+          ssh vm "
             cd /opt/docker
             ./scripts/backup.sh all || true
           "
