@@ -87,7 +87,7 @@ jobs:
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -timeout 60m -auto-approve tfplan
         env:
           TF_VAR_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
           TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
