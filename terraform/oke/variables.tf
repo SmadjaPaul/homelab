@@ -19,7 +19,7 @@ variable "compartment_id" {
 variable "kubernetes_version" {
   description = "Kubernetes version for the OKE cluster"
   type        = string
-  default     = "v1.30.1"
+  default     = "v1.31.1"
 }
 
 variable "ssh_public_key" {
