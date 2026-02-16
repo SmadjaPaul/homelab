@@ -1,6 +1,6 @@
 # =============================================================================
-# Oracle Cloud Infrastructure - Homelab
-# Modular architecture: Network, Compute, OKE, Object Storage
+# Oracle Cloud Infrastructure - OKE (Free Tier)
+# Simple Kubernetes cluster without management VM
 # =============================================================================
 
 terraform {
@@ -39,9 +39,15 @@ variable "compartment_id" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key for VMs"
+  description = "SSH public key for worker nodes"
   type        = string
   default     = ""
+}
+
+variable "kubernetes_version" {
+  description = "Kubernetes version"
+  type        = string
+  default     = "v1.31.1"
 }
 
 # =============================================================================
@@ -64,57 +70,14 @@ module "network" {
 }
 
 # =============================================================================
-# Object Storage Module (for Terraform state)
-# =============================================================================
-
-module "object_storage" {
-  source = "./modules/object-storage"
-
-  compartment_id = var.compartment_id
-  namespace      = var.oci_namespace
-  bucket_name    = "terraform-states"
-
-  tags = {
-    Environment = "homelab"
-    ManagedBy   = "terraform"
-  }
-}
-
-# =============================================================================
-# Compute Module (Management VM - Optional)
-# =============================================================================
-
-module "compute" {
-  source = "./modules/compute"
-
-  count = var.enable_management_vm ? 1 : 0
-
-  compartment_id   = var.compartment_id
-  vm_name          = "homelab-management"
-  subnet_id        = module.network.public_subnet_id
-  vm_ocpus         = 2
-  vm_memory        = 12
-  vm_disk          = 50
-  ssh_public_key   = var.ssh_public_key
-  assign_public_ip = true
-
-  tags = {
-    Environment = "homelab"
-    ManagedBy   = "terraform"
-  }
-}
-
-# =============================================================================
 # OKE Module (Kubernetes Cluster - Free Tier)
 # =============================================================================
 
 module "oke" {
   source = "./modules/oke"
 
-  count = var.enable_oke ? 1 : 0
-
   compartment_id     = var.compartment_id
-  cluster_name       = "homelab-oke"
+  cluster_name       = "homelab-k8s"
   vcn_id             = module.network.vcn_id
   lb_subnet_id       = module.network.public_subnet_id
   worker_subnet_id   = module.network.private_subnet_id
@@ -123,40 +86,12 @@ module "oke" {
   node_ocpus         = 2
   node_memory        = 12
   node_count         = 2
-  public_endpoint    = true
+  ssh_public_key     = var.ssh_public_key
 
   tags = {
     Environment = "homelab"
     ManagedBy   = "terraform"
   }
-}
-
-# =============================================================================
-# Configuration Flags
-# =============================================================================
-
-variable "enable_management_vm" {
-  description = "Enable management VM"
-  type        = bool
-  default     = false
-}
-
-variable "enable_oke" {
-  description = "Enable OKE cluster"
-  type        = bool
-  default     = true
-}
-
-variable "kubernetes_version" {
-  description = "Kubernetes version"
-  type        = string
-  default     = "v1.31.1"
-}
-
-variable "oci_namespace" {
-  description = "OCI Object Storage namespace"
-  type        = string
-  default     = ""
 }
 
 # =============================================================================
@@ -175,19 +110,14 @@ output "private_subnet_id" {
   value = module.network.private_subnet_id
 }
 
-output "management_vm_ip" {
-  value     = var.enable_management_vm ? module.compute[0].management_vm_ip : null
-  sensitive = true
-}
-
 output "cluster_id" {
-  value = var.enable_oke ? module.oke[0].cluster_id : null
+  value = module.oke.cluster_id
 }
 
 output "cluster_endpoint" {
-  value = var.enable_oke ? module.oke[0].cluster_endpoint : null
+  value = module.oke.cluster_endpoint
 }
 
 output "kubeconfig_command" {
-  value = var.enable_oke ? module.oke[0].kubeconfig_command : null
+  value = module.oke.kubeconfig_command
 }

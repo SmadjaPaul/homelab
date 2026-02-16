@@ -62,6 +62,12 @@ variable "node_image_id" {
   default     = "" # Will use latest Oracle Linux ARM
 }
 
+variable "ssh_public_key" {
+  description = "SSH public key for worker nodes"
+  type        = string
+  default     = ""
+}
+
 variable "public_endpoint" {
   description = "Enable public endpoint"
   type        = bool

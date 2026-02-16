@@ -1,18 +1,30 @@
-# OKE Module - Kubernetes Cluster
+# OKE Module - Kubernetes Cluster (Free Tier: Basic cluster, A1.Flex workers)
 
 # Data: Availability Domains
 data "oci_identity_availability_domains" "ads" {
   compartment_id = var.compartment_id
 }
 
-# OKE Cluster (Basic - Free Tier)
+# Data: OKE node pool options (images compatibles ARM + version K8s)
+data "oci_containerengine_node_pool_option" "oke" {
+  compartment_id        = var.compartment_id
+  node_pool_option_id   = "all"
+  node_pool_os_arch     = "aarch64" # VM.Standard.A1.Flex = ARM
+  node_pool_k8s_version = var.kubernetes_version
+}
+
+# Image pour les nœuds : fournie ou première image OKE Oracle Linux ARM
+locals {
+  node_image_id = var.node_image_id != "" ? var.node_image_id : data.oci_containerengine_node_pool_option.oke.sources[0].image_id
+}
+
+# OKE Cluster - Type Basic (gratuit)
 resource "oci_containerengine_cluster" "oke" {
   compartment_id     = var.compartment_id
   name               = var.cluster_name
   vcn_id             = var.vcn_id
   kubernetes_version = var.kubernetes_version
 
-  # Basic cluster (free) - no enhanced features
   options {
     service_lb_subnet_ids = [var.lb_subnet_id]
 
@@ -37,16 +49,13 @@ resource "oci_containerengine_node_pool" "workers" {
   name               = "${var.cluster_name}-workers"
   kubernetes_version = var.kubernetes_version
 
-  # Shape: VM.Standard.A1.Flex (ARM)
   node_shape = "VM.Standard.A1.Flex"
 
-  # 2 OCPU / 12GB per node
   node_shape_config {
     ocpus         = var.node_ocpus
     memory_in_gbs = var.node_memory
   }
 
-  # 2 nodes (total 4 OCPU / 24GB)
   node_config_details {
     size = var.node_count
 
@@ -56,16 +65,12 @@ resource "oci_containerengine_node_pool" "workers" {
     }
   }
 
-  # Node source: Oracle Linux image
   node_source_details {
     source_type = "IMAGE"
-    image_id    = var.node_image_id
+    image_id    = local.node_image_id
   }
 
-  # Labels for ARM nodes
-  node_labels = {
-    "kubernetes.io/arch" = "arm64"
-  }
+  ssh_public_key = var.ssh_public_key
 
   freeform_tags = var.tags
 }

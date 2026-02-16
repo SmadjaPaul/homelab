@@ -8,7 +8,6 @@ resource "oci_objectstorage_bucket" "terraform_state" {
   storage_tier   = "Standard"
 
   versioning            = "Enabled"
-  encryption            = "OracleManaged"
   object_events_enabled = false
 
   freeform_tags = var.tags
