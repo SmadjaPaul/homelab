@@ -1,0 +1,58 @@
+# Namespaces for OCI-Hub Cluster
+# ================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infra
+  labels:
+    environment: infrastructure
+    managed-by: flux
+    pod-security.kubernetes.io/enforce: privileged
+    # Network policies
+    network-policy: strict
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: databases
+  labels:
+    environment: infrastructure
+    managed-by: flux
+    pod-security.kubernetes.io/enforce: restricted
+    # Isolation des DB
+    network-policy: database
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: business
+  labels:
+    environment: business
+    managed-by: flux
+    pod-security.kubernetes.io/enforce: restricted
+    access-level: authentik-required
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: productivity
+  labels:
+    environment: personal
+    managed-by: flux
+    pod-security.kubernetes.io/enforce: restricted
+    access-level: family
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media
+  labels:
+    environment: media
+    managed-by: flux
+    pod-security.kubernetes.io/enforce: restricted
+    access-level: direct  # Comet sans Authentik pour perf

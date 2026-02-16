@@ -1,0 +1,35 @@
+# Comet Network Policy - Strict Isolation
+# Blocks all egress traffic from Comet (streaming only, no outbound access)
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: comet-deny-egress
+  namespace: media
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: comet
+  policyTypes:
+    - Egress
+    - Ingress
+  # Ingress: Allow traffic ONLY on the streaming port (30080 NodePort)
+  ingress:
+    # Allow from Traefik (ingress controller) on port 8080 (container port)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: traefik
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow direct NodePort access on 30080 (from anywhere via OCI Security List)
+    # Note: NodePort filtering happens at the OCI Security List level
+    - ports:
+        - protocol: TCP
+          port: 8080
+  # Egress: DENY ALL - Comet cannot make outbound connections
+  egress: []

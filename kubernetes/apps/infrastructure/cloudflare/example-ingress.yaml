@@ -1,0 +1,43 @@
+# Exemple d'Ingress avec External DNS + Cloudflare Tunnel
+# =========================================================
+# Selon l'architecture qjoly/GitOps
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app
+  namespace: productivity
+  annotations:
+    # Activer le proxy Cloudflare (WAF, DDoS protection)
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+
+    # Nom d'hôte pour le DNS record
+    external-dns.alpha.kubernetes.io/hostname: "example.smadja.dev"
+
+    # Cible: le tunnel Cloudflare (à remplacer par votre tunnel ID)
+    # Format: <tunnel-id>.cfargotunnel.com
+    external-dns.alpha.kubernetes.io/target: "${CLOUDFLARE_TUNNEL_ID}.cfargotunnel.com"
+
+    # Traefik comme ingress controller (ou nginx selon votre choix)
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+
+    # Cert-manager pour le certificat TLS
+    cert-manager.io/cluster-issuer: letsencrypt-production
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - example.smadja.dev
+      secretName: example-tls
+  rules:
+    - host: example.smadja.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example-service
+                port:
+                  number: 80

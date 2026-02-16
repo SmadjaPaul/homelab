@@ -1,258 +1,299 @@
 # Homelab Infrastructure
 
-> **⚠️ Work in Progress** - This homelab is currently under construction.
-> **Do not use as a reference or model** - Code may be broken, incomplete, or change frequently.
+> **100% GitOps** - Infrastructure hybride OCI + Home entièrement automatisée via GitHub Actions
 
-Personal homelab running on Proxmox VE with Kubernetes (Talos Linux), managed via GitOps with Flux CD.
+Déployez une infrastructure complète (Cloudflare, OCI, Kubernetes, applications) en **1 clic et 40 minutes**.
 
-## Architecture
+[![Deploy](https://img.shields.io/badge/Deploy-Infrastructure-success?style=for-the-badge&logo=github-actions)](https://github.com/votre-user/homelab/actions/workflows/deploy-infra.yml)
+
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Internet                                 │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │
-                ┌─────────▼─────────┐
-                │   Cloudflare      │
-                │   (DNS, WAF,      │
-                │    Tunnel)        │
-                └─────────┬─────────┘
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-┌───────▼───────┐ ┌───────▼───────┐ ┌───────▼───────┐
-│   Proxmox     │ │  Oracle Cloud │ │  Oracle Cloud │
-│   (On-prem)   │ │  (ARM VMs)    │ │  (ARM VMs)    │
-│               │ │  ARM           │ │  DB-Server    │
-└───────┬───────┘ └───────┬───────┘ └───────┬───────┘
-        │                 │                 │
-        └─────────────────┴─────────────────┘
-                          │
-                ┌─────────▼─────────┐
-                │   Talos Linux     │
-                │   (3 Control      │
-                │    Plane nodes)   │
-                │                   │
-                │   ┌─────────────┐ │
-                │   │ Kubernetes  │ │
-                │   │  (Flux CD)  │ │
-                │   └─────────────┘ │
-                └───────────────────┘
+Internet
+    │
+    ▼
+Cloudflare (DNS/WAF/Tunnel)
+    │
+    ├──────────────┬──────────────┐
+    │              │              │
+    ▼              ▼              ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐
+│ VM-Hub   │ │ K8s CP   │ │ K8s      │
+│ 1 OCPU   │ │ 1 OCPU   │ │ Workers  │
+│ 4GB RAM  │ │ 6GB RAM  │ │ 2×1 OCPU │
+├──────────┤ ├──────────┤ │ 14GB RAM │
+│ Omni     │ │ Talos    │ ├──────────┤
+│ Tailscale│ │ K8s      │ │ Apps     │
+│ Comet    │ └──────────┘ │ DB       │
+└──────────┘              └──────────┘
+    │                           │
+    └───────────┬───────────────┘
+                │ Tailscale
+                ▼
+         ┌──────────────┐
+         │ Home Cluster │
+         │ (Proxmox)    │
+         └──────────────┘
 ```
 
-## Components
+**OCI Free Tier (4 VMs, 4 OCPU, 24GB RAM):**
+- **oci-hub** (1 OCPU, 4GB): Omni + Tailscale + Comet
+- **talos-cp-1** (1 OCPU, 6GB): K8s Control Plane
+- **talos-worker-1** (1 OCPU, 8GB): Apps lourdes (Nextcloud, Matrix)
+- **talos-worker-2** (1 OCPU, 6GB): DB + apps légères
 
-### Infrastructure
-| Component | Purpose | Location |
-|-----------|---------|----------|
-| Proxmox VE | Hypervisor | On-premises |
-| Oracle Cloud | ARM VMs (Free Tier) | eu-paris-1 |
-| Cloudflare | DNS, WAF, Tunnel | Cloud |
-| Twingate | Zero Trust VPN | Cloud |
-| Unifi | Network management | On-prem |
+## 📁 Structure du Repository
 
-### Kubernetes Stack
-| Component | Purpose |
-|-----------|---------|
-| Talos Linux | Immutable K8s OS |
-| Flux CD | GitOps continuous delivery |
-| Cilium | eBPF CNI and networking |
-| External Secrets | Doppler integration |
-| Cert Manager | Let's Encrypt certificates |
-| Rook-Ceph | Distributed storage |
+```
+.
+├── .github/
+│   └── workflows/          # GitHub Actions
+│       ├── lint.yaml       # Validation YAML/Terraform
+│       ├── security.yaml   # Scan Trivy/Checkov
+│       ├── terraform.yaml  # Plan/Apply Terraform
+│       ├── flux-diff.yaml  # Diff Flux CD
+│       └── renovate.yaml   # Auto-update deps
+│
+├── kubernetes/             # Manifests Kubernetes (Flux CD)
+│   ├── apps/
+│   │   ├── business/       # Authentik, Odoo, FleetDM
+│   │   ├── productivity/   # Nextcloud, Matrix, Immich
+│   │   ├── media/          # Jellyfin, Comet
+│   │   ├── infrastructure/ # Cloudflare, cert-manager
+│   │   └── automation/     # Renovate, n8n
+│   ├── clusters/
+│   │   └── oci-hub/        # Configuration cluster OCI
+│   └── infrastructure/     # Charts et manifests communs
+│
+├── terraform/              # Infrastructure as Code
+│   ├── oracle-cloud/       # VMs OCI (4 VMs Free Tier)
+│   ├── cloudflare/         # DNS, Tunnel, Access
+│   └── proxmox/            # VMs Home (futur)
+│
+├── scripts/                # Scripts utilitaires
+│   ├── setup-doppler.sh    # Setup projets Doppler
+│   ├── bootstrap-phase2.sh # Bootstrap Omni + K8s
+│   └── bootstrap.sh
+│
+├── docs/                   # Documentation
+│   ├── DEPLOYMENT-GUIDE.md      # Guide déploiement complet
+│   ├── DEPLOYMENT-ARCHITECTURE.md # Dépendances et phases
+│   ├── ACCESS-ARCHITECTURE.md   # Méthodes d'accès
+│   └── cloudflare.md            # Config Cloudflare
+│
+├── doppler.yaml            # Configuration projets Doppler
+└── README.md
+```
 
-### Docker Services
-Services that run better on Docker (GPU, complex multi-container):
+## 🔄 Workflows GitHub Actions
 
-| Service | Description | Host |
-|---------|-------------|------|
-| **Jellyfin** | Media server with GPU transcoding | Ark-Ripper |
-| **Kasm** | Browser isolation workspaces | ARM |
-| **Wazuh** | SIEM and security monitoring | Dedicated |
-| **Blocky** | DNS with ad-blocking | HA setup |
-| **Databases** | MySQL, PostgreSQL, MinIO | DB-Server |
-| **NPM** | Nginx Proxy Manager | Proxy |
+| Workflow | Déclencheur | Description |
+|----------|-------------|-------------|
+| **[deploy-infra.yml](.github/workflows/deploy-infra.yml)** | `workflow_dispatch` | **Déploiement complet** - 4 phases (Cloudflare → OCI → Omni → K8s) |
+| **[terraform.yml](.github/workflows/terraform.yml)** | Push/PR sur `terraform/**` | Plan/Apply Terraform par module (cloudflare, oci, etc.) |
+| **[lint.yml](.github/workflows/lint.yml)** | Push/PR | Validation YAML et Terraform |
+| **[security.yml](.github/workflows/security.yml)** | Push/PR + Weekly | Scan Trivy et Checkov |
+| **[flux-diff.yml](.github/workflows/flux-diff.yml)** | Push/PR sur `kubernetes/**` | Diff entre Git et cluster K8s |
+| **[renovate.yml](.github/workflows/renovate.yml)** | Daily | Mise à jour automatique des dépendances |
 
-### Kubernetes Applications
-| App | Description |
-|-----|-------------|
-| **Cert Manager** | TLS certificate management |
-| **Cilium** | CNI, network policies, observability |
-| **External Secrets** | Doppler secrets sync |
-| **Grafana** | Monitoring dashboards |
-| **Prometheus** | Metrics collection |
-| **Loki** | Log aggregation |
-| **Authentik** | Identity provider / SSO |
-| **Homepage** | Dashboard |
+### Environments (Protection)
 
-## Quick Start
+Les workflows utilisent des **environments** GitHub avec approbation manuelle:
 
-### Prerequisites
+- `cloudflare` - Modifications DNS/Tunnel
+- `production` - VMs OCI
+- `omni` - Bootstrap Kubernetes
+- `kubernetes` - Déploiement applications
+
+Configurez dans: Settings → Environments
+
+## 🚀 Déploiement (100% CI/CD)
+
+### Option 1: GitHub Actions (Recommandé)
+
+#### Prérequis (1 fois)
+
+1. **Forker ce repository** sur votre compte GitHub
+
+2. **Configurer les secrets GitHub** (voir [docs/GITHUB_SECRETS.md](docs/GITHUB_SECRETS.md)):
+   ```bash
+   # Vérifier les secrets manquants
+   ./scripts/check-secrets.sh
+
+   # Ou manuellement sur GitHub:
+   # Settings → Secrets and variables → Actions
+   ```
+
+3. **Créer un compte Omni** (pour la phase Kubernetes):
+   - Aller sur https://omni.siderolabs.io
+   - Noter l'endpoint: `https://xxx.omni.siderolabs.io:50001`
+   - Générer une clé API: Settings → Keys → Generate
+
+#### Déploiement (1 clic)
+
+**Via GitHub UI:**
+```
+GitHub → Actions → "Deploy Infrastructure" → Run workflow → phase: all
+```
+
+**Via CLI:**
+```bash
+gh workflow run deploy-infra.yml -f phase=all
+```
+
+**Durée: ~40 minutes**
+- **Phase 1** (5 min): Cloudflare (DNS, Tunnel, Access)
+- **Phase 2** (5 min): OCI VMs (Ubuntu temporaire)
+- **Phase 3** (20 min): Omni Bootstrap (génération image + import OCI)
+- **Phase 4** (10 min): Kubernetes apps (Flux CD)
+
+### Option 2: Local (Développement)
 
 ```bash
-# Install CLI tools
-brew install terraform kubectl helm talosctl doppler
+# 1. Vérifier les prérequis
+./scripts/prepare-deployment.sh
 
-# Install OCI CLI
-brew install oci-cli
+# 2. Déployer tout
+./scripts/deploy.sh all
+
+# Ou par phases:
+./scripts/deploy.sh cloudflare    # Phase 1
+./scripts/deploy.sh oci           # Phase 2
+./scripts/deploy.sh omni          # Phase 3
+./scripts/deploy.sh k8s           # Phase 4
 ```
 
-### 1. Doppler Setup
+## 🏗️ Architecture des Services
 
+### VM Hub (oci-hub) - 1 OCPU / 4GB
+
+Services **infrastructure** nécessaires au bootstrap et à l'administration:
+
+| Service | Port | Description | Pourquoi sur VM ? |
+|---------|------|-------------|-------------------|
+| **Omni** | 50000/50001 | Control Plane Kubernetes | Doit exister avant K8s |
+| **Tailscale** | - | VPN Subnet Router | Accès admin réseau privé |
+| **Comet** | 8080 | Streaming (Stremio) | Latence minimale |
+
+**Fichier:** `terraform/oracle-cloud/templates/hub-cloud-init.sh`
+
+### Cluster Kubernetes (3 VMs) - 3 OCPU / 20GB
+
+Toutes les **applications** et l'infrastructure K8s:
+
+| Service | Description | Accès |
+|---------|-------------|-------|
+| **Cloudflared** | Tunnel vers Cloudflare | Internal |
+| **Traefik** | Ingress Controller | Internal |
+| **Authentik** | Identity Provider (SSO) | https://auth.smadja.dev |
+| **Nextcloud** | Cloud Storage | https://cloud.smadja.dev |
+| **Matrix** | Chat | https://chat.smadja.dev |
+
+**Gestion:** GitOps via Flux CD
+
+### Gestion du Trafic
+
+```
+Internet
+    │
+    ├─► *.smadja.dev ──► Cloudflare Tunnel ──► Traefik ──► Apps K8s
+    │                                                    (Nextcloud, etc.)
+    │
+    ├─► [VM-IP]:8080 ──► Comet (Streaming, direct)
+    │
+    └─► Tailscale VPN ──► Omni + kubectl + SSH (Admin only)
+```
+
+**📖 Détails:** [docs/VM-VS-K8S.md](docs/VM-VS-K8S.md) | [docs/NETWORK-ARCHITECTURE.md](docs/NETWORK-ARCHITECTURE.md)
+
+**📖 Documentation:**
+- [docs/GITHUB_SECRETS.md](docs/GITHUB_SECRETS.md) - Liste complète des secrets
+- [docs/VM-VS-K8S.md](docs/VM-VS-K8S.md) - Ce qui tourne sur VM vs Kubernetes
+- [docs/NETWORK-ARCHITECTURE.md](docs/NETWORK-ARCHITECTURE.md) - Gestion du trafic et réseau
+- [docs/FULLY-AUTOMATED-ARCHITECTURE.md](docs/FULLY-AUTOMATED-ARCHITECTURE.md) - Architecture CI/CD
+
+## 🔐 Secrets Management
+
+**1 projet Doppler = 1 service** pour granularité maximale:
+
+```
+infrastructure/           # Secrets core + tokens
+├── CLOUDFLARE_API_TOKEN
+├── OCI_CLI_*
+├── TAILSCALE_AUTH_KEY
+└── DOPPLER_TOKEN_SERVICE_*
+
+service-authentik/      # AUTHENTIK_*
+service-nextcloud/      # NEXTCLOUD_*
+service-comet/          # COMET_*, RD_API_KEY
+...
+```
+
+Synchronisation automatique vers Kubernetes via External Secrets Operator.
+
+## 🌐 Architecture d'Accès
+
+| Méthode | Services | Utilisateurs | Auth |
+|---------|----------|--------------|------|
+| **Cloudflare Tunnel** | Nextcloud, Matrix, etc. | Famille/Amis | Authentik |
+| **Direct + CF Access** | Comet (streaming) | Toi | CF Access |
+| **Tailscale VPN** | Omni, kubectl, SSH | Toi (admin) | Device |
+
+## 🔄 Workflows GitHub
+
+### Lint & Validation
+- **Trigger:** Push/PR sur `main`
+- **Action:** Validation YAML, Terraform fmt/validate
+
+### Sécurité
+- **Trigger:** Push/PR + Weekly
+- **Action:** Scan Trivy (K8s manifests, Terraform), Checkov
+
+### Terraform
+- **Trigger:** Changements dans `terraform/`
+- **Action:** Plan automatique, Apply manuel (environment protection)
+
+### Flux Diff
+- **Trigger:** Changements dans `kubernetes/`
+- **Action:** Affiche le diff entre Git et cluster
+
+### Renovate
+- **Trigger:** Daily
+- **Action:** Mise à jour automatique des dépendances (Helm charts, images)
+
+## 📊 Ressources
+
+| Ressource | Limite | Utilisé |
+|-----------|--------|---------|
+| VMs ARM | 4 | 4 ✅ |
+| OCPU | 4 | 4 ✅ |
+| RAM | 24GB | 24GB ✅ |
+
+## 📝 Documentation
+
+- **[DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md)** - Guide déploiement étape par étape
+- **[DEPLOYMENT-ARCHITECTURE.md](docs/DEPLOYMENT-ARCHITECTURE.md)** - Dépendances et ordre de déploiement
+- **[ACCESS-ARCHITECTURE.md](docs/ACCESS-ARCHITECTURE.md)** - Méthodes d'accès (Tunnel/Direct/VPN)
+- **[cloudflare.md](docs/cloudflare.md)** - Configuration Cloudflare Tunnel
+
+## 🆘 Dépannage
+
+**Voir les logs:**
 ```bash
-# Login to Doppler
-doppler login
-
-# Verify projects exist
-doppler projects
-
-# Expected projects: infrastructure, databases, apps, monitoring
-```
-
-### 2. Deploy Infrastructure
-
-```bash
-# Oracle Cloud Infrastructure
-cd terraform/oracle
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars
-terraform init && terraform apply
-
-# Cloudflare DNS
-cd terraform/cloudflare
-cp terraform.tfvars.example terraform.tfvars
-terraform init && terraform apply
-
-# Proxmox VMs
-cd terraform/proxmox
-cp terraform.tfvars.example terraform.tfvars
-terraform init && terraform apply
-```
-
-### 3. Bootstrap Kubernetes
-
-```bash
-# Generate Talos config
-cd kubernetes/talos
-talhelper genconfig
-
-# Apply to nodes
-talosctl apply-config --insecure -n <node-ip> --file clusterconfig/talos-controlplane-1.yaml
-
-# Bootstrap Flux
-cd ../..
-kubectl create ns flux-system
-kubectl -n flux-system create secret generic sops-age --from-file=age.agekey=/home/$USER/.sops/key.txt
-kubectl apply -f kubernetes/flux/cluster.yaml
-
-# Setup Doppler token for External Secrets
-kubectl create secret generic doppler-token-auth \
-  --from-literal=dopplerToken='dp.st.xxxxxx' \
-  -n external-secrets
-```
-
-### 4. Run Docker Services
-
-```bash
-cd docker
-
-# Example: Start ARM stack
-./doppler-compose.sh arm up -d
-
-# Example: Start databases
-./doppler-compose.sh db-server up -d
-
-# View all options
-./doppler-compose.sh --help
-```
-
-## Directory Structure
-
-```
-homelab/
-├── ansible/              # Ansible playbooks and roles
-├── docker/               # Docker Compose services
-│   ├── arm/              # ARM Oracle VM services
-│   ├── databases/        # MySQL, PostgreSQL, MinIO
-│   ├── jellyfin/         # Media server
-│   ├── wazuh/            # SIEM
-│   └── ...
-├── kubernetes/           # Kubernetes manifests (Flux)
-│   ├── apps/             # Applications
-│   ├── cluster/          # Cluster-wide resources
-│   ├── flux/             # Flux configuration
-│   └── talos/            # Talos configs
-├── packer/               # VM templates (Ubuntu)
-├── terraform/            # Infrastructure as Code
-│   ├── authentik/
-│   ├── cloudflare/
-│   ├── oracle/
-│   ├── proxmox/
-│   ├── servarr/
-│   ├── twingate/
-│   └── unifi/
-├── .taskfiles/           # Task commands
-├── doppler.yaml          # Doppler secret configuration
-└── Taskfile.yaml         # Task runner config
-```
-
-## Secrets Management
-
-All secrets are managed via **Doppler**:
-
-- **Doppler Projects**:
-  - `infrastructure` - Cloudflare, Twingate, Proxmox, Unifi
-  - `databases` - PostgreSQL, MySQL, MongoDB passwords
-  - `apps` - Application secrets (Gitea, Jellyfin, etc.)
-  - `monitoring` - SMTP, alerting credentials
-
-- **Kubernetes**: External Secrets Operator syncs Doppler secrets
-- **Docker**: Doppler CLI injects secrets at runtime
-- **Ansible**: Doppler CLI retrieves secrets during playbook runs
-
-See [doppler.yaml](doppler.yaml) for complete secret mapping.
-
-## Cost
-
-**Total: ~$5/month** (mostly free tier)
-
-| Service | Tier | Cost |
-|---------|------|------|
-| Oracle Cloud | Always Free | $0 |
-| Cloudflare | Free | $0 |
-| Doppler | Free (200 secrets) | $0 |
-| GitHub | Free | $0 |
-| Twingate | Free | $0 |
-| Proton VPN | Plus | ~$5/mo |
-
-## Workflows
-
-- **Docker CD** - Deploys Docker services on push
-- **Ansible Playbooks** - Runs Ansible on schedule or manual trigger
-- **Renovate** - Automated dependency updates
-- **Trivy** - Container vulnerability scanning
-
-## Useful Commands
-
-```bash
-# Task commands
-task --list                    # List all tasks
-task talos:genconfig          # Generate Talos configs
-task talos:apply              # Apply Talos configs
-task helm:install EXTERNAL-SECRET # Install External Secrets
-
 # Kubernetes
-kubectl get kustomizations -A  # View Flux status
-kubectl get helmreleases -A    # View Helm releases
-flux reconcile source git flux-system  # Force sync
+kubectl logs -n <namespace> deployment/<app>
 
-# Docker
-cd docker && ./doppler-compose.sh <service> logs -f
+# Doppler
+doppler secrets -p <project>
+
+# Terraform
+cd terraform/oracle-cloud && terraform state list
 ```
 
-## Credits
+## 🎯 Roadmap
 
-Based on the excellent work by:
-- [Mafyuh/iac](https://github.com/Mafyuh/iac) - Main inspiration
-- [MacroPower/homelab](https://github.com/MacroPower/homelab) - External Secrets with Doppler
-- [onedr0p/flux-cluster-template](https://github.com/onedr0p/flux-cluster-template) - Flux patterns
+Voir [ROADMAP.md](ROADMAP.md) pour les détails.
+
+---
+
+**⚠️ Work in Progress** - Ce projet est en construction active.

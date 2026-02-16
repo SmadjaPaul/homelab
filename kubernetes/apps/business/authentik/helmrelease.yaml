@@ -1,0 +1,124 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: authentik
+      version: "2024.12.x"
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: flux-system
+  values:
+    authentik:
+      secret_key: "${AUTHENTIK_SECRET_KEY}"
+      bootstrap_password: "${AUTHENTIK_BOOTSTRAP_PASSWORD}"
+      bootstrap_token: "${AUTHENTIK_BOOTSTRAP_TOKEN}"
+      email:
+        host: "${SMTP_HOST}"
+        port: "${SMTP_PORT}"
+        username: "${SMTP_USERNAME}"
+        password: "${SMTP_PASSWORD}"
+        use_tls: true
+        use_ssl: false
+        from: "${SMTP_FROM}"
+
+      # Configuration postgresql intégrée
+      postgresql:
+        enabled: true
+        postgresqlUsername: "${AUTHENTIK_POSTGRES_USER}"
+        postgresqlDatabase: "${AUTHENTIK_POSTGRES_NAME}"
+        postgresqlPassword: "${AUTHENTIK_POSTGRES_PASSWORD}"
+        persistence:
+          enabled: true
+          size: 10Gi
+          storageClass: "longhorn"
+
+      # Redis intégré
+      redis:
+        enabled: true
+        master:
+          persistence:
+            enabled: true
+            size: 5Gi
+            storageClass: "longhorn"
+
+    server:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+      ingress:
+        enabled: false  # Géré par Traefik avec External DNS
+
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+
+    worker:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+    # Pas de persistence supplémentaire (déjà dans postgresql)
+    persistence:
+      enabled: false
+  valuesFrom:
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_SECRET_KEY
+      targetPath: authentik.secret_key
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_BOOTSTRAP_PASSWORD
+      targetPath: authentik.bootstrap_password
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_BOOTSTRAP_TOKEN
+      targetPath: authentik.bootstrap_token
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_POSTGRES_USER
+      targetPath: authentik.postgresql.postgresqlUsername
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_POSTGRES_NAME
+      targetPath: authentik.postgresql.postgresqlDatabase
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_POSTGRES_PASSWORD
+      targetPath: authentik.postgresql.postgresqlPassword
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: SMTP_HOST
+      targetPath: authentik.email.host
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: SMTP_PORT
+      targetPath: authentik.email.port
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: SMTP_USERNAME
+      targetPath: authentik.email.username
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: SMTP_PASSWORD
+      targetPath: authentik.email.password
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: SMTP_FROM
+      targetPath: authentik.email.from

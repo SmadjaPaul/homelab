@@ -1,0 +1,51 @@
+name: Flux Diff
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/**'
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flux
+        uses: fluxcd/flux2/action@main
+
+      - name: Diff against cluster
+        run: |
+          flux diff kustomization oci-hub --path ./kubernetes/clusters/oci-hub 2>&1 | tee diff.log
+          if grep -q "drift detected" diff.log; then
+            echo "::warning::Drift detected between Git and cluster state"
+          fi
+        shell: bash
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+        continue-on-error: true
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('diff.log', 'utf8');
+
+            const body = `## Flux Diff\n\n\`\`\`\n${diff}\n\`\`\``;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

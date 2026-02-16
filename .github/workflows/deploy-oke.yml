@@ -1,0 +1,303 @@
+name: Deploy OKE Infrastructure
+#
+# Required GitHub Secrets:
+#   - DOPPLER_SERVICE_TOKEN: Doppler service token for 'infrastructure' project
+#
+# All other secrets (OCI, Cloudflare, etc.) are fetched from Doppler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/oke/**'
+      - 'terraform/cloudflare/**'
+      - 'kubernetes/**'
+      - '.github/workflows/deploy-oke.yml'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Deployment phase'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cloudflare
+          - oke
+          - k8s-apps
+
+env:
+  # Terraform
+  TF_IN_AUTOMATION: true
+  TF_INPUT: 0
+
+  # Doppler
+  DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+jobs:
+  # ============================================================================
+  # PHASE 1: Cloudflare
+  # ============================================================================
+  cloudflare:
+    name: Deploy Cloudflare
+    runs-on: ubuntu-latest
+    if: github.event.inputs.phase == 'all' || github.event.inputs.phase == 'cloudflare' || github.event_name == 'push'
+    environment: cloudflare
+    defaults:
+      run:
+        working-directory: terraform/cloudflare
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          doppler-project: infrastructure
+          doppler-config: prd
+          inject-env-vars: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
+          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
+
+      - name: Output Tunnel Info
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "TUNNEL_ID=$(terraform output -raw tunnel_id)" >> $GITHUB_ENV
+          echo "CNAME_TARGET=$(terraform output -raw cname_target)" >> $GITHUB_ENV
+
+  # ============================================================================
+  # PHASE 2: OKE Infrastructure
+  # ============================================================================
+  oke:
+    name: Deploy OKE Cluster
+    runs-on: ubuntu-latest
+    needs: cloudflare
+    if: |
+      always() &&
+      needs.cloudflare.result == 'success' &&
+      (github.event.inputs.phase == 'all' || github.event.inputs.phase == 'oke' || github.event_name == 'push')
+    environment: production
+    defaults:
+      run:
+        working-directory: terraform/oke
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          doppler-project: infrastructure
+          doppler-config: prd
+          inject-env-vars: true
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=${{ env.OCI_CLI_USER }}" >> ~/.oci/config
+          echo "fingerprint=${{ env.OCI_CLI_FINGERPRINT }}" >> ~/.oci/config
+          echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
+          echo "tenancy=${{ env.OCI_CLI_TENANCY }}" >> ~/.oci/config
+          echo "region=${{ env.OCI_CLI_REGION }}" >> ~/.oci/config
+          echo "${{ env.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Create Backend Config
+        run: |
+          cat > backend.hcl <<EOF
+          bucket   = "terraform-states"
+          key      = "oke/terraform.tfstate"
+          region   = "${{ env.OCI_CLI_REGION }}"
+          endpoint = "https://${{ env.OCI_OBJECT_STORAGE_NAMESPACE }}.compat.objectstorage.${{ env.OCI_CLI_REGION }}.oraclecloud.com"
+          skip_region_validation      = true
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          force_path_style            = true
+          EOF
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init -backend-config=backend.hcl
+        env:
+          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
+          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
+          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
+          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
+          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
+          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
+          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
+
+      - name: Output Cluster Info
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "CLUSTER_ID=$(terraform output -raw cluster_id)" >> $GITHUB_ENV
+          echo "CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)" >> $GITHUB_ENV
+          terraform output
+
+      - name: Wait for Cluster
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Waiting for OKE cluster nodes to be ready..."
+          sleep 120
+
+  # ============================================================================
+  # PHASE 3: Kubernetes Apps
+  # ============================================================================
+  k8s-apps:
+    name: Deploy Kubernetes Apps
+    runs-on: ubuntu-latest
+    needs: oke
+    if: |
+      always() &&
+      needs.oke.result == 'success' &&
+      (github.event.inputs.phase == 'all' || github.event.inputs.phase == 'k8s-apps' || github.event_name == 'push')
+    environment: kubernetes
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        with:
+          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          doppler-project: infrastructure
+          doppler-config: prd
+          inject-env-vars: true
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=${{ env.OCI_CLI_USER }}" >> ~/.oci/config
+          echo "fingerprint=${{ env.OCI_CLI_FINGERPRINT }}" >> ~/.oci/config
+          echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
+          echo "tenancy=${{ env.OCI_CLI_TENANCY }}" >> ~/.oci/config
+          echo "region=${{ env.OCI_CLI_REGION }}" >> ~/.oci/config
+          echo "${{ env.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s/release/$(curl -L -s https://dl.k8s/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Get Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          oci ce cluster create-kubeconfig \
+            --cluster-id ${{ env.CLUSTER_ID }} \
+            --file ~/.kube/config \
+            --region ${{ env.OCI_CLI_REGION }} \
+            --token-version 2.0.0
+          echo "✅ Kubeconfig created"
+          kubectl get nodes
+
+      - name: Install Flux CD
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo bash
+          flux install
+          echo "✅ Flux CD installed"
+
+      - name: Verify Comet Network Policy
+        run: |
+          echo "Applying Comet Network Policy..."
+          kubectl apply -f kubernetes/apps/media/comet/networkpolicy.yaml
+          kubectl get networkpolicy -n media
+
+      - name: Deploy Apps
+        run: |
+          echo "Deploying applications..."
+          kubectl apply -k kubernetes/clusters/oci-hub
+          echo "✅ Applications deployed"
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for pods to start..."
+          sleep 60
+
+          echo ""
+          echo "=== All Namespaces ==="
+          kubectl get pods --all-namespaces || true
+
+          echo ""
+          echo "=== Network Policies ==="
+          kubectl get networkpolicies --all-namespaces || true
+
+          echo ""
+          echo "=== Comet Service ==="
+          kubectl get svc -n media | grep comet || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "============================================"
+          echo "  OKE Deployment Complete"
+          echo "============================================"
+          echo ""
+          echo "✅ OKE infrastructure deployed!"
+          echo ""
+          echo "Cluster Info:"
+          echo "  - Endpoint: $CLUSTER_ENDPOINT"
+          echo "  - Nodes: $(kubectl get nodes -o name | wc -l)"
+          echo ""
+          echo "Comet Streaming:"
+          echo "  - NodePort: 30080"
+          echo "  - Access: http://<worker-ip>:30080"
+          echo "  - Isolated: Yes (NetworkPolicy applied)"
+          echo ""

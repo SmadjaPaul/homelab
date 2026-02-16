@@ -1,0 +1,62 @@
+name: Lint and Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint YAML files
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          config_file: .yamllint.yaml
+          file_or_dir: kubernetes/
+          strict: true
+
+  validate-k8s:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Validate Kubernetes manifests
+        run: |
+          find kubernetes/ -name "*.yaml" -type f ! -name "kustomization.yaml" ! -name "gotk-*.yaml" | while read file; do
+            echo "Validating $file"
+            kubectl apply --dry-run=client -f "$file" || exit 1
+          done
+        shell: bash
+
+  lint-terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Format Check
+        run: |
+          cd terraform
+          terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: |
+          cd terraform/oracle-cloud
+          terraform init -backend=false
+          terraform validate

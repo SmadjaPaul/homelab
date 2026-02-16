@@ -1,0 +1,101 @@
+# Cloudflare Tunnel - Configuration selon qjoly/GitOps
+# =====================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflare
+  labels:
+    environment: infrastructure
+    managed-by: flux
+
+---
+# Secret pour les credentials du tunnel (créé par External Secrets depuis Doppler)
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: tunnel-credentials
+  namespace: cloudflare
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-infrastructure
+  target:
+    name: tunnel-credentials
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        credentials.json: |
+          {
+            "AccountTag": "{{ .CLOUDFLARE_ACCOUNT_ID }}",
+            "TunnelID": "{{ .CLOUDFLARE_TUNNEL_ID }}",
+            "TunnelSecret": "{{ .CLOUDFLARE_TUNNEL_SECRET }}"
+          }
+  data:
+    - secretKey: CLOUDFLARE_ACCOUNT_ID
+      remoteRef:
+        key: CLOUDFLARE_ACCOUNT_ID
+    - secretKey: CLOUDFLARE_TUNNEL_ID
+      remoteRef:
+        key: CLOUDFLARE_TUNNEL_ID
+    - secretKey: CLOUDFLARE_TUNNEL_SECRET
+      remoteRef:
+        key: CLOUDFLARE_TUNNEL_SECRET
+
+---
+# HelmRelease pour Cloudflared
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: cloudflare-tunnel
+  namespace: cloudflare
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: cloudflare-tunnel
+      version: "0.3.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cloudflare
+        namespace: flux-system
+  values:
+    cloudflare:
+      tunnelName: "oci-hub-tunnel"
+      # Ces valeurs seront injectées par le secret
+      secretName: "tunnel-credentials"
+      # Ingress wildcard - tous les services passent par le tunnel
+      ingress:
+        - hostname: "*.smadja.dev"
+          # Redirection vers l'ingress controller (Traefik ou Cilium)
+          service: "http://traefik.infra.svc.cluster.local:80"
+          originRequest:
+            noTLSVerify: true
+        # Fallback
+        - service: http_status:404
+
+    replicaCount: 2
+
+    resources:
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+
+    # Affinity pour HA
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - cloudflare-tunnel
+              topologyKey: kubernetes.io/hostname

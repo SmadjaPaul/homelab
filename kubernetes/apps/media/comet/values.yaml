@@ -1,0 +1,58 @@
+nameOverride: "comet"
+fullnameOverride: "comet"
+
+# Image configuration
+image:
+  repository: ghcr.io/g0ldyy/comet
+  tag: "v2.3.0"
+  pullPolicy: IfNotPresent
+
+# Environment variables (will be populated by Doppler)
+envFrom:
+  - secretRef:
+      name: comet-env
+
+# Resources - Optimized for Free Tier ARM nodes
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+# Service - ClusterIP for internal access
+service:
+  type: ClusterIP
+  port: 8080
+
+# Ingress - Configured via Traefik
+ingress:
+  enabled: false  # We use Traefik IngressRoute
+
+# Pod security
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Node selector - ARM nodes
+nodeSelector:
+  kubernetes.io/arch: arm64
+
+# Tolerations
+tolerations: []
+
+# Affinity - Spread across nodes
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - comet
+          topologyKey: kubernetes.io/hostname

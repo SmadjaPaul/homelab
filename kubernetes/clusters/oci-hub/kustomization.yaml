@@ -1,0 +1,41 @@
+# Cluster OCI-HUB - Cluster principal (Cloud)
+# =============================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: flux-system
+
+resources:
+  # Flux Bootstrap
+  - gotk-components.yaml
+  - gotk-sync.yaml
+
+  # Helm Repositories
+  - ../../flux-system/repositories.yaml
+
+  # Namespaces
+  - namespaces.yaml
+
+  # Infrastructure Core
+  - ../../apps/infrastructure/external-secrets
+  - ../../apps/infrastructure/cert-manager
+  - ../../apps/infrastructure/cloudflare
+  - ../../apps/infrastructure/traefik
+
+  # Apps Media
+  - ../../apps/media/comet
+
+patches:
+  - target:
+      kind: Kustomization
+      name: flux-system
+    patch: |-
+      - op: add
+        path: /spec/postBuild
+        value:
+          substitute:
+            CLUSTER_NAME: oci-hub
+            DOMAIN: smadja.dev
+            TIMEZONE: Europe/Paris
+            ENVIRONMENT: production

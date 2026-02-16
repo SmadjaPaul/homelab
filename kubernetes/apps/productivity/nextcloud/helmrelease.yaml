@@ -1,0 +1,118 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: nextcloud
+      version: "6.x.x"
+      sourceRef:
+        kind: HelmRepository
+        name: nextcloud
+        namespace: flux-system
+  values:
+    image:
+      repository: nextcloud
+      tag: stable
+      pullPolicy: IfNotPresent
+
+    replicaCount: 1
+
+    nextcloud:
+      host: cloud.smadja.dev
+      username: ${NEXTCLOUD_ADMIN_USER}
+      password: ${NEXTCLOUD_ADMIN_PASSWORD}
+
+      # Configuration pour S3 (OCI Object Storage)
+      objectStore:
+        s3:
+          enabled: true
+          bucket: nextcloud-data
+          autocreate: false
+          key: ${OBJECTSTORE_S3_KEY}
+          secret: ${OBJECTSTORE_S3_SECRET}
+          region: eu-paris-1
+          ssl: true
+          port: 443
+          # OCI S3-compatible endpoint
+          hostname: ${OCI_NAMESPACE}.compat.objectstorage.eu-paris-1.oraclecloud.com
+
+      # Configuration pour Authentik (OIDC)
+      configs:
+        oidc.config.php: |
+          <?php
+          $CONFIG = array (
+            'oidc_login_provider_url' => 'https://auth.smadja.dev/application/o/nextcloud/',
+            'oidc_login_client_id' => 'nextcloud',
+            'oidc_login_client_secret' => getenv('OIDC_CLIENT_SECRET'),
+            'oidc_login_auto_redirect' => false,
+            'oidc_login_logout_url' => 'https://auth.smadja.dev/application/o/nextcloud/end-session/',
+            'oidc_login_default_quota' => '1000000000',
+            'oidc_login_attributes' => array (
+              'id' => 'sub',
+              'name' => 'name',
+              'mail' => 'email',
+              'quota' => 'quota',
+              'groups' => 'groups',
+            ),
+          );
+
+    ingress:
+      enabled: false  # Géré par Traefik avec External DNS
+
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+      accessMode: ReadWriteOnce
+
+    # PostgreSQL intégré
+    postgresql:
+      enabled: true
+      global:
+        postgresql:
+          auth:
+            username: nextcloud
+            password: ${POSTGRES_PASSWORD}
+            database: nextcloud
+      primary:
+        persistence:
+          enabled: true
+          size: 10Gi
+          storageClass: longhorn
+
+    # Redis pour cache
+    redis:
+      enabled: true
+      auth:
+        enabled: true
+        password: "${REDIS_PASSWORD}"
+      master:
+        persistence:
+          enabled: true
+          size: 5Gi
+          storageClass: longhorn
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+  valuesFrom:
+    - kind: Secret
+      name: nextcloud-secrets
+      valuesKey: NEXTCLOUD_ADMIN_USER
+      targetPath: nextcloud.username
+    - kind: Secret
+      name: nextcloud-secrets
+      valuesKey: NEXTCLOUD_ADMIN_PASSWORD
+      targetPath: nextcloud.password
+    - kind: Secret
+      name: nextcloud-secrets
+      valuesKey: POSTGRES_PASSWORD
+      targetPath: postgresql.global.postgresql.auth.password
