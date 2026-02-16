@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'terraform/oke/**'
+      - 'terraform/oracle-cloud/**'
       - 'kubernetes/**'
       - '.github/workflows/deploy-oke.yml'
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
     environment: production
     defaults:
       run:
-        working-directory: terraform/oke
+        working-directory: terraform/oracle-cloud
 
     steps:
       - name: Checkout
@@ -60,7 +60,7 @@ jobs:
         run: |
           cat > backend.hcl <<EOF
           bucket   = "terraform-states"
-          key      = "oke/terraform.tfstate"
+          key      = "oracle-cloud/terraform.tfstate"
           region   = "${{ secrets.OCI_CLI_REGION }}"
           endpoint = "https://${{ env.OCI_OBJECT_STORAGE_NAMESPACE }}.compat.objectstorage.${{ secrets.OCI_CLI_REGION }}.oraclecloud.com"
           skip_region_validation      = true
