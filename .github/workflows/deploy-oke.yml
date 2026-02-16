@@ -1,9 +1,4 @@
 name: Deploy OKE Infrastructure
-#
-# Required GitHub Secrets:
-#   - DOPPLER_SERVICE_TOKEN: Doppler service token for 'infrastructure' project
-#
-# All other secrets (OCI, Cloudflare, etc.) are fetched from Doppler
 
 on:
   push:
@@ -31,8 +26,37 @@ env:
   TF_IN_AUTOMATION: true
   TF_INPUT: 0
 
-  # Doppler
-  DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+  # OCI Credentials
+  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+  # Terraform Variables - OCI
+  TF_VAR_tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+  TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+  TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+
+  # Cloudflare
+  TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  TF_VAR_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  TF_VAR_tunnel_secret: ${{ secrets.CLOUDFLARE_TUNNEL_SECRET }}
+  TF_VAR_tunnel_id: ${{ secrets.CLOUDFLARE_TUNNEL_ID }}
+  TF_VAR_domain: smadja.dev
+  TF_VAR_enable_tunnel: true
+  TF_VAR_enable_tunnel_config: true
+  TF_VAR_enable_zone_settings: true
+  TF_VAR_enable_geo_restriction: ${{ secrets.ENABLE_GEO_RESTRICTION }}
+  TF_VAR_enable_authentik_api_skip_challenge: true
+  TF_VAR_authentik_oidc_enabled: true
+  TF_VAR_authentik_oidc_client_id: ${{ secrets.AUTHENTIK_OIDC_CLIENT_ID }}
+  TF_VAR_authentik_oidc_client_secret: ${{ secrets.AUTHENTIK_OIDC_CLIENT_SECRET }}
+  TF_VAR_authentik_oidc_auth_url: ${{ secrets.AUTHENTIK_OIDC_AUTH_URL }}
+  TF_VAR_authentik_oidc_token_url: ${{ secrets.AUTHENTIK_OIDC_TOKEN_URL }}
+  TF_VAR_authentik_oidc_certs_url: ${{ secrets.AUTHENTIK_OIDC_CERTS_URL }}
+  TF_VAR_allowed_emails: ${{ secrets.ALLOWED_EMAILS }}
 
 jobs:
   # ============================================================================
@@ -51,14 +75,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Doppler
-        uses: dopplerhq/secrets-fetch-action@latest
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-          doppler-project: infrastructure
-          doppler-config: prd
-          inject-env-vars: true
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -67,31 +83,13 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        env:
-          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
-          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan
-        env:
-          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
-          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
-        env:
-          TF_VAR_cloudflare_api_token: ${{ env.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_zone_id: ${{ env.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_account_id: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_tunnel_secret: ${{ env.CLOUDFLARE_TUNNEL_SECRET }}
-          TF_VAR_tunnel_id: ${{ env.CLOUDFLARE_TUNNEL_ID }}
 
       - name: Output Tunnel Info
         if: github.ref == 'refs/heads/main'
@@ -119,14 +117,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Doppler
-        uses: dopplerhq/secrets-fetch-action@latest
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-          doppler-project: infrastructure
-          doppler-config: prd
-          inject-env-vars: true
-
       - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
@@ -138,6 +128,10 @@ jobs:
           echo "region=${{ env.OCI_CLI_REGION }}" >> ~/.oci/config
           echo "${{ env.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Get OCI Object Storage Namespace
+        run: |
+          echo "OCI_OBJECT_STORAGE_NAMESPACE=$(oci os ns get --query data --raw-output)" >> $GITHUB_ENV
 
       - name: Create Backend Config
         run: |
@@ -160,25 +154,13 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -backend-config=backend.hcl
-        env:
-          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
-          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
-          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan
-        env:
-          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
-          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
-          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
-        env:
-          TF_VAR_tenancy_ocid: ${{ env.OCI_CLI_TENANCY }}
-          TF_VAR_compartment_id: ${{ env.OCI_COMPARTMENT_ID }}
-          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
 
       - name: Output Cluster Info
         if: github.ref == 'refs/heads/main'
@@ -209,14 +191,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Doppler
-        uses: dopplerhq/secrets-fetch-action@latest
-        with:
-          doppler-token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
-          doppler-project: infrastructure
-          doppler-config: prd
-          inject-env-vars: true
 
       - name: Configure OCI CLI
         run: |
