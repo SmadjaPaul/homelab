@@ -276,11 +276,6 @@ resource "oci_containerengine_node_pool" "workers" {
       availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
       subnet_id           = oci_core_subnet.worker_subnet.id
     }
-
-    placement_configs {
-      availability_domain = data.oci_identity_availability_domains.ads.availability_domains[1].name
-      subnet_id           = oci_core_subnet.worker_subnet.id
-    }
   }
 
   node_source_details {
