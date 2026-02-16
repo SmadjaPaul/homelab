@@ -229,9 +229,7 @@ resource "oci_containerengine_cluster" "homelab" {
   vcn_id             = oci_core_vcn.oke_vcn.id
   kubernetes_version = var.kubernetes_version
 
-  # Type Basic = Gratuit (obligatoire pour Free Tier)
-  cluster_type = "BASIC"
-
+  # Par défaut = Basic cluster (gratuit) car pas d'options avancées activées
   options {
     service_lb_subnet_ids = [oci_core_subnet.lb_subnet.id]
 
