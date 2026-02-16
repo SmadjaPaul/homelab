@@ -54,20 +54,23 @@ jobs:
 
       - name: Get OCI Object Storage Namespace
         run: |
-          echo "OCI_OBJECT_STORAGE_NAMESPACE=$(oci os ns get --query data --raw-output)" >> $GITHUB_ENV
+          NAMESPACE=$(oci os ns get --query data --raw-output)
+          echo "OCI_OBJECT_STORAGE_NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
+          echo "OCI_REGION=${{ secrets.OCI_CLI_REGION }}" >> $GITHUB_ENV
 
       - name: Create Backend Config
         run: |
           cat > backend.hcl <<EOF
           bucket   = "terraform-states"
           key      = "oracle-cloud/terraform.tfstate"
-          region   = "${{ secrets.OCI_CLI_REGION }}"
-          endpoint = "https://${{ env.OCI_OBJECT_STORAGE_NAMESPACE }}.compat.objectstorage.${{ secrets.OCI_CLI_REGION }}.oraclecloud.com"
+          region   = "${{ env.OCI_REGION }}"
+          endpoints = { s3 = "https://${{ env.OCI_OBJECT_STORAGE_NAMESPACE }}.compat.objectstorage.${{ env.OCI_REGION }}.oraclecloud.com" }
           skip_region_validation      = true
           skip_credentials_validation = true
           skip_metadata_api_check     = true
           force_path_style            = true
           EOF
+          cat backend.hcl
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
