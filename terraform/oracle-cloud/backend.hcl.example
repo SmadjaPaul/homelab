@@ -1,0 +1,14 @@
+# Backend configuration example for OCI Object Storage
+# Copy to backend.hcl and use: terraform init -backend-config=backend.hcl
+#
+# Locally: Ensure OCI CLI is configured (oci setup config)
+# In CI: Namespace is injected via environment
+
+bucket   = "terraform-states"
+key      = "oracle-cloud/terraform.tfstate"
+region   = "eu-paris-1"
+endpoints = { s3 = "https://YOUR_NAMESPACE.compat.objectstorage.eu-paris-1.oraclecloud.com" }
+skip_region_validation      = true
+skip_credentials_validation = true
+skip_metadata_api_check     = true
+force_path_style            = true
