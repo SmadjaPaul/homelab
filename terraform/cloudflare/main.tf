@@ -13,11 +13,15 @@ terraform {
     }
   }
 
-  backend "oci" {
-    bucket    = "homelab-tfstate"
-    namespace = "axnvxxurxefp"
-    key       = "cloudflare/terraform.tfstate"
-    region    = "eu-paris-1"
+  backend "s3" {
+    bucket                      = "homelab-tfstate"
+    key                         = "cloudflare/terraform.tfstate"
+    region                      = "eu-paris-1"
+    endpoint                    = "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    force_path_style            = true
   }
 }
 
