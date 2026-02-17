@@ -14,14 +14,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-
-    env:
-      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-      OKE_CLUSTER_OCID: ${{ secrets.OKE_CLUSTER_OCID }}
+    environment: production
 
     steps:
       - name: Checkout
