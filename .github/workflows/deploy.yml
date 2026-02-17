@@ -57,7 +57,15 @@ jobs:
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run bootstrap/main.k | yq --split-exp '.items[]' | ${{ github.workspace }}/kubectl apply -f -
+          # Debug: show yq version
+          yq --version
+          # Debug: show KCL output
+          kcl run bootstrap/main.k > /tmp/kcl.yaml
+          cat /tmp/kcl.yaml | head -30
+          # Try with explicit document separators
+          cat /tmp/kcl.yaml | yq '.items[]' | head -30
+          # Apply
+          cat /tmp/kcl.yaml | yq '.items[]' | ${{ github.workspace }}/kubectl apply -f -
 
       - name: Deploy GitOps
         run: |
