@@ -20,13 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup OCI CLI
+      - name: Setup Python and OCI CLI
         run: |
-          pip install --upgrade pip
-          pip install oci
+          python -m pip install --upgrade pip
+          python -m pip install --user oci
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Configure OCI CLI
-        shell: bash
         run: |
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
@@ -42,7 +42,6 @@ jobs:
 
       - name: Create kubeconfig
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           oci ce cluster create-kubeconfig \
             --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
             --file ${{ github.workspace }}/kubeconfig \
@@ -64,12 +63,10 @@ jobs:
 
       - name: Deploy Bootstrap
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           ${{ github.workspace }}/kubectl apply -f <(kcl run kubernetes/bootstrap/main.k)
 
       - name: Deploy GitOps
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           ${{ github.workspace }}/kubectl apply -f <(kcl run kubernetes/bootstrap/gitops.k)
