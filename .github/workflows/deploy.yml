@@ -52,11 +52,13 @@ jobs:
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          ${{ github.workspace }}/kubectl apply -f <(kcl run -D resources bootstrap/main.k)
+          kcl run -o /tmp/bootstrap.yaml bootstrap/main.k
+          ${{ github.workspace }}/kubectl apply -f /tmp/bootstrap.yaml
 
       - name: Deploy GitOps
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          ${{ github.workspace }}/kubectl apply -f <(kcl run -D resources bootstrap/gitops.k)
+          kcl run -o /tmp/gitops.yaml bootstrap/gitops.k
+          ${{ github.workspace }}/kubectl apply -f /tmp/gitops.yaml
