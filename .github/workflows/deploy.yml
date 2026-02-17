@@ -69,5 +69,8 @@ jobs:
           # Apply Helm repositories
           kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
 
+          # Wait for CRDs to be fully registered
+          sleep 15
+
           # Apply all apps using Kustomize
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/
