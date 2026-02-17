@@ -21,8 +21,7 @@ jobs:
 
       - name: Setup OCI CLI
         run: |
-          curl -Ls https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- -p /usr/local/lib/oci-cli
-          echo "/usr/local/lib/oci-cli/bin" >> $GITHUB_PATH
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
 
       - name: Configure OCI CLI
         run: |
