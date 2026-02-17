@@ -53,7 +53,7 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kcl run bootstrap/main.k > /tmp/kcl.yaml
-          python3 scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
+          python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
 
       - name: Deploy GitOps
         run: |
@@ -61,4 +61,4 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kcl run bootstrap/gitops.k > /tmp/kcl.yaml
-          python3 scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
+          python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
