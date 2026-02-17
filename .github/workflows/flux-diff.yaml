@@ -19,18 +19,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure OCI CLI
+        uses: oracle-actions/configure-oci-cli@v1.5.0
+        with:
+          region: eu-paris-1
+
+      - name: Create kubeconfig
+        run: |
+          oci ce cluster create-kubeconfig \
+            --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
+            --file /tmp/kubeconfig \
+            --region eu-paris-1
+
       - name: Setup Flux
         uses: fluxcd/flux2/action@main
+        with:
+          kubeconfig: /tmp/kubeconfig
 
-      - name: Diff against cluster
+      - name: Diff Kustomizations
         run: |
-          flux diff kustomization oci-hub --path ./kubernetes/clusters/oci-hub 2>&1 | tee diff.log
-          if grep -q "drift detected" diff.log; then
-            echo "::warning::Drift detected between Git and cluster state"
-          fi
-        shell: bash
-        env:
-          KUBECONFIG: /tmp/kubeconfig
+          flux diff kustomization apps --namespace flux-system 2>&1 | tee diff.log || true
         continue-on-error: true
 
       - name: Comment PR
@@ -41,7 +49,7 @@ jobs:
             const fs = require('fs');
             const diff = fs.readFileSync('diff.log', 'utf8');
 
-            const body = `## Flux Diff\n\n\`\`\`\n${diff}\n\`\`\``;
+            const body = "## Flux Diff\n\n```\n" + diff + "\n```";
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
