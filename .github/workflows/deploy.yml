@@ -66,11 +66,14 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
+          # Refresh kubectl cache to pick up new CRDs
+          kubectl api-resources --api-group=helm.toolkit.fluxcd.io || true
+
           # Apply Helm repositories
           kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
 
-          # Wait for CRDs to be fully registered
-          sleep 15
+          # Wait for CRDs to be fully registered in API server
+          sleep 30
 
-          # Apply all apps using Kustomize
-          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/
+          # Apply all apps using Kustomize with server-side apply
+          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/ --server-side
