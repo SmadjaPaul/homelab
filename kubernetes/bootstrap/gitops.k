@@ -38,4 +38,5 @@ kustomization = {
     }
 }
 
-result = [gitRepository, kustomization]
+# Output all resources as a list
+items = [gitRepository, kustomization]
