@@ -22,32 +22,31 @@ jobs:
 
       - name: Setup OCI CLI
         run: |
-          # Download and run OCI CLI install script
-          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o install.sh
-          chmod +x install.sh
-          ./install.sh --accept-all-defaults --install-dir $HOME/oci-cli --script-dir $HOME/oci-cli/bin
-          echo "$HOME/oci-cli/bin" >> $GITHUB_PATH
+          pip install --upgrade pip
+          pip install oci
 
       - name: Configure OCI CLI
+        shell: bash
         run: |
           mkdir -p ~/.oci
-          echo "$OCI_CLI_KEY_CONTENT" > ~/.oci/oci_api_key.pem
+          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
-          user=$OCI_CLI_USER
-          fingerprint=$OCI_CLI_FINGERPRINT
-          tenancy=$OCI_CLI_TENANCY
-          region=$OCI_CLI_REGION
+          user=${{ secrets.OCI_CLI_USER }}
+          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_CLI_TENANCY }}
+          region=${{ secrets.OCI_CLI_REGION }}
           key_file=$HOME/.oci/oci_api_key.pem
           EOF
 
       - name: Create kubeconfig
         run: |
-          $HOME/oci-cli/bin/oci ce cluster create-kubeconfig \
-            --cluster-id $OKE_CLUSTER_OCID \
+          export PATH="$HOME/.local/bin:$PATH"
+          oci ce cluster create-kubeconfig \
+            --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
             --file ${{ github.workspace }}/kubeconfig \
-            --region $OCI_CLI_REGION \
+            --region ${{ secrets.OCI_CLI_REGION }} \
             --token-version 2.0.0
 
       - name: Install kubectl
@@ -65,10 +64,12 @@ jobs:
 
       - name: Deploy Bootstrap
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           ${{ github.workspace }}/kubectl apply -f <(kcl run kubernetes/bootstrap/main.k)
 
       - name: Deploy GitOps
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           ${{ github.workspace }}/kubectl apply -f <(kcl run kubernetes/bootstrap/gitops.k)
