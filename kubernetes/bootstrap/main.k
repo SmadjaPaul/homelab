@@ -1,11 +1,11 @@
-# Bootstrap Configuration
+# Bootstrap Configuration - Step 1: Namespace and CRDs
 # =====================
 # Flux CD + External Secrets Operator
 #
+# This file creates the namespace and applies Flux CRDs
 # Usage:
 #   kcl run bootstrap/main.k | kubectl apply -f-
 
-# Output all resources as a list (only this variable will be output)
 items = [
     {
         "apiVersion": "v1"
@@ -15,164 +15,11 @@ items = [
     {
         "apiVersion": "v1"
         "kind": "Namespace"
-        "metadata": {"name": "kube"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "flux"}
-        "spec": {"url": "https://fluxcd-community.github.io/helm-charts"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "external-secrets"}
-        "spec": {"url": "https://charts.external-secrets.io"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "traefik"}
-        "spec": {"url": "https://traefik.github.io/charts"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "cert-manager"}
-        "spec": {"url": "https://charts.jetstack.io"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "authentik"}
-        "spec": {"url": "https://charts.goauthentik.io"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "n8n"}
-        "spec": {"url": "https://n8n-io.github.io/n8n-helm-chart"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "homepage"}
-        "spec": {"url": "https://homepage.github.io/helm-charts"}
-    }
-    {
-        "apiVersion": "source.toolkit.fluxcd.io/v1"
-        "kind": "HelmRepository"
-        "metadata": {"name": "grafana"}
-        "spec": {"url": "https://grafana.github.io/helm-charts"}
-    }
-    {
-        "apiVersion": "helm.toolkit.fluxcd.io/v2beta1"
-        "kind": "HelmRelease"
-        "metadata": {"name": "flux", "namespace": "flux-system"}
-        "spec": {
-            "releaseName": "flux"
-            "chart": {
-                "spec": {
-                    "chart": "flux"
-                    "version": "0.38.0"
-                    "sourceRef": {"kind": "HelmRepository", "name": "flux"}
-                }
-            }
-            "values": {
-                "imageAutomation": {"create": True}
-                "imageReflection": {"create": True}
-            }
-        }
-    }
-    {
-        "apiVersion": "helm.toolkit.fluxcd.io/v2beta1"
-        "kind": "HelmRelease"
-        "metadata": {"name": "external-secrets", "namespace": "kube-system"}
-        "spec": {
-            "releaseName": "external-secrets"
-            "chart": {
-                "spec": {
-                    "chart": "external-secrets"
-                    "version": "0.9.16"
-                    "sourceRef": {"kind": "HelmRepository", "name": "external-secrets"}
-                }
-            }
-            "values": {
-                "installCRDs": True
-                "webhook": {"certManager": {"enabled": True}}
-            }
-        }
-    }
-    {
-        "apiVersion": "helm.toolkit.fluxcd.io/v2beta1"
-        "kind": "HelmRelease"
-        "metadata": {"name": "traefik", "namespace": "kube"}
-        "spec": {
-            "releaseName": "traefik"
-            "chart": {
-                "spec": {
-                    "chart": "traefik"
-                    "version": "27.0.2"
-                    "sourceRef": {"kind": "HelmRepository", "name": "traefik"}
-                }
-            }
-            "values": {
-                "ports": {
-                    "web": {"redirectTo": {"port": "websecure"}}
-                }
-                "ingressClass": {"isDefaultClass": True}
-            }
-        }
-    }
-    {
-        "apiVersion": "helm.toolkit.fluxcd.io/v2beta1"
-        "kind": "HelmRelease"
-        "metadata": {"name": "cert-manager", "namespace": "kube"}
-        "spec": {
-            "releaseName": "cert-manager"
-            "chart": {
-                "spec": {
-                    "chart": "cert-manager"
-                    "version": "v1.15.1"
-                    "sourceRef": {"kind": "HelmRepository", "name": "cert-manager"}
-                }
-            }
-            "values": {
-                "installCRDs": True
-            }
-        }
+        "metadata": {"name": "kube-system"}
     }
     {
         "apiVersion": "v1"
-        "kind": "Secret"
-        "metadata": {
-            "name": "doppler-credentials"
-            "namespace": "kube-system"
-        }
-        "type": "Opaque"
-        "data": {}
-    }
-    {
-        "apiVersion": "external-secrets.io/v1beta1"
-        "kind": "ClusterSecretStore"
-        "metadata": {
-            "name": "doppler"
-            "labels": {"app.kubernetes.io/managed-by": "external-secrets"}
-        }
-        "spec": {
-            "provider": {
-                "doppler": {
-                    "auth": {
-                        "secretRef": {
-                            "dopplerToken": {
-                                "name": "doppler-credentials"
-                                "namespace": "kube-system"
-                                "key": "token"
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        "kind": "Namespace"
+        "metadata": {"name": "kube"}
     }
 ]
