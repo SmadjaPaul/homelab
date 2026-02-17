@@ -44,10 +44,8 @@ jobs:
 
       - name: Install KCL
         run: |
-          curl -Lo kcl.tar.gz https://github.com/kcl-lang/kcl/releases/download/v0.11.2/kcl-v0.11.2-x86_64-unknown-linux.tar.gz
-          tar -xzf kcl.tar.gz
-          mv kcl-v0.11.2-x86_64-unknown-linux/kcl /usr/local/bin/
-          rm -rf kcl.tar.gz kcl-v0.11.2-x86_64-unknown-linux
+          wget -q https://kcl-lang.io/script/install-cli.sh -O - | bash
+          which kcl
 
       - name: Deploy Bootstrap
         run: |
