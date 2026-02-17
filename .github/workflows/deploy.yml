@@ -42,34 +42,23 @@ jobs:
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
 
-      - name: Install KCL
+      - name: Install KCL and dependencies
         run: |
           wget -q https://kcl-lang.io/script/install-cli.sh -O - | bash
-          which kcl
-
-      - name: Install yq
-        run: |
-          wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
+          pip install pyyaml
 
       - name: Deploy Bootstrap
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          # Debug: show yq version
-          yq --version
-          # Debug: show KCL output
           kcl run bootstrap/main.k > /tmp/kcl.yaml
-          cat /tmp/kcl.yaml | head -30
-          # Try with explicit document separators
-          cat /tmp/kcl.yaml | yq '.items[]' | head -30
-          # Apply
-          cat /tmp/kcl.yaml | yq '.items[]' | ${{ github.workspace }}/kubectl apply -f -
+          python3 scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
 
       - name: Deploy GitOps
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run bootstrap/gitops.k | yq --split-exp '.items[]' | ${{ github.workspace }}/kubectl apply -f -
+          kcl run bootstrap/gitops.k > /tmp/kcl.yaml
+          python3 scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
