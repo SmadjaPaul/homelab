@@ -22,7 +22,11 @@ jobs:
 
       - name: Setup OCI CLI
         run: |
-          pip install oci
+          # Download and run OCI CLI install script
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o install.sh
+          chmod +x install.sh
+          ./install.sh --accept-all-defaults --install-dir $HOME/oci-cli --script-dir $HOME/oci-cli/bin
+          echo "$HOME/oci-cli/bin" >> $GITHUB_PATH
 
       - name: Configure OCI CLI
         run: |
@@ -40,7 +44,7 @@ jobs:
 
       - name: Create kubeconfig
         run: |
-          oci ce cluster create-kubeconfig \
+          $HOME/oci-cli/bin/oci ce cluster create-kubeconfig \
             --cluster-id $OKE_CLUSTER_OCID \
             --file ${{ github.workspace }}/kubeconfig \
             --region $OCI_CLI_REGION \
