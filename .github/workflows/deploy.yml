@@ -14,31 +14,48 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup OCI CLI
+        run: |
+          curl -Ls https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- -p /usr/local/lib/oci-cli
+          echo "/usr/local/lib/oci-cli/bin" >> $GITHUB_PATH
+
       - name: Configure OCI CLI
-        uses: oracle-actions/configure-oci-cli@v1.5.0
-        with:
-          region: eu-paris-1
+        run: |
+          mkdir -p ~/.oci
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=${{ secrets.OCI_CLI_USER }}" >> ~/.oci/config
+          echo "fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}" >> ~/.oci/config
+          echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
+          echo "tenancy=${{ secrets.OCI_CLI_TENANCY }}" >> ~/.oci/config
+          echo "region=${{ secrets.OCI_CLI_REGION }}" >> ~/.oci/config
+          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
 
       - name: Create kubeconfig
         run: |
           oci ce cluster create-kubeconfig \
             --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
             --file ${{ github.workspace }}/kubeconfig \
-            --region eu-paris-1 \
+            --region ${{ secrets.OCI_CLI_REGION }} \
             --token-version 2.0.0
-        env:
-          OKE_CLUSTER_OCID: ${{ secrets.OKE_CLUSTER_OCID }}
 
       - name: Install kubectl
         run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           mv kubectl ${{ github.workspace }}/
+
+      - name: Install KCL
+        run: |
+          curl -Lo kcl.tar.gz https://github.com/kcl-lang/kcl/releases/download/v0.11.2/kcl-v0.11.2-x86_64-unknown-linux.tar.gz
+          tar -xzf kcl.tar.gz
+          mv kcl-v0.11.2-x86_64-unknown-linux/kcl /usr/local/bin/
+          rm -rf kcl.tar.gz kcl-v0.11.2-x86_64-unknown-linux
 
       - name: Deploy Bootstrap
         run: |
