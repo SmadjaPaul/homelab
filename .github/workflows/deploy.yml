@@ -24,7 +24,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install --user oci
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          pip install --user pipx
+          python -m pipx ensurepath
+          pipx install oci
 
       - name: Configure OCI CLI
         run: |
@@ -42,7 +44,7 @@ jobs:
 
       - name: Create kubeconfig
         run: |
-          oci ce cluster create-kubeconfig \
+          ~/.local/bin/oci ce cluster create-kubeconfig \
             --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
             --file ${{ github.workspace }}/kubeconfig \
             --region ${{ secrets.OCI_CLI_REGION }} \
