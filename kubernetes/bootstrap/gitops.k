@@ -33,7 +33,6 @@ kustomization = {
         }
         "path": path
         "prune": True
-        "validation": "client"
         "interval": "10m"
     }
 }
