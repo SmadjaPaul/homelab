@@ -5,7 +5,7 @@
 # Usage:
 #   kcl run bootstrap/gitops/main.k | kubectl apply -f-
 
-repoUrl = "https://github.com/pauldouane/homelab"
+repoUrl = "https://github.com/SmadjaPaul/homelab"
 branch = "main"
 path = "kubernetes/apps"
 
@@ -13,7 +13,7 @@ path = "kubernetes/apps"
 gitRepository = {
     "apiVersion": "source.toolkit.fluxcd.io/v1"
     "kind": "GitRepository"
-    "metadata": {"name": "homelab"}
+    "metadata": {"name": "homelab", "namespace": "flux-system"}
     "spec": {
         "url": repoUrl
         "ref": {"branch": branch}
