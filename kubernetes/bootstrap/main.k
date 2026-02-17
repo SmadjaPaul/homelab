@@ -193,8 +193,8 @@ kubeNamespace = {
     "metadata": {"name": "kube"}
 }
 
-# Only output the result list, not individual variables
-result = [
+# Only output the resources list, not individual variables
+resources = [
     fluxNamespace,
     kubeNamespace,
 ] + helmRepos + [
