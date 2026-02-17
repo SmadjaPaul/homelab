@@ -57,11 +57,11 @@ jobs:
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run bootstrap/main.k | yq eval -s '.items[]' | ${{ github.workspace }}/kubectl apply -f -
+          kcl run bootstrap/main.k | yq --split-exp '.items[]' | ${{ github.workspace }}/kubectl apply -f -
 
       - name: Deploy GitOps
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run bootstrap/gitops.k | yq eval -s '.items[]' | ${{ github.workspace }}/kubectl apply -f -
+          kcl run bootstrap/gitops.k | yq --split-exp '.items[]' | ${{ github.workspace }}/kubectl apply -f -
