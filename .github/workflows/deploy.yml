@@ -48,6 +48,19 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
+      - name: Wait for Flux to be ready
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+
+          # Wait for Flux CRDs to be established
+          kubectl wait --for=condition=established crd/gitrepositories.source.toolkit.fluxcd.io --timeout=300s
+          kubectl wait --for=condition=established crd/helmrepositories.source.toolkit.fluxcd.io --timeout=300s
+          kubectl wait --for=condition=established crd/helmreleases.helm.toolkit.fluxcd.io --timeout=300s
+
+          # Wait for Flux pods to be ready
+          kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=flux-system -n flux-system --timeout=300s
+
       - name: Deploy Applications with Kustomize
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
