@@ -62,13 +62,8 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          helm repo add fluxcd https://fluxcd-community.github.io/helm-charts
-          helm repo update
-          helm upgrade --install flux fluxcd/flux \
-            --namespace flux-system \
-            --create-namespace \
-            --set imageAutomation.create=true \
-            --set imageReflection.create=true
+          # Install Flux using kubectl
+          kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
       - name: Deploy GitOps Configuration
         run: |
