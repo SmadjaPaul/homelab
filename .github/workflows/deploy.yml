@@ -44,24 +44,24 @@ jobs:
 
       - name: Install KCL
         run: |
-          wget -q https://github.com/kcl-lang/cli/releases/download/v0.11.2/kcl-v0.11.2-linux-amd64.tar.gz -O kcl.tar.gz
-          tar -xzf kcl.tar.gz
-          mv kcl-v0.11.2-linux-amd64/kcl /usr/local/bin/
-          rm -rf kcl.tar.gz kcl-v0.11.2-linux-amd64
+          wget -q https://kcl-lang.io/script/install-cli.sh -O - | bash
           which kcl
+
+      - name: Install yq
+        run: |
+          wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
 
       - name: Deploy Bootstrap
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run -o /tmp/bootstrap.yaml bootstrap/main.k
-          ${{ github.workspace }}/kubectl apply -f /tmp/bootstrap.yaml
+          kcl run bootstrap/main.k | yq '.items[]' - | ${{ github.workspace }}/kubectl apply -f -
 
       - name: Deploy GitOps
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kcl run -o /tmp/gitops.yaml bootstrap/gitops.k
-          ${{ github.workspace }}/kubectl apply -f /tmp/gitops.yaml
+          kcl run bootstrap/gitops.k | yq '.items[]' - | ${{ github.workspace }}/kubectl apply -f -
