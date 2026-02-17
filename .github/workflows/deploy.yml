@@ -14,28 +14,57 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read
     environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup OCI CLI
-        uses: ./.github/actions/setup-oci-cli
-        with:
-          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
-          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
-          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-
-      - name: Create kubeconfig
+      - name: Create OIDC Token
+        id: oidc
         run: |
-          ~/.local/bin/oci ce cluster create-kubeconfig \
-            --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
-            --file ${{ github.workspace }}/kubeconfig \
-            --region ${{ secrets.OCI_CLI_REGION }} \
-            --token-version 2.0.0
+          AUDIENCE="homelab-oke"
+          OIDC_URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}"
+          IDTOKEN=$(curl -s -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            -H "Accept: application/json; api-version=2.0" \
+            "${OIDC_URL}" | jq -r '.value')
+          echo "idToken=${IDTOKEN}" >> $GITHUB_OUTPUT
+
+      - name: Get Cluster kubeconfig
+        run: |
+          # Get cluster info and create kubeconfig with OIDC token
+          CLUSTER_OCID="${{ secrets.OKE_CLUSTER_OCID }}"
+          REGION="eu-paris-1"
+
+          # Get cluster endpoint
+          ENDPOINT=$(oci ce cluster get --cluster-id $CLUSTER_OCID --query 'data."endpoint-info"."kubernetes"."value"' --raw-output 2>/dev/null || echo "")
+
+          if [ -z "$ENDPOINT" ]; then
+            # Fallback to known public IP
+            ENDPOINT="158.178.213.90:6443"
+          fi
+
+          # Create kubeconfig with OIDC token
+          cat > kubeconfig << EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              server: https://${ENDPOINT}
+              insecure-skip-tls-verify: true
+            name: homelab
+          contexts:
+          - context:
+              cluster: homelab
+              user: github-actions
+            name: homelab
+          current-context: homelab
+          users:
+          - name: github-actions
+            user:
+              token: ${{ steps.oidc.outputs.idToken }}
+          EOF
 
       - name: Install kubectl
         run: |
@@ -51,8 +80,6 @@ jobs:
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          # Run KCL and filter out download messages (they overwrite to same line)
           { kcl run bootstrap/main.k 2>&1 || true; } | sed '/^downloading /d' > /tmp/kcl.yaml
           python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
 
@@ -60,6 +87,5 @@ jobs:
         run: |
           cd kubernetes
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           { kcl run bootstrap/gitops.k 2>&1 || true; } | sed '/^downloading /d' > /tmp/kcl.yaml
           python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
