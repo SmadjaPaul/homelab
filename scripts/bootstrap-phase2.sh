@@ -91,7 +91,7 @@ echo "   - Attendre la génération"
 echo "   - Copier l'${YELLOW}OCID${NC} de l'image"
 echo ""
 
-read -p "Avez-vous l'OCID de l'image Talos? (y/n): " has_ocid
+read -r -p "Avez-vous l'OCID de l'image Talos? (y/n): " has_ocid
 
 if [[ ! $has_ocid =~ ^[Yy]$ ]]; then
     echo ""

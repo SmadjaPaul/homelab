@@ -11,6 +11,7 @@ repos:
     hooks:
       - id: gitleaks
         name: 🔐 Detect secrets (gitleaks)
+        files: ^((?!(inspiration|archive_old)/).)*$
 
   # =============================================================================
   # Terraform
@@ -29,8 +30,23 @@ repos:
             terraform/unifi/.*|
             terraform/twingate/.*|
             terraform/servarr/.*|
-            terraform/proxmox/.*
+            terraform/proxmox/.*|
+            archive_old/.*
           )$
+      - id: terraform_docs
+        name: 📖 Terraform docs
+        files: ^terraform/
+
+  # =============================================================================
+  # Kubernetes - Validation
+  # =============================================================================
+  - repo: https://github.com/zrootorg/kubeconform-precommit-hook
+    rev: main
+    hooks:
+      - id: kubeconform
+        name: ☸️ KubeConform (Kubernetes validation)
+        files: ^kubernetes/.*\.(yaml|yml)$
+        exclude: ^kubernetes/(bootstrap|clusters|konfig|apps/(infra|o11y|automation|public)/.*/overlays|taskfile\.yaml|\.yml)$
 
   # =============================================================================
   # YAML
@@ -72,7 +88,9 @@ repos:
             \.github/actions/oci-vault-secrets/action\.yml|
             \.github/actions/setup-ssh-key/action\.yml|
             \.github/workflows/deploy-oci-mgmt\.yml|
-            scripts/update-oci-vault-ssh-key\.sh
+            scripts/update-oci-vault-ssh-key\.sh|
+            \.env\.example$|
+            inspiration/.*
           )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings
 
   # =============================================================================
@@ -83,7 +101,12 @@ repos:
     hooks:
       - id: shellcheck
         name: 🐚 Shell script lint
-        exclude: talos/.*  # External scripts
+        args: [-S, error]
+        exclude: |
+          (?x)^(
+            talos/.*|
+            terraform/.*/templates/.*
+          )$
 
 # Skip certain files globally
 exclude: |
@@ -91,5 +114,7 @@ exclude: |
     \.terraform/.*|
     \.terraform\.lock\.hcl|
     secrets/.*\.enc\.yaml|
-    _bmad.*
+    _bmad.*|
+    inspiration/.*|
+    archive_old/.*
   )$

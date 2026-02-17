@@ -1,0 +1,32 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: o11y
+spec:
+  interval: 1h
+  releaseName: grafana
+  chart:
+    spec:
+      chart: grafana
+      version: "8.4.3"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+  values:
+    admin:
+      existingSecret: grafana-secrets
+      userKey: GRAFANA_ADMIN_USER
+      passwordKey: GRAFANA_ADMIN_PASSWORD
+    ingress:
+      enabled: true
+      className: traefik
+      hosts:
+        - grafana.smadja.dev
+      tls:
+        - secretName: grafana-tls
+          hosts:
+            - grafana.smadja.dev
+    persistence:
+      enabled: true
+      size: 10Gi

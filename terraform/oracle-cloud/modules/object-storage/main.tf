@@ -2,11 +2,11 @@
 
 # Terraform State Bucket
 resource "oci_objectstorage_bucket" "terraform_state" {
-  compartment_id       = var.compartment_id
-  namespace            = var.namespace
-  name                 = var.bucket_name
-  storage_tier         = "Standard"
-  versioning           = "Enabled"
+  compartment_id        = var.compartment_id
+  namespace             = var.namespace
+  name                  = var.bucket_name
+  storage_tier          = "Standard"
+  versioning            = "Enabled"
   object_events_enabled = false
 
   metadata = {

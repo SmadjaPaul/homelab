@@ -160,7 +160,7 @@ Dans l'interface Omni:
 1. Aller dans **Clusters** → **Create Cluster**
 2. **Configuration:**
    - Name: `oci-hub`
-   - Kubernetes version: `1.31.0` (ou dernière stable)
+   - Kubernetes version: `1.34.2` (ou dernière stable)
    - Talos version: `v1.9.0` (ou dernière stable)
    - Control plane nodes: `1`
    - Worker nodes: `2`

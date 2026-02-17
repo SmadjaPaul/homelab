@@ -97,7 +97,7 @@ resource "oci_containerengine_cluster" "k8s" {
   name           = "homelab-oke"
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.homelab.id
-  kubernetes_version = "v1.31.0"
+  kubernetes_version = "v1.34.2"
 
   options {
     service_lb_subnet_ids = [oci_core_subnet.public.id]

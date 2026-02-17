@@ -4,13 +4,13 @@
 # =============================================================================
 
 terraform {
-  # Backend "oci" requires Terraform 1.11+
-  required_version = ">= 1.11"
+  # Backend "oci" natif (sans hashicorp/oci) à partir de Terraform 1.12
+  required_version = ">= 1.12"
 
   required_providers {
     oci = {
       source  = "oracle/oci"
-      version = "~> 6.0"
+      version = ">= 6.0, < 7.0"
     }
   }
 }

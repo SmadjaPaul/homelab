@@ -135,6 +135,16 @@ resource "oci_core_security_list" "public_security_list" {
     }
   }
 
+  ingress_security_rules {
+    protocol    = "6"
+    source      = "0.0.0.0/0"
+    description = "Kubernetes API Server"
+    tcp_options {
+      min = 6443
+      max = 6443
+    }
+  }
+
   freeform_tags = var.tags
 }
 

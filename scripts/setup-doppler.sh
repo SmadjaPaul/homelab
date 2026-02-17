@@ -49,13 +49,13 @@ echo ""
 
 for project in "${!PROJECTS[@]}"; do
     desc="${PROJECTS[$project]}"
-    
+
     if doppler projects get "$project" &> /dev/null; then
         echo "  ✅ $project already exists"
     else
         echo "  📝 Creating $project..."
         doppler projects create "$project" --description "$desc"
-        
+
         # Create prod config
         doppler configs create prod -p "$project" 2>/dev/null || true
         echo "     Created config: prod"
