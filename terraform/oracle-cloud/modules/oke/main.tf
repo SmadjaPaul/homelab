@@ -86,6 +86,11 @@ output "cluster_id" {
   value = oci_containerengine_cluster.oke.id
 }
 
+output "cluster_ocid" {
+  value       = oci_containerengine_cluster.oke.id
+  description = "Full cluster OCID"
+}
+
 output "cluster_name" {
   value = oci_containerengine_cluster.oke.name
 }

@@ -99,6 +99,10 @@ output "cluster_id" {
   value = module.oke.cluster_id
 }
 
+output "cluster_ocid" {
+  value = module.oke.cluster_ocid
+}
+
 output "cluster_endpoint" {
   value = module.oke.cluster_endpoint
 }

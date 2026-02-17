@@ -1,0 +1,48 @@
+# =============================================================================
+# Oracle Cloud - Variables (single place for tfvars compatibility & stability)
+# Align with archive_old pattern: all variables declared here, not in main.tf
+# =============================================================================
+
+variable "region" {
+  description = "OCI Region"
+  type        = string
+  default     = "eu-paris-1"
+}
+
+variable "tenancy_ocid" {
+  description = "OCI Tenancy OCID"
+  type        = string
+  default     = ""
+}
+
+variable "compartment_id" {
+  description = "OCI Compartment OCID"
+  default     = "ocid1.tenancy.oc1..aaaaaaaamwy5a55i2ljjxildejy42z2zshzs3edjbevyl27q4iv52sqqaqna"
+  type        = string
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key for worker nodes / instances"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "kubernetes_version" {
+  description = "Kubernetes version for OKE"
+  type        = string
+  default     = "v1.31.10"
+}
+
+# -----------------------------------------------------------------------------
+# Tags (used by budget, vault, modules if re-added)
+# -----------------------------------------------------------------------------
+variable "tags" {
+  description = "Tags to apply to resources"
+  type        = map(string)
+  default = {
+    Project     = "homelab"
+    ManagedBy   = "terraform"
+    Environment = "homelab"
+  }
+}
