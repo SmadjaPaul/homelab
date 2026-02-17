@@ -37,16 +37,10 @@ jobs:
             --region ${{ secrets.OCI_CLI_REGION }} \
             --token-version 2.0.0
 
-      - name: Install kubectl and Helm
+      - name: Install kubectl and KCL
         run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
-          curl -fsSL https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz | tar -xz
-          mv linux-amd64/helm /usr/local/bin/helm
-          rm -rf linux-amd64
-
-      - name: Install KCL and dependencies
-        run: |
           wget -q https://kcl-lang.io/script/install-cli.sh -O - | bash
           pip install pyyaml
 
@@ -62,7 +56,6 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          # Install Flux using kubectl
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
       - name: Deploy GitOps Configuration
@@ -72,3 +65,18 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           { kcl run bootstrap/gitops.k 2>&1 || true; } | sed '/^downloading /d' > /tmp/kcl.yaml
           python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/kcl.yaml | kubectl apply -f -
+
+      - name: Deploy Applications
+        run: |
+          cd kubernetes
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+
+          # Deploy each app
+          for app in apps/infra/authentik/base apps/o11y/grafana/base apps/automation/n8n/base apps/public/homepage/base; do
+            if [ -f "$app/main.k" ]; then
+              echo "Deploying $app..."
+              { kcl run "$app/main.k" 2>&1 || true; } | sed '/^downloading /d' > /tmp/app.yaml
+              python3 ${{ github.workspace }}/scripts/convert_kcl.py /tmp/app.yaml | kubectl apply --validate=false -f - || true
+            fi
+          done
