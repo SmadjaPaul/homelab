@@ -13,17 +13,20 @@ data "oci_containerengine_node_pool_option" "oke" {
   node_pool_k8s_version = var.kubernetes_version
 }
 
-# Image pour les nœuds : fournie ou première image OKE Oracle Linux ARM
+# Image pour les nœuds : fournie ou première image OKE Oracle Linux ARM (safe si sources vide)
 locals {
-  node_image_id = var.node_image_id != "" ? var.node_image_id : data.oci_containerengine_node_pool_option.oke.sources[0].image_id
+  _sources      = data.oci_containerengine_node_pool_option.oke.sources
+  _default_id   = length(local._sources) > 0 ? local._sources[0].image_id : ""
+  node_image_id = var.node_image_id != "" ? var.node_image_id : local._default_id
 }
 
-# OKE Cluster - Type Basic (gratuit)
+# OKE Cluster - Type Basic (free; Enhanced = $0.10/h)
 resource "oci_containerengine_cluster" "oke" {
   compartment_id     = var.compartment_id
   name               = var.cluster_name
   vcn_id             = var.vcn_id
   kubernetes_version = var.kubernetes_version
+  type               = "BASIC_CLUSTER"
 
   options {
     service_lb_subnet_ids = [var.lb_subnet_id]

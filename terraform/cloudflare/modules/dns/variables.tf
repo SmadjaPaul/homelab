@@ -28,6 +28,17 @@ variable "homelab_services" {
   default     = {}
 }
 
+variable "oke_services" {
+  type = map(object({
+    hostname = string
+    service  = string
+    port     = number
+    internal = bool
+  }))
+  description = "OKE services to expose via tunnel"
+  default     = {}
+}
+
 variable "tunnel_id" {
   type        = string
   description = "Cloudflare Tunnel ID (for CNAME target). Empty when enable_tunnel = false."
@@ -36,14 +47,8 @@ variable "tunnel_id" {
 
 variable "oci_management_ip" {
   type        = string
-  description = "OCI Management VM public IP (optional)"
+  description = "OCI Management VM public IP (for stream record)"
   default     = ""
-}
-
-variable "oci_node_ips" {
-  type        = list(string)
-  description = "OCI K8s node public IPs (optional)"
-  default     = []
 }
 
 variable "create_root_record" {

@@ -10,8 +10,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
   secret     = var.tunnel_secret
 
   lifecycle {
-    # Avoid replacement after import: secret is not returned by API,
-    # so Terraform would otherwise plan destroy+create.
     ignore_changes = [secret]
   }
 }
@@ -47,98 +45,23 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
   tunnel_id  = local.actual_tunnel_id
 
   config {
-    # Homepage
-    ingress_rule {
-      hostname = "smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-    ingress_rule {
-      hostname = "www.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Authelia Auth
-    ingress_rule {
-      hostname = "auth.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # DNS Blocky
-    ingress_rule {
-      hostname = "dns.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Gitea
-    ingress_rule {
-      hostname = "git.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Vaultwarden
-    ingress_rule {
-      hostname = "vault.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # File Browser
-    ingress_rule {
-      hostname = "files.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Uptime Kuma
-    ingress_rule {
-      hostname = "status.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Prometheus
-    ingress_rule {
-      hostname = "prometheus.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Traefik Dashboard
-    ingress_rule {
-      hostname = "traefik.smadja.dev"
-      service  = "https://traefik:443"
-      origin_request {
-        no_tls_verify = true
+    # OKE Services via Kubernetes internal DNS
+    dynamic "ingress_rule" {
+      for_each = var.oke_services
+      content {
+        hostname = "${ingress_rule.value.hostname}.${var.domain}"
+        service  = "https://${ingress_rule.value.service}:${ingress_rule.value.port}"
+        origin_request {
+          no_tls_verify   = true
+          connect_timeout = 30
+        }
       }
     }
 
     # Proxmox (at home)
     ingress_rule {
-      hostname = "proxmox.smadja.dev"
-      service  = "https://192.168.68.51:8006"
+      hostname = "proxmox.${var.domain}"
+      service  = "https://${var.proxmox_local_ip}:8006"
       origin_request {
         no_tls_verify = true
       }

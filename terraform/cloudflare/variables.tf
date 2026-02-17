@@ -163,15 +163,46 @@ variable "homelab_services" {
 
 # Oracle Cloud IPs (will be populated after VMs are created)
 variable "oci_management_ip" {
-  description = "OCI Management VM public IP"
+  description = "OCI Management VM public IP (deprecated - use OKE services instead)"
   type        = string
-  default     = "" # Will be set after VM creation
+  default     = ""
 }
 
 variable "oci_node_ips" {
-  description = "OCI K8s node public IPs"
+  description = "OCI K8s node public IPs (deprecated - not needed with tunnel)"
   type        = list(string)
-  default     = [] # Will be set after VM creation
+  default     = []
+}
+
+variable "oke_services" {
+  description = "OKE services to expose via Cloudflare Tunnel"
+  type = map(object({
+    hostname = string
+    service  = string
+    port     = number
+    internal = bool
+  }))
+  default = {
+    # Services exposed via tunnel (service name = K8s service, port = cluster port)
+    authentik = {
+      hostname = "auth"
+      service  = "authentik"
+      port     = 8443
+      internal = false
+    }
+    homepage = {
+      hostname = "home"
+      service  = "homepage"
+      port     = 3000
+      internal = false
+    }
+    grafana = {
+      hostname = "grafana"
+      service  = "grafana"
+      port     = 80
+      internal = true
+    }
+  }
 }
 
 # Proxmox (local network, accessed via Tunnel)

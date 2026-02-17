@@ -12,18 +12,6 @@ terraform {
       version = "~> 4.0"
     }
   }
-
-  # Backend configured via CLI or use local for CI without OCI credentials
-  # backend "s3" {
-  #   bucket    = "homelab-tfstate"
-  #   key       = "cloudflare/terraform.tfstate"
-  #   region    = "eu-paris-1"
-  #   endpoint  = "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
-  #   skip_credentials_validation = true
-  #   skip_metadata_api_check     = true
-  #   skip_region_validation      = true
-  #   force_path_style            = true
-  # }
 }
 
 provider "cloudflare" {
@@ -47,10 +35,11 @@ module "tunnel" {
   domain               = var.domain
   proxmox_local_ip     = var.proxmox_local_ip
   enable_tunnel_config = var.enable_tunnel_config
+  oke_services         = var.oke_services
 }
 
 # -----------------------------------------------------------------------------
-# DNS (root, www, services, tunnel CNAMEs, OCI, SPF/DMARC)
+# DNS (root, www, services, tunnel CNAMEs, OKE services, SPF/DMARC)
 # -----------------------------------------------------------------------------
 module "dns" {
   source = "./modules/dns"
@@ -59,9 +48,9 @@ module "dns" {
   domain               = var.domain
   enable_tunnel        = var.enable_tunnel
   homelab_services     = var.homelab_services
+  oke_services         = var.oke_services
   tunnel_id            = var.enable_tunnel ? module.tunnel[0].tunnel_id : ""
   oci_management_ip    = var.oci_management_ip
-  oci_node_ips         = var.oci_node_ips
   create_root_record   = var.create_root_record
   enable_stream_record = var.enable_stream_record
 }

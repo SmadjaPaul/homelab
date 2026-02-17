@@ -1,7 +1,7 @@
 # Bootstrap Configuration
 # =====================
 # Flux CD + External Secrets Operator
-# 
+#
 # Usage:
 #   kcl run bootstrap/main.k | kubectl apply -f-
 

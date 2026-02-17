@@ -1,7 +1,7 @@
 # Flux GitOps Configuration
 # ========================
 # Creates GitRepository and Kustomization for automatic reconciliation
-# 
+#
 # Usage:
 #   kcl run bootstrap/gitops/main.k | kubectl apply -f-
 

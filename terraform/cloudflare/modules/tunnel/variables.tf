@@ -30,9 +30,19 @@ variable "tunnel_id" {
   default     = ""
 }
 
-# Set to false if tunnel config create/import fails (1002 Tunnel not found / 1055 Config not found).
 variable "enable_tunnel_config" {
   type        = bool
   description = "Manage tunnel ingress config in Terraform. Set false to skip if API returns 1002/1055."
   default     = true
+}
+
+variable "oke_services" {
+  type = map(object({
+    hostname = string
+    service  = string
+    port     = number
+    internal = bool
+  }))
+  description = "OKE services to expose via tunnel. service = K8s service name, port = cluster port"
+  default     = {}
 }

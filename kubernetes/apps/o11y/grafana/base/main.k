@@ -1,6 +1,6 @@
 # Grafana - Observability Dashboard
 # ================================
-# 
+#
 # Usage:
 #   kcl run apps/o11y/grafana/base/main.k | kubectl apply -f-
 

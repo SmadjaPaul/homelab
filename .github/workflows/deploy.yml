@@ -15,6 +15,14 @@ jobs:
       contents: read
       id-token: write
 
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OKE_CLUSTER_OCID: ${{ secrets.OKE_CLUSTER_OCID }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,23 +34,23 @@ jobs:
       - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
-          echo "${{ secrets.OCI_CLI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
+          echo "$OCI_CLI_KEY_CONTENT" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
-          user=${{ secrets.OCI_CLI_USER }}
-          fingerprint=${{ secrets.OCI_CLI_FINGERPRINT }}
-          tenancy=${{ secrets.OCI_CLI_TENANCY }}
-          region=${{ secrets.OCI_CLI_REGION }}
+          user=$OCI_CLI_USER
+          fingerprint=$OCI_CLI_FINGERPRINT
+          tenancy=$OCI_CLI_TENANCY
+          region=$OCI_CLI_REGION
           key_file=$HOME/.oci/oci_api_key.pem
           EOF
 
       - name: Create kubeconfig
         run: |
           oci ce cluster create-kubeconfig \
-            --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
+            --cluster-id $OKE_CLUSTER_OCID \
             --file ${{ github.workspace }}/kubeconfig \
-            --region ${{ secrets.OCI_CLI_REGION }} \
+            --region $OCI_CLI_REGION \
             --token-version 2.0.0
 
       - name: Install kubectl

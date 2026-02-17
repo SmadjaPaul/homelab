@@ -1,6 +1,6 @@
 # n8n - Workflow Automation
 # =======================
-# 
+#
 # Usage:
 #   kcl run apps/automation/n8n/base/main.k | kubectl apply -f-
 

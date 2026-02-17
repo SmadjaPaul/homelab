@@ -4,50 +4,19 @@
 # =============================================================================
 
 terraform {
-  required_version = ">= 1.5"
+  # Backend "oci" requires Terraform 1.11+
+  required_version = ">= 1.11"
 
   required_providers {
     oci = {
       source  = "oracle/oci"
-      version = ">= 5.0"
+      version = "~> 6.0"
     }
   }
 }
 
 provider "oci" {
   region = var.region
-}
-
-# =============================================================================
-# Variables
-# =============================================================================
-
-variable "region" {
-  description = "OCI Region"
-  type        = string
-  default     = "eu-paris-1"
-}
-
-variable "tenancy_ocid" {
-  description = "OCI Tenancy OCID"
-  type        = string
-}
-
-variable "compartment_id" {
-  description = "OCI Compartment OCID"
-  type        = string
-}
-
-variable "ssh_public_key" {
-  description = "SSH public key for worker nodes"
-  type        = string
-  default     = ""
-}
-
-variable "kubernetes_version" {
-  description = "Kubernetes version"
-  type        = string
-  default     = "v1.31.10"
 }
 
 # =============================================================================
@@ -95,6 +64,22 @@ module "oke" {
 }
 
 # =============================================================================
+# Monitoring & Logging Module (Free Tier)
+# =============================================================================
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  compartment_id = var.compartment_id
+  prefix         = "homelab"
+
+  tags = {
+    Environment = "homelab"
+    ManagedBy   = "terraform"
+  }
+}
+
+# =============================================================================
 # Outputs
 # =============================================================================
 
@@ -120,4 +105,8 @@ output "cluster_endpoint" {
 
 output "kubeconfig_command" {
   value = module.oke.kubeconfig_command
+}
+
+output "log_group_id" {
+  value = module.monitoring.log_group_id
 }

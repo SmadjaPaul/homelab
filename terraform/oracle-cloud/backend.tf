@@ -1,9 +1,17 @@
-# =============================================================================
-# Backend Configuration - OCI Object Storage (S3-compatible)
-# Works both locally (with OCI CLI) and in CI (with secrets)
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Remote State Management - OCI Object Storage
+# -----------------------------------------------------------------------------
+# - Remote backend: state dans OCI Object Storage (Always Free: 20 GB, 50k req/mois)
+# - State locking: natif OCI
+# - Versioning: bucket homelab-tfstate avec versioning = "Enabled"
+# - Auth: même auth que le provider OCI (~/.oci/config ou env OCI_CLI_*)
+# -----------------------------------------------------------------------------
 
 terraform {
-  # Local backend by default - use: terraform init -backend-config=backend.hcl
-  # to use remote backend with OCI Object Storage
+  backend "oci" {
+    bucket    = "homelab-tfstate"
+    namespace = "axnvxxurxefp"
+    key       = "oracle-cloud/terraform.tfstate"
+    region    = "eu-paris-1"
+  }
 }

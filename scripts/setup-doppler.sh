@@ -1,118 +1,96 @@
 #!/bin/bash
-#
-# Setup Doppler projects for Homelab
-# Creates 1 project per service for granular secret management
-#
+# Setup Doppler projects for Homelab (Multi-Project)
+# ===================================================
+# Creates multiple Doppler projects following MacroPower's pattern
 
 set -e
 
-echo "🔐 Doppler Project Setup"
-echo "======================="
+echo "=================================="
+echo "Doppler Multi-Project Setup"
+echo "=================================="
 echo ""
 
 # Check Doppler CLI
 if ! command -v doppler &> /dev/null; then
-    echo "❌ Doppler CLI not found"
-    echo "Install: curl -sLf https://cli.doppler.com/install.sh | sh"
-    exit 1
+    echo "Installing Doppler CLI..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        brew install dopplerhq/cli/doppler
+    else
+        (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || \
+         wget -t 3 -qO- https://cli.doppler.com/install.sh) | sh
+    fi
 fi
 
-# Check login
-doppler me &> /dev/null || {
-    echo "❌ Not logged in. Run: doppler login"
-    exit 1
-}
+# Login
+if ! doppler me &> /dev/null; then
+    echo "Please login to Doppler:"
+    doppler login
+fi
 
 echo "✅ Connected to Doppler"
 echo ""
 
-# Define projects
-PROJECTS=(
-    "infrastructure:Infrastructure core secrets"
-    "service-authentik:Identity Provider"
-    "service-nextcloud:Cloud storage"
-    "service-comet:Stremio streaming"
-    "service-jellyfin:Media server"
-    "service-odoo:ERP Business"
-    "service-fleetdm:Device Management"
-    "service-matrix:Messaging"
-    "service-immich:Photo management"
-    "service-vaultwarden:Password manager"
-    "service-gitea:Git hosting"
-    "service-litellm:AI Gateway"
-    "service-openwebui:AI Chat interface"
-    "backup-kopia:Backup tool"
+# Define projects with descriptions
+declare -A PROJECTS=(
+    ["infra-core"]="Core infrastructure (ArgoCD, Traefik, Cert-manager)"
+    ["cloudflare"]="Cloudflare services (Tunnel, DNS)"
+    ["authentik"]="Identity Provider (Authentik)"
+    ["omni"]="Talos management (Omni)"
+    ["homepage"]="Dashboard (Homepage)"
+    ["n8n"]="Workflow automation (n8n)"
+    ["adguard"]="DNS filtering (AdGuard)"
+    ["opencloud"]="File storage (OpenCloud)"
+    ["grafana"]="Observability (Grafana, Loki, Tempo)"
+    ["robusta"]="Monitoring & alerting (Robusta)"
 )
 
-echo "Creating projects..."
-for project_info in "${PROJECTS[@]}"; do
-    IFS=':' read -r project_name description <<< "$project_info"
+echo "Creating Doppler projects..."
+echo ""
 
-    if doppler projects get "$project_name" &> /dev/null; then
-        echo "  ✅ $project_name already exists"
+for project in "${!PROJECTS[@]}"; do
+    desc="${PROJECTS[$project]}"
+    
+    if doppler projects get "$project" &> /dev/null; then
+        echo "  ✅ $project already exists"
     else
-        echo "  📝 Creating $project_name ($description)..."
-        doppler projects create "$project_name" --description "$description"
-
-        # Create production config
-        doppler configs create prd -p "$project_name" || true
-
-        echo "     Created config: prd"
+        echo "  📝 Creating $project..."
+        doppler projects create "$project" --description "$desc"
+        
+        # Create prod config
+        doppler configs create prod -p "$project" 2>/dev/null || true
+        echo "     Created config: prod"
     fi
 done
 
 echo ""
-echo "Generating service tokens..."
+echo "=================================="
+echo "Setup Complete!"
+echo "=================================="
 echo ""
-
-# Create tokens file
-TOKENS_FILE="/tmp/doppler_tokens.txt"
-echo "# Doppler Service Tokens" > "$TOKENS_FILE"
-echo "# Generated: $(date)" >> "$TOKENS_FILE"
-echo "" >> "$TOKENS_FILE"
-
-for project_info in "${PROJECTS[@]}"; do
-    IFS=':' read -r project_name _ <<< "$project_info"
-
-    echo "Project: $project_name"
-
-    # Skip infrastructure (we'll do it separately)
-    if [ "$project_name" == "infrastructure" ]; then
-        token=$(doppler configs tokens create prd "eso-token-$(date +%Y%m%d)" -p "$project_name" --plain)
-        echo "  Infrastructure Token: $token"
-        echo "INFRASTRUCTURE_TOKEN=$token" >> "$TOKENS_FILE"
-        continue
-    fi
-
-    # Generate token
-    token=$(doppler configs tokens create prd "eso-token-$(date +%Y%m%d)" -p "$project_name" --plain)
-
-    # Convert project name to env var name
-    env_var_name="DOPPLER_TOKEN_$(echo "$project_name" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
-
-    echo "  Token: $token"
-    echo "$env_var_name=$token" >> "$TOKENS_FILE"
-
-    # Add to infrastructure project
-    echo "  → Adding to infrastructure project..."
-    doppler secrets set "$env_var_name"="$token" -p infrastructure --silent || true
+echo "Created projects:"
+for project in "${!PROJECTS[@]}"; do
+    echo "  - $project: ${PROJECTS[$project]}"
 done
-
-echo ""
-echo "✅ Setup complete!"
-echo ""
-echo "Tokens saved to: $TOKENS_FILE"
 echo ""
 echo "Next steps:"
-echo "  1. Add your secrets to each Doppler project"
-echo "     See doppler.yaml for the list of required secrets"
 echo ""
-echo "  2. For local development, run:"
-echo "     doppler configure --project infrastructure --config prd"
+echo "1. Generate auto-secrets with Terraform:"
+echo "   cd terraform/secrets"
+echo "   export DOPPLER_TOKEN=dp.st.xxxxx  # Your personal token"
+echo "   terraform init && terraform apply"
 echo ""
-echo "  3. To inject secrets into Terraform:"
-echo "     export DOPPLER_TOKEN=$(doppler configs tokens create prd temp -p infrastructure --plain)"
-echo "     doppler run -- terraform plan"
+echo "2. Add manual secrets:"
+echo "   doppler secrets set TUNNEL_TOKEN='<cf-token>' -p cloudflare -c prod"
+echo "   doppler secrets set account_id='<id>' -p robusta -c prod"
+echo "   doppler secrets set signing_key='<key>' -p robusta -c prod"
 echo ""
-echo "  4. Bootstrap the cluster:"
-echo "     ./scripts/bootstrap.sh"
+echo "3. Generate service tokens:"
+echo "   ./scripts/generate-doppler-tokens.sh"
+echo ""
+echo "4. Apply to Kubernetes:"
+echo "   bash /tmp/doppler-tokens-*/create-secrets.sh"
+echo "   kubectl apply -f kubernetes/bootstrap/doppler/secret-stores.yaml"
+echo ""
+echo "5. Deploy:"
+echo "   ./kubernetes/bootstrap/deploy.sh oci  # or 'home'"
+echo ""
