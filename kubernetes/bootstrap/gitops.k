@@ -1,15 +1,15 @@
 # Flux GitOps Configuration
 # ========================
-# Creates GitRepository and Kustomization for automatic reconciliation
+# Creates GitRepository for automatic reconciliation
+# Note: KCL files are compiled and applied via GitHub Actions
 #
 # Usage:
 #   kcl run bootstrap/gitops/main.k | kubectl apply -f-
 
 repoUrl = "https://github.com/SmadjaPaul/homelab"
 branch = "main"
-path = "kubernetes/apps"
 
-# GitRepository
+# GitRepository - tracks the repository for Flux to monitor
 gitRepository = {
     "apiVersion": "source.toolkit.fluxcd.io/v1"
     "kind": "GitRepository"
@@ -21,21 +21,5 @@ gitRepository = {
     }
 }
 
-# Kustomization for all apps
-kustomization = {
-    "apiVersion": "kustomize.toolkit.fluxcd.io/v1"
-    "kind": "Kustomization"
-    "metadata": {"name": "apps", "namespace": "flux-system"}
-    "spec": {
-        "sourceRef": {
-            "kind": "GitRepository"
-            "name": "homelab"
-        }
-        "path": path
-        "prune": True
-        "interval": "10m"
-    }
-}
-
 # Output all resources as a list
-items = [gitRepository, kustomization]
+items = [gitRepository]
