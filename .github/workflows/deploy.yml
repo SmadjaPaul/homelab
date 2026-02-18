@@ -61,6 +61,12 @@ jobs:
           # Wait for Flux pods to be ready
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=flux-system -n flux-system --timeout=300s
 
+      - name: Install External Secrets CRDs
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+          kubectl apply -f "https://raw.githubusercontent.com/external-secrets/external-secrets/v1.3.1/deploy/crds/bundle.yaml"
+
       - name: Create Doppler token secret
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
