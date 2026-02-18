@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-external-db
+  namespace: infra
+data:
+  AUTHENTIK_POSTGRESQL__HOST: "134.122.58.11"
+  AUTHENTIK_POSTGRESQL__PORT: "14351"
+  AUTHENTIK_POSTGRESQL__NAME: "defaultdb"
+  AUTHENTIK_POSTGRESQL__USER: "avnadmin"
+  AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: "0"
+  AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"

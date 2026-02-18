@@ -22,47 +22,46 @@ spec:
       enabled: false
     redis:
       enabled: true
-    extraEnv:
-      - name: AUTHENTIK_SECRET_KEY
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_SECRET_KEY
-      - name: AUTHENTIK_POSTGRESQL__HOST
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__HOST
-      - name: AUTHENTIK_POSTGRESQL__PORT
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__PORT
-      - name: AUTHENTIK_POSTGRESQL__NAME
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__NAME
-      - name: AUTHENTIK_POSTGRESQL__USER
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__USER
-      - name: AUTHENTIK_POSTGRESQL__PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__PASSWORD
-      - name: AUTHENTIK_POSTGRESQL__CONN_MAX_AGE
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__CONN_MAX_AGE
-      - name: AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS
-        valueFrom:
-          secretKeyRef:
-            name: authentik-values
-            key: AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS
+    global:
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-values
+              key: AUTHENTIK_SECRET_KEY
+        - name: AUTHENTIK_PGSQL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: authentik-external-db
+              key: AUTHENTIK_POSTGRESQL__HOST
+        - name: AUTHENTIK_PGSQL_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: authentik-external-db
+              key: AUTHENTIK_POSTGRESQL__PORT
+        - name: AUTHENTIK_PGSQL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: authentik-external-db
+              key: AUTHENTIK_POSTGRESQL__NAME
+        - name: AUTHENTIK_PGSQL_USER
+          valueFrom:
+            configMapKeyRef:
+              name: authentik-external-db
+              key: AUTHENTIK_POSTGRESQL__USER
+        - name: AUTHENTIK_PGSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-values
+              key: AUTHENTIK_POSTGRESQL__PASSWORD
+    authentik:
+      postgresql:
+        host: env://AUTHENTIK_PGSQL_HOST
+        port: env://AUTHENTIK_PGSQL_PORT
+        name: env://AUTHENTIK_PGSQL_NAME
+        user: env://AUTHENTIK_PGSQL_USER
+        password: env://AUTHENTIK_PGSQL_PASSWORD
+      secret_key: env://AUTHENTIK_SECRET_KEY
   install:
     remediation:
       retries: 3

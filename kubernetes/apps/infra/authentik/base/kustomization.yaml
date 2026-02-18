@@ -6,5 +6,6 @@ namespace: infra
 
 resources:
   - namespace.yaml
+  - configmap.yaml
   - external-secret.yaml
   - helmrelease.yaml
