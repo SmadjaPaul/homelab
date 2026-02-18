@@ -69,13 +69,28 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          helm repo add external-secrets https://charts.external-secrets.io
+
+          # Delete existing CRDs if they exist (from previous failed installs)
+          kubectl delete crd clusterexternalsecrets.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd externalsecrets.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd secretstores.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd clustersecretstores.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd pushsecrets.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd clusterpushsecrets.external-secrets.io --ignore-not-found=true || true
+          # Delete generator CRDs
+          kubectl delete crd passwords.generators.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd uuid.generators.external-secrets.io --ignore-not-found=true || true
+          kubectl delete crd fakes.generators.external-secrets.io --ignore-not-found=true || true
+
+          # Install via Helm
+          helm repo add external-secrets https://charts.external-secrets.io || true
           helm repo update
           helm upgrade --install external-secrets external-secrets/external-secrets \
             --namespace external-secrets \
             --create-namespace \
             --version 0.9.9 \
-            --set installCRDs=true
+            --set installCRDs=true \
+            --wait --timeout 5m
 
       - name: Wait for External Secrets to be ready
         run: |
