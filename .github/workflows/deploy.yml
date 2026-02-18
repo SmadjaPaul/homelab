@@ -48,6 +48,21 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
+      - name: Install External Secrets Operator
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+          kubectl apply -f https://github.com/external-secrets/external-secrets/releases/latest/download/external-secrets.yaml
+
+      - name: Create Doppler token secret
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+          kubectl create secret generic doppler-token \
+            --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
+            -n external-secrets \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Wait for Flux to be ready
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
