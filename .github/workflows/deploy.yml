@@ -73,6 +73,11 @@ jobs:
           # Delete all existing ESO CRDs if they exist (from previous failed installs)
           kubectl get crd --output=jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep 'external-secrets.io' | xargs kubectl delete crd --ignore-not-found=true 2>/dev/null || true
 
+          # Uninstall previous release if stuck
+          helm uninstall external-secrets -n external-secrets 2>/dev/null || true
+          kubectl delete namespace external-secrets --ignore-not-found=true
+          sleep 5
+
           # Install via Helm
           helm repo add external-secrets https://charts.external-secrets.io || true
           helm repo update
