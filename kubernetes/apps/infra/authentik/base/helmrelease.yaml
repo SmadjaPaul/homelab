@@ -5,7 +5,11 @@ metadata:
   namespace: infra
 spec:
   interval: 1h
+  timeout: 10m
   releaseName: authentik
+  dependsOn:
+    - name: external-secrets
+      namespace: external-secrets
   chart:
     spec:
       chart: authentik
@@ -22,3 +26,14 @@ spec:
       enabled: false
     redis:
       enabled: true
+  install:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  upgrade:
+    force: false
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled

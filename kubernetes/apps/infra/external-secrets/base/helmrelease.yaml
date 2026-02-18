@@ -7,6 +7,7 @@ spec:
   releaseName: external-secrets
   targetNamespace: external-secrets
   interval: 10m
+  timeout: 10m
   chart:
     spec:
       chart: external-secrets
@@ -16,12 +17,41 @@ spec:
         name: external-secrets
         namespace: flux-system
   values:
-    installCRDs: false
+    installCRDs: true
     webhook:
       create: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
     certController:
       create: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
   install:
     createNamespace: true
+    remediation:
+      retries: -1
+      remediateLastFailure: true
   upgrade:
-    force: true
+    force: false
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+      strategy: rollback
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled

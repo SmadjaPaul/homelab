@@ -7,7 +7,10 @@ spec:
   releaseName: external-dns
   targetNamespace: external-dns
   interval: 1h
-  timeout: 5m
+  timeout: 10m
+  dependsOn:
+    - name: external-secrets
+      namespace: external-secrets
   chart:
     spec:
       chart: external-dns
@@ -38,5 +41,13 @@ spec:
             key: CLOUDFLARE_EMAIL
   install:
     createNamespace: true
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   upgrade:
-    force: true
+    force: false
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
