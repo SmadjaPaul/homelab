@@ -52,7 +52,7 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl apply -f https://github.com/external-secrets/external-secrets/releases/latest/download/external-secrets-crds.yaml
+          kubectl apply -f "https://raw.githubusercontent.com/external-secrets/external-secrets/refs/heads/main/deploy/crds/bundle.yaml" --server-side
 
       - name: Wait for External Secrets CRDs
         run: |
