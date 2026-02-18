@@ -28,4 +28,5 @@ metadata:
   name: homepage
   namespace: flux-system
 spec:
-  url: oci://ghcr.io/m0nsterrr/helm-charts/homepage
+  type: oci
+  url: oci://ghcr.io/m0nsterrr/helm-charts
