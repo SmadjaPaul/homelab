@@ -48,11 +48,20 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
-      - name: Install External Secrets Operator
+      - name: Install External Secrets CRDs
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl apply -f https://github.com/external-secrets/external-secrets/releases/latest/download/external-secrets.yaml
+          kubectl apply -f https://github.com/external-secrets/external-secrets/releases/latest/download/external-secrets-crds.yaml
+
+      - name: Wait for External Secrets CRDs
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=300s
+          kubectl wait --for=condition=established crd/clusterexternalsecrets.external-secrets.io --timeout=300s
+          kubectl wait --for=condition=established crd/secretstores.external-secrets.io --timeout=300s
+          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=300s
 
       - name: Create Doppler token secret
         run: |
