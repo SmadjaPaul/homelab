@@ -13,6 +13,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: authentik
+        namespace: flux-system
   values:
     authentik:
       secret_key: secret-key-placeholder

@@ -7,7 +7,5 @@ resources:
   - infra/authentik/base
   # Observability
   - o11y/grafana/base
-  # Automation
-  - automation/n8n/base
   # Public
   - public/homepage/base
