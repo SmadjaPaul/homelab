@@ -34,11 +34,6 @@ spec:
           secretKeyRef:
             name: external-dns-secrets
             key: CLOUDFLARE_API_TOKEN
-      - name: CF_API_EMAIL
-        valueFrom:
-          secretKeyRef:
-            name: external-dns-secrets
-            key: CLOUDFLARE_EMAIL
   install:
     createNamespace: true
     remediation:
