@@ -47,5 +47,5 @@ metadata:
   name: aiven-operator
   namespace: flux-system
 spec:
-  url: https://aiven.github.io/aiven-operator
+  url: https://aiven.github.io/aiven-charts
   interval: 10m
