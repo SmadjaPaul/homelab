@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
   # Infrastructure
+  - infra/external-secrets/base
   - infra/external-dns/base
   - infra/authentik/base
   # Public
