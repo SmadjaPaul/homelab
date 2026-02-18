@@ -42,41 +42,11 @@ jobs:
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
 
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
       - name: Install Flux
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
-
-      - name: Install External Secrets Operator via Helm
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          helm repo add external-secrets https://charts.external-secrets.io
-          helm repo update
-          helm upgrade --install external-secrets external-secrets/external-secrets \
-            --namespace external-secrets \
-            --create-namespace \
-            --set installCRDs=true
-
-      - name: Wait for External Secrets to be ready
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=external-secrets -n external-secrets --timeout=300s
-
-      - name: Create Doppler token secret
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl create secret generic doppler-token \
-            --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
-            -n external-secrets \
-            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Wait for Flux to be ready
         run: |
@@ -90,6 +60,15 @@ jobs:
 
           # Wait for Flux pods to be ready
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=flux-system -n flux-system --timeout=300s
+
+      - name: Create Doppler token secret
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+          kubectl create secret generic doppler-token \
+            --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
+            -n external-secrets \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy Applications with Kustomize
         run: |
