@@ -9,7 +9,6 @@ spec:
   chart:
     spec:
       chart: authentik
-      version: "2024.10.3"
       sourceRef:
         kind: HelmRepository
         name: authentik
@@ -24,12 +23,3 @@ spec:
         username: authentik
     redis:
       enabled: true
-    ingress:
-      enabled: true
-      className: traefik
-      hosts:
-        - auth.smadja.dev
-      tls:
-        - secretName: authentik-tls
-          hosts:
-            - auth.smadja.dev

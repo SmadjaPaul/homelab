@@ -5,7 +5,5 @@ kind: Kustomization
 resources:
   # Infrastructure
   - infra/authentik/base
-  # Observability
-  - o11y/grafana/base
   # Public
   - public/homepage/base
