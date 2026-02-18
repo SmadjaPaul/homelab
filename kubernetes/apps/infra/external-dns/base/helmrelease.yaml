@@ -7,6 +7,7 @@ spec:
   releaseName: external-dns
   targetNamespace: external-dns
   interval: 1h
+  timeout: 5m
   chart:
     spec:
       chart: external-dns

@@ -13,22 +13,12 @@ spec:
         kind: HelmRepository
         name: authentik
         namespace: flux-system
+  valuesFrom:
+    - kind: Secret
+      name: authentik-values
+      valuesKey: values.yaml
   values:
-    authentik:
-      secret_key:
-        $env: AUTHENTIK_SECRET_KEY
     postgresql:
       enabled: false
-    externalDatabase:
-      host:
-        $env: AIVEN_POSTGRES_HOST
-      port:
-        $env: AIVEN_POSTGRES_PORT
-      database:
-        $env: AIVEN_POSTGRES_NAME
-      username:
-        $env: AIVEN_POSTGRES_USER
-      password:
-        $env: AUTHENTIK_POSTGRES_PASSWORD
     redis:
       enabled: true
