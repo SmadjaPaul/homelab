@@ -7,3 +7,4 @@ namespace: public
 resources:
   - namespace.yaml
   - helmrelease.yaml
+  - ingress.yaml
