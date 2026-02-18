@@ -2,6 +2,12 @@
 # Cloudflare Variables
 # =============================================================================
 
+variable "doppler_token" {
+  description = "Doppler API token for storing secrets"
+  type        = string
+  sensitive   = true
+}
+
 variable "cloudflare_api_token" {
   description = "Cloudflare API token with Zone permissions"
   type        = string

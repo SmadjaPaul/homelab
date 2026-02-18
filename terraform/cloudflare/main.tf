@@ -11,11 +11,19 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
+    doppler = {
+      source  = "DopplerHQ/doppler"
+      version = ">= 1.0"
+    }
   }
 }
 
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
+}
+
+provider "doppler" {
+  doppler_token = var.doppler_token
 }
 
 data "cloudflare_zone" "main" {
@@ -25,6 +33,32 @@ data "cloudflare_zone" "main" {
 # -----------------------------------------------------------------------------
 # Tunnel (only when enable_tunnel = true)
 # -----------------------------------------------------------------------------
+resource "random_password" "tunnel_secret" {
+  count   = var.enable_tunnel && var.tunnel_secret == "" ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "doppler_secret" "tunnel_credentials" {
+  count   = var.enable_tunnel ? 1 : 0
+  project = "homelab"
+  config  = "prd"
+  name    = "CLOUDFLARE_TUNNEL_TOKEN"
+  value = jsonencode({
+    AccountTag   = var.cloudflare_account_id
+    TunnelID     = var.tunnel_id != "" ? var.tunnel_id : module.tunnel[0].tunnel_id
+    TunnelSecret = var.tunnel_secret != "" ? var.tunnel_secret : random_password.tunnel_secret[0].result
+  })
+}
+
+resource "doppler_secret" "tunnel_id" {
+  count   = var.enable_tunnel ? 1 : 0
+  project = "homelab"
+  config  = "prd"
+  name    = "CLOUDFLARE_TUNNEL_ID"
+  value   = var.tunnel_id != "" ? var.tunnel_id : module.tunnel[0].tunnel_id
+}
+
 module "tunnel" {
   source = "./modules/tunnel"
   count  = var.enable_tunnel ? 1 : 0

@@ -50,7 +50,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
       for_each = var.oke_services
       content {
         hostname = "${ingress_rule.value.hostname}.${var.domain}"
-        service  = "https://${ingress_rule.value.service}:${ingress_rule.value.port}"
+        service  = "http://${ingress_rule.value.service}:${ingress_rule.value.port}"
         origin_request {
           no_tls_verify   = true
           connect_timeout = 30

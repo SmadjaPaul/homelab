@@ -7,6 +7,7 @@ resources:
   - infra/external-secrets/base
   - infra/aiven-operator/base
   - infra/external-dns/base
+  - infra/cloudflared/base
   - infra/authentik/base
   # Public
   - public/homepage/base

@@ -1,0 +1,15 @@
+tunnel: 64e0b862-35f3-45e8-ab7c-f1eee6609eab
+credentials-file: /etc/cloudflared/credentials/credentials.json
+metrics: 0.0.0.0:2000
+no-autoupdate: true
+
+ingress:
+  - hostname: auth.smadja.dev
+    service: http://traefik.traefik.svc.cluster.local:80
+  - hostname: home.smadja.dev
+    service: http://traefik.traefik.svc.cluster.local:80
+  - hostname: grafana.smadja.dev
+    service: http://traefik.traefik.svc.cluster.local:80
+  - hostname: prometheus.smadja.dev
+    service: http://traefik.traefik.svc.cluster.local:80
+  - service: http_status:404
