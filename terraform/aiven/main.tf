@@ -1,3 +1,7 @@
+# =============================================================================
+# Aiven Main Configuration
+# =============================================================================
+
 terraform {
   required_version = ">= 1.0"
 
@@ -12,49 +16,8 @@ provider "aiven" {
   api_token = var.aiven_token
 }
 
-variable "aiven_token" {
-  description = "Aiven API token"
-  type        = string
-  sensitive   = true
-}
-
-variable "project_name" {
-  description = "Aiven project name"
-  type        = string
-}
-
-variable "cloud_name" {
-  description = "Cloud provider region"
-  type        = string
-  default     = "google-europe-west1"
-}
-
-variable "service_name_prefix" {
-  description = "Prefix for service names"
-  type        = string
-  default     = "homelab"
-}
-
-variable "create_dragonfly" {
-  description = "Whether to create Dragonfly service"
-  type        = bool
-  default     = false
-}
-
-variable "create_kafka" {
-  description = "Whether to create Kafka service"
-  type        = bool
-  default     = false
-}
-
-variable "create_redis" {
-  description = "Whether to create Redis service"
-  type        = bool
-  default     = false
-}
-
 # =============================================================================
-# Dragonfly (only if create_dragonfly = true)
+# Dragonfly (optional)
 # =============================================================================
 
 resource "aiven_dragonfly" "dragonfly" {
@@ -66,19 +29,8 @@ resource "aiven_dragonfly" "dragonfly" {
   service_name = "${var.service_name_prefix}-dragonfly"
 }
 
-output "dragonfly_service_name" {
-  description = "Dragonfly service name"
-  value       = var.create_dragonfly ? aiven_dragonfly.dragonfly[0].service_name : null
-}
-
-output "dragonfly_service_uri" {
-  description = "Dragonfly service URI (sensitive)"
-  sensitive   = true
-  value       = var.create_dragonfly ? aiven_dragonfly.dragonfly[0].service_uri : null
-}
-
 # =============================================================================
-# Kafka (only if create_kafka = true)
+# Kafka (optional)
 # =============================================================================
 
 resource "aiven_kafka" "kafka" {
@@ -90,19 +42,8 @@ resource "aiven_kafka" "kafka" {
   service_name = "${var.service_name_prefix}-kafka"
 }
 
-output "kafka_service_name" {
-  description = "Kafka service name"
-  value       = var.create_kafka ? aiven_kafka.kafka[0].service_name : null
-}
-
-output "kafka_service_uri" {
-  description = "Kafka service URI (sensitive)"
-  sensitive   = true
-  value       = var.create_kafka ? aiven_kafka.kafka[0].service_uri : null
-}
-
 # =============================================================================
-# Redis (only if create_redis = true)
+# Redis (optional)
 # =============================================================================
 
 resource "aiven_redis" "redis" {
@@ -114,17 +55,6 @@ resource "aiven_redis" "redis" {
   service_name = "${var.service_name_prefix}-redis"
 }
 
-output "redis_service_name" {
-  description = "Redis service name"
-  value       = var.create_redis ? aiven_redis.redis[0].service_name : null
-}
-
-output "redis_service_uri" {
-  description = "Redis service URI (sensitive)"
-  sensitive   = true
-  value       = var.create_redis ? aiven_redis.redis[0].service_uri : null
-}
-
 # =============================================================================
 # Outputs
 # =============================================================================
@@ -132,4 +62,49 @@ output "redis_service_uri" {
 output "project_name" {
   description = "Aiven project name"
   value       = var.project_name
+}
+
+output "dragonfly_info" {
+  description = "Dragonfly service information"
+  value = var.create_dragonfly ? {
+    service_name = aiven_dragonfly.dragonfly[0].service_name
+    service_uri  = aiven_dragonfly.dragonfly[0].service_uri
+    state        = aiven_dragonfly.dragonfly[0].state
+  } : null
+}
+
+output "kafka_info" {
+  description = "Kafka service information"
+  value = var.create_kafka ? {
+    service_name = aiven_kafka.kafka[0].service_name
+    service_uri  = aiven_kafka.kafka[0].service_uri
+    state        = aiven_kafka.kafka[0].state
+  } : null
+}
+
+output "redis_info" {
+  description = "Redis service information"
+  value = var.create_redis ? {
+    service_name = aiven_redis.redis[0].service_name
+    service_uri  = aiven_redis.redis[0].service_uri
+    state        = aiven_redis.redis[0].state
+  } : null
+}
+
+output "next_steps" {
+  description = "Next steps after apply"
+  value       = <<-EOT
+
+    ✅ Aiven services configured!
+
+    To create services, set the appropriate flags in terraform.tfvars:
+    - create_dragonfly = true
+    - create_kafka = true
+    - create_redis = true
+
+    Then run: terraform apply
+
+    Note: Service URIs are sensitive - use terraform output -sensitive to view them.
+
+  EOT
 }

@@ -124,7 +124,19 @@ jobs:
           kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
 
           # Wait for CRDs to be fully registered in API server
-          sleep 30
+          sleep 60
 
-          # Apply all apps using Kustomize with server-side apply
+          # First apply external-secrets HelmRelease only
+          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/ --server-side
+
+          # Wait for external-secrets to be fully ready (including CRDs)
+          echo "Waiting for external-secrets to be ready..."
+          kubectl wait --for=condition=ready helmrelease/external-secrets -n external-secrets --timeout=300s || true
+
+          # Wait for external-secrets CRDs to be established
+          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s || true
+          kubectl wait --for=condition=established crd/secretstores.external-secrets.io --timeout=120s || true
+          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s || true
+
+          # Now apply remaining apps
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/ --server-side

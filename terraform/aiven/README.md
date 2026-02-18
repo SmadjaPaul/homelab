@@ -22,7 +22,7 @@ Create a `terraform.tfvars` file with your configuration:
 
 ```hcl
 aiven_token    = "your-aiven-api-token"
-project_name   = "your-aiven-project-name"
+project_name   = "homelab-smadja"
 cloud_name     = "google-europe-west1"
 
 # Enable services you want to create
