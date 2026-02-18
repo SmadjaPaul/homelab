@@ -48,20 +48,22 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
           kubectl apply -f https://github.com/fluxcd/flux2/releases/latest/download/install.yaml
 
-      - name: Install External Secrets CRDs
+      - name: Install External Secrets Operator via Helm
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl apply -f "https://raw.githubusercontent.com/external-secrets/external-secrets/refs/heads/main/deploy/crds/bundle.yaml" --server-side
+          helm repo add external-secrets https://charts.external-secrets.io
+          helm repo update
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --set installCRDs=true
 
-      - name: Wait for External Secrets CRDs
+      - name: Wait for External Secrets to be ready
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=300s
-          kubectl wait --for=condition=established crd/clusterexternalsecrets.external-secrets.io --timeout=300s
-          kubectl wait --for=condition=established crd/secretstores.external-secrets.io --timeout=300s
-          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=300s
+          kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=external-secrets -n external-secrets --timeout=300s
 
       - name: Create Doppler token secret
         run: |
