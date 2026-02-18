@@ -17,15 +17,52 @@ spec:
         kind: HelmRepository
         name: authentik
         namespace: flux-system
-  valuesFrom:
-    - kind: Secret
-      name: authentik-values
-      valuesKey: values.yaml
   values:
     postgresql:
       enabled: false
     redis:
       enabled: true
+    extraEnv:
+      - name: AUTHENTIK_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_SECRET_KEY
+      - name: AUTHENTIK_POSTGRESQL__HOST
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__HOST
+      - name: AUTHENTIK_POSTGRESQL__PORT
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__PORT
+      - name: AUTHENTIK_POSTGRESQL__NAME
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__NAME
+      - name: AUTHENTIK_POSTGRESQL__USER
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__USER
+      - name: AUTHENTIK_POSTGRESQL__PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__PASSWORD
+      - name: AUTHENTIK_POSTGRESQL__CONN_MAX_AGE
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__CONN_MAX_AGE
+      - name: AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS
+        valueFrom:
+          secretKeyRef:
+            name: authentik-values
+            key: AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS
   install:
     remediation:
       retries: 3
