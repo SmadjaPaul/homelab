@@ -38,5 +38,3 @@ spec:
       kind: Deployment
       name: homepage
       namespace: public
-  dependsOn:
-    - name: flux-system

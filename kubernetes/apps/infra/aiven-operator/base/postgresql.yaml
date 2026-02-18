@@ -1,0 +1,19 @@
+# Connect to existing Aiven PostgreSQL and generate connection secrets
+# The Aiven Operator will fetch connection details and create a Kubernetes secret
+# Update project and serviceName to match your existing Aiven PostgreSQL
+apiVersion: aiven.io/v1alpha1
+kind: PostgreSQL
+metadata:
+  name: authentik-db
+  namespace: infra
+spec:
+  authSecretRef:
+    name: aiven-operator-token
+    key: token
+  connInfoSecretTarget:
+    name: authentik-aiven-connection
+    # The secret will contain: host, port, user, password, database, sslmode, uri
+  project: YOUR_AIVEN_PROJECT_NAME
+  serviceName: YOUR_EXISTING_SERVICE_NAME
+  userConfig:
+    pg_version: '16'
