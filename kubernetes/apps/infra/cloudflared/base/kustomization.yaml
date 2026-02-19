@@ -5,7 +5,7 @@ kind: Kustomization
 namespace: cloudflared
 
 resources:
-  - resources.yaml
+  - namespace.yaml
   - external-secret.yaml
   - configmap.yaml
   - deployment.yaml
