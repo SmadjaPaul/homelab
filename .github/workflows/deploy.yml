@@ -57,7 +57,6 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Check if Flux is already installed
           if kubectl get deployment -n flux-system kustomize-controller &>/dev/null; then
             echo "Flux already installed, upgrading..."
             flux install
@@ -72,79 +71,52 @@ jobs:
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
           kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
-
-          # Wait for HelmRepositories to be ready
           sleep 10
 
-      - name: Install External Secrets via Helm
+      - name: Install External Secrets CRDs
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Add repo and update
+          # Install CRDs directly from external-secrets GitHub repo
+          kubectl apply -f https://raw.githubusercontent.com/external-secrets/external-secrets/v0.9.9/deploy/crds/bundle.yaml
+
+          echo "Waiting for CRDs to be established..."
+          sleep 30
+
+          # Wait for API to recognize them
+          for i in {1..60}; do
+            if kubectl api-resources | grep -q clustersecretstores; then
+              echo "API is ready!"
+              kubectl get crd | grep external-secrets
+              break
+            fi
+            echo "Waiting for API... attempt $i/60"
+            sleep 5
+          done
+
+      - name: Install External Secrets Operator
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+
           helm repo add external-secrets https://charts.external-secrets.io || true
           helm repo update
 
-          # Install external-secrets with CRDs
           helm upgrade --install external-secrets external-secrets/external-secrets \
             --namespace external-secrets \
             --create-namespace \
-            --set installCRDs=true \
+            --set installCRDs=false \
             --wait
 
-          echo "Helm install completed"
-
-          # Debug: Check what CRDs exist
-          echo "Checking installed CRDs..."
-          kubectl get crd | grep external-secrets || echo "No external-secrets CRDs found!"
-
-          # Wait for CRDs with longer timeout and polling
-          echo "Waiting for ClusterSecretStore CRD..."
-          for i in {1..60}; do
-            if kubectl get crd clustersecretstores.external-secrets.io &>/dev/null; then
-              echo "CRD found after $i attempts"
-              break
-            fi
-            echo "Still waiting for CRD... attempt $i/60"
-            sleep 5
-          done
-
-          # Verify CRD is ready
-          kubectl get crd clustersecretstores.external-secrets.io -o yaml | head -20
-
-          # Wait longer for API to be ready
-          echo "Waiting for API server to register endpoints..."
-          sleep 60
-
-          # Test if API is working
-          echo "Testing API availability..."
-          for i in {1..30}; do
-            if kubectl get clustersecretstore 2>&1 | grep -q "No resources found\|NAME"; then
-              echo "API is ready!"
-              break
-            fi
-            echo "API not ready yet... attempt $i/30"
-            sleep 5
-          done
-
-      - name: Deploy External Secrets via Flux
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Apply the HelmRelease via Flux (for ongoing management)
-          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/ || true
-
-          # Wait for pods
-          echo "Waiting for External Secrets pods..."
-          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-secrets -n external-secrets --timeout=300s || true
+          echo "ESO installed"
+          kubectl get pods -n external-secrets
 
       - name: Create Doppler Token Secret
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Create the Doppler token secret
           kubectl create secret generic doppler-token \
             --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
             -n external-secrets \
@@ -155,11 +127,9 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Retry logic for creating ClusterSecretStore
-          for i in {1..10}; do
-            echo "Attempting to create ClusterSecretStore... attempt $i/10"
+          sleep 10
 
-            if cat <<EOF | kubectl apply -f - 2>&1; then
+          cat <<EOF | kubectl apply -f -
           apiVersion: external-secrets.io/v1beta1
           kind: ClusterSecretStore
           metadata:
@@ -174,15 +144,7 @@ jobs:
                       key: dopplerToken
                       namespace: external-secrets
           EOF
-              echo "ClusterSecretStore created successfully!"
-              break
-            else
-              echo "Failed to create ClusterSecretStore, retrying in 10 seconds..."
-              sleep 10
-            fi
-          done
 
-          # Wait for it to be ready
           kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=120s || true
 
       - name: Deploy All Applications
@@ -190,10 +152,8 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Apply all remaining infrastructure
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/
 
-          # Wait for critical infrastructure
           echo "Waiting for ExternalDNS..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-dns -n external-dns --timeout=300s || true
 
@@ -203,7 +163,6 @@ jobs:
           echo "Waiting for Authentik..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=authentik -n infra --timeout=300s || true
 
-          # Apply public services
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/public/
 
       - name: Verify Deployment
@@ -226,7 +185,6 @@ jobs:
           echo ""
           echo "=== Checking Cloudflared ==="
           kubectl get pods -n cloudflared
-          kubectl logs -n cloudflared deployment/cloudflared --tail=5
 
           echo ""
           echo "=== Checking Services ==="
