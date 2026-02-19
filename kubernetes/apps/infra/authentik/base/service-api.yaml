@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik-api
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/component: api
+  annotations:
+    # OCI Load Balancer configuration
+    oci.oraclecloud.com/load-balancer-type: "lb"
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "100"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 443
+      targetPort: 8080
+      protocol: TCP
+      name: https
+  selector:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/component: server
