@@ -13,5 +13,5 @@ data:
     ingress:
       # Route all traffic to Traefik ingress controller
       - hostname: "*.smadja.dev"
-        service: http://traefik.traefik.svc.cluster.local:80
+        service: http://traefik.traefik.svc.cluster.local:8080
       - service: http_status:404

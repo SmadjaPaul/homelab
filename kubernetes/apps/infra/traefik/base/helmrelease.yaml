@@ -25,9 +25,11 @@ spec:
       type: ClusterIP
     ports:
       web:
-        port: 80
+        port: 8080
+        exposedPort: 8080
       websecure:
-        port: 443
+        port: 8443
+        exposedPort: 8443
     logs:
       general:
         level: INFO
@@ -38,3 +40,12 @@ spec:
       limits:
         cpu: 500m
         memory: 256Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsGroup: 65532
+      runAsNonRoot: true
+      runAsUser: 65532
