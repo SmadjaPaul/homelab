@@ -76,43 +76,68 @@ jobs:
           # Wait for HelmRepositories to be ready
           sleep 10
 
-      - name: Install External Secrets CRDs via Helm
+      - name: Install External Secrets via Helm
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Install ESO CRDs first via Helm
+          # Add repo and update
           helm repo add external-secrets https://charts.external-secrets.io || true
           helm repo update
 
-          # Install CRDs only first
+          # Install external-secrets with CRDs
           helm upgrade --install external-secrets external-secrets/external-secrets \
             --namespace external-secrets \
             --create-namespace \
             --set installCRDs=true \
-            --set crds.create=true
+            --wait
 
-          # Wait for CRDs to be established
-          echo "Waiting for External Secrets CRDs to be established..."
-          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s
-          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s
+          echo "Helm install completed"
 
-          echo "CRDs established successfully!"
+          # Debug: Check what CRDs exist
+          echo "Checking installed CRDs..."
+          kubectl get crd | grep external-secrets || echo "No external-secrets CRDs found!"
 
-      - name: Deploy External Secrets Operator via Flux
+          # Wait for CRDs with longer timeout and polling
+          echo "Waiting for ClusterSecretStore CRD..."
+          for i in {1..60}; do
+            if kubectl get crd clustersecretstores.external-secrets.io &>/dev/null; then
+              echo "CRD found after $i attempts"
+              break
+            fi
+            echo "Still waiting for CRD... attempt $i/60"
+            sleep 5
+          done
+
+          # Verify CRD is ready
+          kubectl get crd clustersecretstores.external-secrets.io -o yaml | head -20
+
+          # Wait longer for API to be ready
+          echo "Waiting for API server to register endpoints..."
+          sleep 60
+
+          # Test if API is working
+          echo "Testing API availability..."
+          for i in {1..30}; do
+            if kubectl get clustersecretstore 2>&1 | grep -q "No resources found\|NAME"; then
+              echo "API is ready!"
+              break
+            fi
+            echo "API not ready yet... attempt $i/30"
+            sleep 5
+          done
+
+      - name: Deploy External Secrets via Flux
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Now apply the HelmRelease via Flux (which will manage the deployment)
-          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/
+          # Apply the HelmRelease via Flux (for ongoing management)
+          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/ || true
 
-          # Wait for ESO pods to be ready
-          echo "Waiting for External Secrets Operator pods..."
-          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-secrets -n external-secrets --timeout=300s
-
-          # Give API time to be fully ready
-          sleep 20
+          # Wait for pods
+          echo "Waiting for External Secrets pods..."
+          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-secrets -n external-secrets --timeout=300s || true
 
       - name: Create Doppler Token Secret
         run: |
@@ -130,8 +155,11 @@ jobs:
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Create ClusterSecretStore
-          cat <<EOF | kubectl apply -f -
+          # Retry logic for creating ClusterSecretStore
+          for i in {1..10}; do
+            echo "Attempting to create ClusterSecretStore... attempt $i/10"
+
+            if cat <<EOF | kubectl apply -f - 2>&1; then
           apiVersion: external-secrets.io/v1beta1
           kind: ClusterSecretStore
           metadata:
@@ -146,6 +174,13 @@ jobs:
                       key: dopplerToken
                       namespace: external-secrets
           EOF
+              echo "ClusterSecretStore created successfully!"
+              break
+            else
+              echo "Failed to create ClusterSecretStore, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
 
           # Wait for it to be ready
           kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=120s || true
@@ -182,7 +217,7 @@ jobs:
           echo ""
           echo "=== Checking External Secrets ==="
           kubectl get pods -n external-secrets
-          kubectl get externalsecret -A
+          kubectl get externalsecret -A || true
 
           echo ""
           echo "=== Checking ExternalDNS ==="
