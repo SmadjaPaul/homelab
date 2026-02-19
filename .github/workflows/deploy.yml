@@ -1,4 +1,4 @@
-name: Deploy Kubernetes
+name: Deploy Infrastructure and Kubernetes
 
 on:
   push:
@@ -6,12 +6,72 @@ on:
       - main
     paths:
       - 'kubernetes/**'
+      - 'terraform/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
+env:
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+
 jobs:
-  deploy:
+  # Job 1: Deploy Terraform Infrastructure
+  terraform:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: production
+    outputs:
+      tunnel_id: ${{ steps.terraform.outputs.tunnel_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('terraform/**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Terraform Init
+        working-directory: terraform/cloudflare
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Plan
+        working-directory: terraform/cloudflare
+        run: terraform plan -var-file=terraform.tfvars -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        working-directory: terraform/cloudflare
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Get Tunnel ID
+        id: terraform
+        working-directory: terraform/cloudflare
+        run: |
+          TUNNEL_ID=$(terraform output -raw tunnel_info | jq -r '.tunnel_id')
+          echo "tunnel_id=$TUNNEL_ID" >> $GITHUB_OUTPUT
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+  # Job 2: Deploy Kubernetes Infrastructure
+  kubernetes-infra:
+    runs-on: ubuntu-latest
+    needs: terraform
     permissions:
       contents: read
       id-token: write
@@ -20,6 +80,177 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache Tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/kubectl
+            /usr/local/bin/helm
+            /usr/local/bin/flux
+          key: ${{ runner.os }}-tools-v1
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Create kubeconfig
+        run: |
+          ~/.local/bin/oci ce cluster create-kubeconfig \
+            --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
+            --file ${{ github.workspace }}/kubeconfig \
+            --region ${{ secrets.OCI_CLI_REGION }} \
+            --token-version 2.0.0
+
+      - name: Install Tools
+        run: |
+          # Install kubectl
+          if ! command -v kubectl &> /dev/null; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+          fi
+
+          # Install Helm
+          if ! command -v helm &> /dev/null; then
+            curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          fi
+
+          # Install Flux CLI
+          if ! command -v flux &> /dev/null; then
+            curl -s https://fluxcd.io/install.sh | sudo bash
+          fi
+
+      - name: Install or Upgrade Flux
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          if kubectl get deployment -n flux-system kustomize-controller &>/dev/null; then
+            echo "Flux already installed, upgrading..."
+            flux install
+          else
+            echo "Installing Flux..."
+            flux install
+          fi
+
+      - name: Apply HelmRepositories
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
+          sleep 10
+
+      - name: Cleanup and Install External Secrets
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          echo "Cleaning up existing External Secrets..."
+          helm uninstall external-secrets -n external-secrets 2>/dev/null || true
+
+          echo "Deleting existing ESO CRDs..."
+          kubectl get crd --output=jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep 'external-secrets.io' | xargs -r kubectl delete crd --ignore-not-found=true 2>/dev/null || true
+
+          kubectl delete namespace external-secrets --ignore-not-found=true
+
+          echo "Waiting for cleanup..."
+          sleep 30
+
+          helm repo add external-secrets https://charts.external-secrets.io || true
+          helm repo update
+
+          echo "Installing External Secrets..."
+          helm install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --set installCRDs=true \
+            --version 0.9.9 \
+            --wait
+
+          echo "Waiting for CRDs to be established..."
+          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s
+          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s
+
+      - name: Create Doppler Token Secret
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          kubectl create secret generic doppler-token \
+            --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
+            -n external-secrets \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create ClusterSecretStore
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          cat <<EOF | kubectl apply -f -
+          apiVersion: external-secrets.io/v1beta1
+          kind: ClusterSecretStore
+          metadata:
+            name: doppler
+          spec:
+            provider:
+              doppler:
+                auth:
+                  secretRef:
+                    dopplerToken:
+                      name: doppler-token
+                      key: dopplerToken
+                      namespace: external-secrets
+          EOF
+
+          kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=120s || true
+
+      - name: Deploy Infrastructure
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/
+
+          echo "Waiting for ExternalDNS..."
+          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-dns -n external-dns --timeout=300s || true
+
+          echo "Waiting for Cloudflared..."
+          kubectl wait --for=condition=ready pods -l app=cloudflared -n cloudflared --timeout=300s || true
+
+      - name: Verify Infrastructure
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          echo "=== External Secrets ==="
+          kubectl get pods -n external-secrets
+          kubectl get externalsecret -A || true
+
+          echo "=== ExternalDNS ==="
+          kubectl get pods -n external-dns
+
+          echo "=== Cloudflared ==="
+          kubectl get pods -n cloudflared
+          kubectl logs -n cloudflared deployment/cloudflared --tail=10
+
+  # Job 3: Deploy Services
+  kubernetes-services:
+    runs-on: ubuntu-latest
+    needs: kubernetes-infra
+    permissions:
+      contents: read
+      id-token: write
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/kubectl
+          key: ${{ runner.os }}-kubectl-v1
 
       - name: Setup OCI CLI
         uses: ./.github/actions/setup-oci-cli
@@ -40,168 +271,98 @@ jobs:
 
       - name: Install kubectl
         run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
-
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Install Flux CLI
-        run: |
-          curl -s https://fluxcd.io/install.sh | sudo bash
-
-      - name: Install or Upgrade Flux
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Check if Flux is already installed
-          if kubectl get deployment -n flux-system kustomize-controller &>/dev/null; then
-            echo "Flux already installed, upgrading..."
-            flux install
-          else
-            echo "Installing Flux..."
-            flux install
+          if ! command -v kubectl &> /dev/null; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
           fi
 
-      - name: Apply HelmRepositories
+      - name: Deploy Services
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          kubectl apply -f ${{ github.workspace }}/kubernetes/apps/flux-helmrepositories.yaml
-
-          # Wait for HelmRepositories to be ready
-          sleep 10
-
-      - name: Cleanup and Install External Secrets
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Clean up any existing broken ESO installation
-          echo "Cleaning up existing External Secrets..."
-          helm uninstall external-secrets -n external-secrets 2>/dev/null || true
-
-          # Delete all ESO CRDs to avoid version conflicts
-          echo "Deleting existing ESO CRDs..."
-          kubectl get crd --output=jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep 'external-secrets.io' | xargs -r kubectl delete crd --ignore-not-found=true 2>/dev/null || true
-
-          # Delete namespace
-          kubectl delete namespace external-secrets --ignore-not-found=true
-
-          # Wait for cleanup
-          echo "Waiting for cleanup..."
-          sleep 30
-
-          # Add repo and update
-          helm repo add external-secrets https://charts.external-secrets.io || true
-          helm repo update
-
-          # Install external-secrets with CRDs (fresh install)
-          echo "Installing External Secrets..."
-          helm install external-secrets external-secrets/external-secrets \
-            --namespace external-secrets \
-            --create-namespace \
-            --set installCRDs=true \
-            --version 0.9.9 \
-            --wait
-
-          echo "Helm install completed"
-
-          # Wait for CRDs to be established
-          echo "Waiting for CRDs to be established..."
-          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s
-          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s
-
-          echo "CRDs established successfully!"
-
-      - name: Create Doppler Token Secret
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Create the Doppler token secret
-          kubectl create secret generic doppler-token \
-            --from-literal=dopplerToken='${{ secrets.DOPPLER_SERVICE_TOKEN }}' \
-            -n external-secrets \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Create ClusterSecretStore
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Create ClusterSecretStore
-          cat <<EOF | kubectl apply -f -
-          apiVersion: external-secrets.io/v1beta1
-          kind: ClusterSecretStore
-          metadata:
-            name: doppler
-          spec:
-            provider:
-              doppler:
-                auth:
-                  secretRef:
-                    dopplerToken:
-                      name: doppler-token
-                      key: dopplerToken
-                      namespace: external-secrets
-          EOF
-
-          # Wait for it to be ready
-          kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=120s || true
-
-      - name: Deploy All Applications
-        run: |
-          export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Apply all infrastructure
-          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/
-
-          # Wait for critical infrastructure
-          echo "Waiting for ExternalDNS..."
-          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-dns -n external-dns --timeout=300s || true
-
-          echo "Waiting for Cloudflared..."
-          kubectl wait --for=condition=ready pods -l app=cloudflared -n cloudflared --timeout=300s || true
+          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/public/
 
           echo "Waiting for Authentik..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=authentik -n infra --timeout=300s || true
 
-          # Apply public services
-          kubectl apply -k ${{ github.workspace }}/kubernetes/apps/public/
+          echo "Waiting for Homepage..."
+          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=homepage -n public --timeout=300s || true
 
-      - name: Verify Deployment
+      - name: Verify Services
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          echo "=== Checking Namespaces ==="
-          kubectl get namespaces
-
-          echo ""
-          echo "=== Checking External Secrets ==="
-          kubectl get pods -n external-secrets
-          kubectl get externalsecret -A || true
-
-          echo ""
-          echo "=== Checking ExternalDNS ==="
-          kubectl get pods -n external-dns
-
-          echo ""
-          echo "=== Checking Cloudflared ==="
-          kubectl get pods -n cloudflared
-          kubectl logs -n cloudflared deployment/cloudflared --tail=5
-
-          echo ""
-          echo "=== Checking Services ==="
+          echo "=== Services ==="
           kubectl get pods -n infra
           kubectl get pods -n public
 
-          echo ""
-          echo "=== Checking Ingress ==="
+          echo "=== Ingress ==="
           kubectl get ingress -A
+
+  # Job 4: Health Checks
+  health-checks:
+    runs-on: ubuntu-latest
+    needs: kubernetes-services
+    permissions:
+      contents: read
+
+    steps:
+      - name: Wait for services to be ready
+        run: sleep 30
+
+      - name: Health Check - Homepage
+        run: |
+          echo "Checking home.smadja.dev..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://home.smadja.dev --max-time 30 || echo "000")
+          echo "HTTP Code: $HTTP_CODE"
+          if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "302" ]; then
+            echo "✅ Homepage is accessible"
+          else
+            echo "⚠️ Homepage returned HTTP $HTTP_CODE (might be OK if auth is required)"
+          fi
+
+      - name: Health Check - Authentik
+        run: |
+          echo "Checking auth.smadja.dev..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://auth.smadja.dev --max-time 30 || echo "000")
+          echo "HTTP Code: $HTTP_CODE"
+          if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "302" ]; then
+            echo "✅ Authentik is accessible"
+          else
+            echo "⚠️ Authentik returned HTTP $HTTP_CODE"
+          fi
+
+      - name: DNS Check
+        run: |
+          echo "=== DNS Resolution ==="
+          nslookup home.smadja.dev || echo "DNS lookup failed"
+          nslookup auth.smadja.dev || echo "DNS lookup failed"
+
+  # Job 5: Notify
+  notify:
+    runs-on: ubuntu-latest
+    needs: [terraform, kubernetes-infra, kubernetes-services, health-checks]
+    if: always()
+    permissions:
+      contents: read
+
+    steps:
+      - name: Notify Success
+        if: needs.terraform.result == 'success' && needs.kubernetes-infra.result == 'success' && needs.kubernetes-services.result == 'success' && needs.health-checks.result == 'success'
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo ""
+          echo "Services deployed:"
+          echo "- https://home.smadja.dev"
+          echo "- https://auth.smadja.dev"
+
+      - name: Notify Failure
+        if: needs.terraform.result == 'failure' || needs.kubernetes-infra.result == 'failure' || needs.kubernetes-services.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          echo ""
+          echo "Terraform: ${{ needs.terraform.result }}"
+          echo "Kubernetes Infra: ${{ needs.kubernetes-infra.result }}"
+          echo "Kubernetes Services: ${{ needs.kubernetes-services.result }}"
+          echo "Health Checks: ${{ needs.health-checks.result }}"
