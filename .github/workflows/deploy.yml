@@ -44,6 +44,10 @@ jobs:
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
       - name: Install Flux CLI
         run: |
           curl -s https://fluxcd.io/install.sh | sudo bash
@@ -72,37 +76,43 @@ jobs:
           # Wait for HelmRepositories to be ready
           sleep 10
 
-      - name: Deploy External Secrets Operator
+      - name: Install External Secrets CRDs via Helm
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
 
-          # Apply external-secrets namespace and HelmRelease
+          # Install ESO CRDs first via Helm
+          helm repo add external-secrets https://charts.external-secrets.io || true
+          helm repo update
+
+          # Install CRDs only first
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets \
+            --create-namespace \
+            --set installCRDs=true \
+            --set crds.create=true
+
+          # Wait for CRDs to be established
+          echo "Waiting for External Secrets CRDs to be established..."
+          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s
+          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s
+
+          echo "CRDs established successfully!"
+
+      - name: Deploy External Secrets Operator via Flux
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+
+          # Now apply the HelmRelease via Flux (which will manage the deployment)
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/
 
-          # Wait for external-secrets pods to be ready
+          # Wait for ESO pods to be ready
           echo "Waiting for External Secrets Operator pods..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-secrets -n external-secrets --timeout=300s
 
-          # Wait for all ESO CRDs to be created and accepted
-          echo "Waiting for External Secrets CRDs..."
-          for i in {1..30}; do
-            if kubectl get crd clustersecretstores.external-secrets.io &>/dev/null && \
-               kubectl get crd externalsecrets.external-secrets.io &>/dev/null; then
-              echo "CRDs found!"
-              break
-            fi
-            echo "Waiting for CRDs... attempt $i/30"
-            sleep 10
-          done
-
-          # Additional wait for API to be ready
-          echo "Waiting for API to be ready..."
-          sleep 30
-
-          # Verify CRDs
-          echo "Verifying CRDs..."
-          kubectl get crd | grep external-secrets
+          # Give API time to be fully ready
+          sleep 20
 
       - name: Create Doppler Token Secret
         run: |
@@ -119,9 +129,6 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
-
-          # Wait a bit more for API to be fully ready
-          sleep 10
 
           # Create ClusterSecretStore
           cat <<EOF | kubectl apply -f -
