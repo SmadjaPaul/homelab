@@ -1,0 +1,59 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-infra
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  dependsOn:
+    - name: helm-repositories
+  path: ./kubernetes/apps/infra
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: homelab
+  wait: true
+  timeout: 5m0s
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-secrets
+      namespace: external-secrets
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: external-dns
+      namespace: external-dns
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-public
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  dependsOn:
+    - name: apps-infra
+  path: ./kubernetes/apps/public
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: homelab
+  wait: true
+  timeout: 5m0s
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-automation
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  dependsOn:
+    - name: apps-infra
+  path: ./kubernetes/apps/automation
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: homelab
+  wait: true
+  timeout: 5m0s

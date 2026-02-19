@@ -3,5 +3,6 @@ kind: Namespace
 metadata:
   name: public
   labels:
+    kubernetes.io/metadata.name: public
     app.kubernetes.io/name: homepage
     app.kubernetes.io/managed-by: kustomize

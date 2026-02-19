@@ -4,6 +4,42 @@ Ce fichier liste l'emplacement de chaque configuration importante dans le reposi
 
 ## 🏗️ Infrastructure (Terraform)
 
+### Terraform Workflows
+
+**Workflow Principal:** `.github/workflows/terraform.yml`
+- 3 jobs : Cloudflare → Oracle Cloud → Authentik
+- Version Terraform : 1.12.0
+- Backend OCI natif (Terraform 1.12+)
+- Intégration Tailscale pour Authentik (évite le problème de séquencement)
+
+**Workflow Déploiement K8s:** `.github/workflows/deploy.yml`
+- Déploiement des applications Kubernetes
+- Health checks post-déploiement
+- Notifications
+
+### Authentik (Identity Provider)
+
+**Configuration:** `terraform/authentik/`
+- **provider.tf** : Configuration providers avec support Tailscale
+- **main.tf** : Orchestration modules (groups, policies, users, service-accounts, etc.)
+- **variables.tf** : Variables incluant `password_rotation_trigger` et `force_password_rotation`
+
+**Modules Authentik:**
+- `modules/groups/` : Groupes RBAC (admin, family-validated, professionnelle)
+- `modules/policies/` : Expression policies pour contrôle d'accès
+- `modules/users/` : Gestion utilisateurs avec rotation de mots de passe
+- `modules/service-accounts/` : Comptes M2M avec tokens auto-stockés dans Doppler
+- `modules/security-policies/` : Rate limiting, geo-restriction, détection suspicious login
+- `modules/scope-mappings/` : OIDC scopes pour Cloudflare Access (groups, email, profile)
+- `modules/apps/` : Applications et providers OIDC (incl. Cloudflare Access)
+- `modules/flows/` : Flows personnalisés (recovery, security)
+- `modules/tokens/` : Gestion des tokens API
+
+**Documentation:**
+- `docs/RBAC.md` : ⭐ Matrice complète des accès (groups, apps, policies)
+- `docs/TERRAFORM-K8S-APPLY.md` : Guide pour appliquer Terraform depuis K8s
+- `docs/TAILSCALE-ARCHITECTURE.md` : ⭐ Architecture avec Tailscale (résout le séquencement)
+
 ### VM Hub (Services Core)
 
 **Fichier:** `terraform/oracle-cloud/templates/hub-cloud-init.sh`
@@ -245,6 +281,24 @@ flux get all
 | **Le DNS** | `terraform/cloudflare/modules/dns/main.tf` |
 
 ## 🆘 Troubleshooting Guide
+
+### Problèmes Courants
+
+**Erreur "Missing map element" (Oracle Cloud):**
+- Les secrets OCI ne sont pas dans Doppler
+- **Solution** : Ajouter dans Doppler (projet `homelab`, config `prd`):
+  ```
+  OCI_TENANCY_OCID=ocid1.tenancy.oc1..xxxx
+  OCI_CLI_USER=ocid1.user.oc1..xxxx
+  OCI_CLI_FINGERPRINT=xx:xx:xx:xx
+  OCI_CLI_KEY_CONTENT=-----BEGIN RSA PRIVATE KEY-----
+  ```
+- **Alternative** : Passer via variables d'environnement
+
+**Problème de séquencement Authentik/Cloudflare:**
+- Terraform ne peut pas configurer Authentik car Cloudflare Access le bloque
+- **Solution** : Utiliser Tailscale pour accéder directement à Authentik
+- **Documentation** : `docs/TAILSCALE-ARCHITECTURE.md`
 
 ### Je ne trouve pas...
 

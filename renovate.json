@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "automerge": true,
+  "automergeType": "pr",
+  "automergeStrategy": "auto",
+  "platformAutomerge": true,
+  "dependencyDashboard": true,
+  "dependencyDashboardAutoclose": true,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "timezone": "Europe/Paris",
+  "schedule": ["after 2am", "before 6am"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^0\\./",
+      "automerge": true,
+      "groupName": "non-breaking updates"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["major-update"]
+    },
+    {
+      "matchManagers": ["helm"],
+      "groupName": "helm charts",
+      "automerge": true
+    },
+    {
+      "matchManagers": ["terraform"],
+      "groupName": "terraform providers",
+      "automerge": true
+    },
+    {
+      "matchDatasources": ["docker"],
+      "groupName": "docker images",
+      "automerge": true
+    }
+  ],
+  "kubernetes": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
+  "flux": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
+  "helm-values": {
+    "fileMatch": ["kubernetes/.+\\.ya?ml$"]
+  },
+  "ignorePaths": ["archive_old/", "archive/"]
+}

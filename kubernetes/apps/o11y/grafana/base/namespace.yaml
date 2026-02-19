@@ -3,5 +3,6 @@ kind: Namespace
 metadata:
   name: o11y
   labels:
+    kubernetes.io/metadata.name: o11y
     app.kubernetes.io/name: grafana
     app.kubernetes.io/managed-by: kustomize

@@ -3,5 +3,6 @@ kind: Namespace
 metadata:
   name: infra
   labels:
+    kubernetes.io/metadata.name: infra
     app.kubernetes.io/name: authentik
     app.kubernetes.io/managed-by: kustomize

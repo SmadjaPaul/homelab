@@ -5,3 +5,4 @@ resources:
   - namespace.yaml
   - external-secret.yaml
   - helmrelease.yaml
+  - networkpolicy.yaml

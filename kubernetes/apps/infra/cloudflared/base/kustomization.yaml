@@ -9,3 +9,5 @@ resources:
   - external-secret.yaml
   - configmap.yaml
   - deployment.yaml
+  - networkpolicy.yaml
+  - pdb.yaml

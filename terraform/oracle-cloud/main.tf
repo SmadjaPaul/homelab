@@ -12,11 +12,91 @@ terraform {
       source  = "oracle/oci"
       version = ">= 6.0, < 7.0"
     }
+    doppler = {
+      source  = "DopplerHQ/doppler"
+      version = ">= 1.0"
+    }
+  }
+}
+
+# Doppler provider - uses DOPPLER_TOKEN env var or explicit token
+provider "doppler" {
+  doppler_token = var.doppler_token != "" ? var.doppler_token : null
+}
+
+# Fetch secrets from Doppler (optional - fallback to env vars)
+# Only query Doppler if a token is available
+data "doppler_secrets" "this" {
+  count = var.doppler_token != "" ? 1 : 0
+
+  project = "infrastructure"
+  config  = "prd"
+}
+
+# Locals pour gérer les secrets avec fallback sur les variables d'environnement
+# Note: Les noms correspondent à ceux dans votre Doppler
+# Fallback hierarchy: TF_VAR_* > Doppler > OCI_* env vars
+locals {
+  # Récupérer les valeurs depuis Doppler (si disponible)
+  doppler_secrets     = length(data.doppler_secrets.this) > 0 ? data.doppler_secrets.this[0].map : {}
+  doppler_tenancy     = lookup(local.doppler_secrets, "OCI_CLI_TENANCY", "")
+  doppler_user        = lookup(local.doppler_secrets, "OCI_CLI_USER", "")
+  doppler_fingerprint = lookup(local.doppler_secrets, "OCI_CLI_FINGERPRINT", "")
+  doppler_key         = lookup(local.doppler_secrets, "OCI_CLI_KEY_CONTENT", "")
+
+  # Utiliser coalesce pour le fallback: var > doppler > "" (OCI provider utilisera les env vars)
+  oci_tenancy_ocid = coalesce(
+    var.tenancy_ocid != "" ? var.tenancy_ocid : null,
+    local.doppler_tenancy != "" ? local.doppler_tenancy : null,
+    ""
+  )
+  oci_user_ocid = coalesce(
+    var.user_ocid != "" ? var.user_ocid : null,
+    local.doppler_user != "" ? local.doppler_user : null,
+    ""
+  )
+  oci_fingerprint = coalesce(
+    var.oci_fingerprint != "" ? var.oci_fingerprint : null,
+    local.doppler_fingerprint != "" ? local.doppler_fingerprint : null,
+    ""
+  )
+  oci_private_key = coalesce(
+    var.oci_private_key != "" ? var.oci_private_key : null,
+    local.doppler_key != "" ? local.doppler_key : null,
+    ""
+  )
+}
+
+# Validation pour s'assurer que les credentials sont présents (via vars, Doppler, ou env)
+resource "null_resource" "validate_credentials" {
+  lifecycle {
+    precondition {
+      condition     = length(local.oci_tenancy_ocid) > 0 || length(coalesce(var.tenancy_ocid, "")) > 0
+      error_message = "OCI_TENANCY_OCID is required. Set it via: 1) Doppler (OCI_CLI_TENANCY), 2) terraform.tfvars, or 3) OCI_CLI_TENANCY env var"
+    }
+    precondition {
+      condition     = length(local.oci_user_ocid) > 0 || length(coalesce(var.user_ocid, "")) > 0
+      error_message = "OCI_USER_OCID is required. Set it via: 1) Doppler (OCI_CLI_USER), 2) terraform.tfvars, or 3) OCI_CLI_USER env var"
+    }
+    precondition {
+      condition     = length(local.oci_fingerprint) > 0 || length(coalesce(var.oci_fingerprint, "")) > 0
+      error_message = "OCI_FINGERPRINT is required. Set it via: 1) Doppler (OCI_CLI_FINGERPRINT), 2) terraform.tfvars, or 3) OCI_CLI_FINGERPRINT env var"
+    }
+    precondition {
+      condition     = length(local.oci_private_key) > 0 || length(coalesce(var.oci_private_key, "")) > 0
+      error_message = "OCI_PRIVATE_KEY is required. Set it via: 1) Doppler (OCI_CLI_KEY_CONTENT), 2) terraform.tfvars, or 3) OCI_CLI_KEY_CONTENT env var"
+    }
   }
 }
 
 provider "oci" {
   region = var.region
+  # Si les valeurs locales sont vides, le provider OCI utilisera automatiquement
+  # les variables d'environnement: OCI_CLI_TENANCY, OCI_CLI_USER, OCI_CLI_FINGERPRINT, OCI_CLI_KEY_CONTENT
+  tenancy_ocid = local.oci_tenancy_ocid != "" ? local.oci_tenancy_ocid : null
+  user_ocid    = local.oci_user_ocid != "" ? local.oci_user_ocid : null
+  fingerprint  = local.oci_fingerprint != "" ? local.oci_fingerprint : null
+  private_key  = local.oci_private_key != "" ? local.oci_private_key : null
 }
 
 # =============================================================================

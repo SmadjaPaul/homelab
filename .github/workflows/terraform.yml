@@ -1,0 +1,279 @@
+name: Terraform (Disabled)
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Terraform workspace/project to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cloudflare
+          - oracle-cloud
+          - authentik
+      action:
+        description: 'Terraform action to run'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+  TF_VERSION: "1.12.0"
+
+jobs:
+  # =============================================================================
+  # CLOUDFLARE
+  # =============================================================================
+  cloudflare:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.workspace == 'cloudflare' ||
+      github.event.inputs.workspace == 'all' ||
+      github.event_name != 'workflow_dispatch'
+    environment: cloudflare
+    defaults:
+      run:
+        working-directory: terraform/cloudflare
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            terraform/cloudflare/.terraform
+          key: ${{ runner.os }}-terraform-cloudflare-${{ hashFiles('terraform/cloudflare/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-cloudflare-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy' && github.ref == 'refs/heads/main'
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Output Tunnel Info
+        if: github.event.inputs.action == 'apply' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: |
+          echo "Tunnel ID: $(terraform output -raw tunnel_id 2>/dev/null || echo 'N/A')"
+          echo "CNAME Target: $(terraform output -raw cname_target 2>/dev/null || echo 'N/A')"
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+  # =============================================================================
+  # ORACLE CLOUD
+  # =============================================================================
+  oracle-cloud:
+    runs-on: ubuntu-latest
+    needs: cloudflare
+    if: |
+      (github.event.inputs.workspace == 'oracle-cloud' ||
+       github.event.inputs.workspace == 'all' ||
+       github.event_name != 'workflow_dispatch') &&
+      always() && (needs.cloudflare.result == 'success' || needs.cloudflare.result == 'skipped')
+    environment: production
+    defaults:
+      run:
+        working-directory: terraform/oracle-cloud
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            terraform/oracle-cloud/.terraform
+          key: ${{ runner.os }}-terraform-oracle-cloud-${{ hashFiles('terraform/oracle-cloud/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-oracle-cloud-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy' && github.ref == 'refs/heads/main'
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Output VM Info
+        if: github.event.inputs.action == 'apply' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: |
+          echo "Hub IP: $(terraform output -raw hub_public_ip 2>/dev/null || echo 'N/A')"
+          echo ""
+          echo "Prochaines étapes:"
+          echo "1. Configurer Omni: https://$(terraform output -raw hub_public_ip 2>/dev/null || echo 'N/A'):50001"
+          echo "2. Lancer: ./scripts/bootstrap-phase2.sh"
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+  # =============================================================================
+  # AUTHENTIK
+  # =============================================================================
+  authentik:
+    runs-on: ubuntu-latest
+    needs: [cloudflare, oracle-cloud]
+    if: |
+      (github.event.inputs.workspace == 'authentik' ||
+       github.event.inputs.workspace == 'all' ||
+       github.event_name != 'workflow_dispatch') &&
+      always() &&
+      (needs.cloudflare.result == 'success' || needs.cloudflare.result == 'skipped') &&
+      (needs.oracle-cloud.result == 'success' || needs.oracle-cloud.result == 'skipped')
+    environment: authentik
+    defaults:
+      run:
+        working-directory: terraform/authentik
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            terraform/authentik/.terraform
+          key: ${{ runner.os }}-terraform-authentik-${{ hashFiles('terraform/authentik/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-authentik-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+
+      - name: Test Authentik via Tailscale
+        run: |
+          echo "Testing connection to Authentik via Tailscale..."
+          # Use Tailscale IP instead of public URL to avoid Cloudflare Access during setup
+          AUTHENTIK_URL="http://$(dig +short auth.homelab.internal | head -1):80"
+          echo "AUTHENTIK_URL=$AUTHENTIK_URL"
+          curl -s -o /dev/null -w "%{http_code}" $AUTHENTIK_URL/-/health/ready/ || echo "Health check failed"
+        continue-on-error: true
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          # Use internal Tailscale URL for Authentik to bypass Cloudflare Access
+          TF_VAR_authentik_url: "http://auth.homelab.internal:80"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy' && github.ref == 'refs/heads/main'
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_authentik_url: "http://auth.homelab.internal:80"
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_authentik_url: "http://auth.homelab.internal:80"
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_authentik_url: "http://auth.homelab.internal:80"

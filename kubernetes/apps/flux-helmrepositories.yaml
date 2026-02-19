@@ -5,6 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   url: https://charts.goauthentik.io
+  interval: 1h
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -13,6 +14,7 @@ metadata:
   namespace: flux-system
 spec:
   url: https://grafana.github.io/helm-charts
+  interval: 1h
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -22,6 +24,7 @@ metadata:
 spec:
   type: oci
   url: oci://ghcr.io/m0nsterrr/helm-charts
+  interval: 1h
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -58,3 +61,12 @@ metadata:
 spec:
   url: https://traefik.github.io/charts
   interval: 10m
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: n8n
+  namespace: flux-system
+spec:
+  url: https://n8n-io.github.io/n8n-helm-chart
+  interval: 1h

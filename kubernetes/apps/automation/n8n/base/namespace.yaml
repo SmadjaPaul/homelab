@@ -3,5 +3,6 @@ kind: Namespace
 metadata:
   name: automation
   labels:
+    kubernetes.io/metadata.name: automation
     app.kubernetes.io/name: n8n
     app.kubernetes.io/managed-by: kustomize

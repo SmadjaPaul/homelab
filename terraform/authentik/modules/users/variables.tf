@@ -25,3 +25,15 @@ variable "group_ids_by_name" {
   type        = map(string)
   description = "Map nom de groupe → ID (ex: output group_ids_by_name du module groups)"
 }
+
+variable "rotation_trigger" {
+  type        = string
+  default     = "initial"
+  description = "Trigger pour forcer la rotation des mots de passe"
+}
+
+variable "force_rotation" {
+  type        = bool
+  default     = false
+  description = "Force la rotation de tous les mots de passe"
+}

@@ -11,7 +11,7 @@ variable "doppler_token" {
 variable "doppler_project" {
   description = "Doppler project name"
   type        = string
-  default     = "homelab"
+  default     = "infrastructure"
 }
 
 variable "doppler_environment" {

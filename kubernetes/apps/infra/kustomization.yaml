@@ -1,8 +1,10 @@
-# Infrastructure Kustomization
+# Infrastructure Kustomization (order: external-secrets first, then consumers)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  # Secrets from Doppler (must deploy first)
+  - external-secrets/base
   # DNS management
   - external-dns/base
   # Tunnel

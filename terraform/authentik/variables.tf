@@ -1,9 +1,4 @@
-# Optional: override URL/token via variables (otherwise use env)
-variable "authentik_url" {
-  type        = string
-  default     = "http://localhost:9000"
-  description = "Authentik API URL. Default: localhost via SSH tunnel (bypasses Cloudflare). For direct access, use: https://auth.smadja.dev"
-}
+# authentik_url is declared in provider.tf (used by provider + locals)
 
 variable "authentik_token" {
   type        = string

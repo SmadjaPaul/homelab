@@ -10,7 +10,32 @@ variable "region" {
 }
 
 variable "tenancy_ocid" {
-  description = "OCI Tenancy OCID"
+  description = "OCI Tenancy OCID (fallback - also checks OCI_TENANCY_OCID env var)"
+  type        = string
+  default     = ""
+}
+
+variable "user_ocid" {
+  description = "OCI User OCID (fallback - also checks OCI_USER_OCID env var)"
+  type        = string
+  default     = ""
+}
+
+variable "oci_fingerprint" {
+  description = "OCI API Key Fingerprint (fallback)"
+  type        = string
+  default     = ""
+}
+
+variable "oci_private_key" {
+  description = "OCI API Private Key Content (fallback)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "doppler_token" {
+  description = "Doppler token for secrets"
   type        = string
   default     = ""
 }

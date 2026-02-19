@@ -2,7 +2,7 @@ name: Renovate
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
@@ -20,3 +20,6 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_PLATFORM: github
           RENOVATE_AUTODISCOVER: false
+          RENOVATE_AUTOMERGE: "true"
+          RENOVATE_AUTOMERGE_TYPE: "pr"
+          RENOVATE_AUTOMERGE_STRATEGY: "auto"

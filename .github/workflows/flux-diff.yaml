@@ -19,10 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure OCI CLI
-        uses: oracle-actions/configure-oci-cli@v1.5.0
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
         with:
-          region: eu-paris-1
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: eu-paris-1
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
 
       - name: Create kubeconfig
         run: |
