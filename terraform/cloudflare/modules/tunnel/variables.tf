@@ -46,3 +46,9 @@ variable "oke_services" {
   description = "OKE services to expose via tunnel. service = K8s service name, port = cluster port"
   default     = {}
 }
+
+variable "regenerate" {
+  type        = bool
+  description = "If true, force create a new tunnel (for credential regeneration)"
+  default     = false
+}

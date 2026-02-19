@@ -1,0 +1,13 @@
+# Infrastructure Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # DNS management
+  - external-dns/base
+  # Tunnel
+  - cloudflared/base
+  # Authentication
+  - authentik/base
+  # Ingress controller (optional - can use cloudflared directly)
+  # - traefik/base

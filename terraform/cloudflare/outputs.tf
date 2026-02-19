@@ -4,18 +4,20 @@
 
 output "zone_info" {
   description = "Cloudflare zone information"
+  sensitive   = true
   value = {
-    zone_id = var.zone_id
-    domain  = var.domain
+    zone_id = module.global_config.zone_id
+    domain  = module.global_config.domain
     status  = data.cloudflare_zone.main.status
   }
 }
 
 output "dns_records" {
   description = "Created DNS records"
+  sensitive   = true
   value = {
     root          = module.dns.root_record
-    www           = { name = "www", type = "CNAME", content = var.domain }
+    www           = { name = "www", type = "CNAME", content = module.global_config.domain }
     services      = module.dns.service_records
     tunnel_cnames = module.dns.tunnel_cname_records
   }
@@ -34,10 +36,11 @@ output "security_settings" {
 
 output "tunnel_info" {
   description = "Cloudflare Tunnel information (when enabled)"
+  sensitive   = true
   value = var.enable_tunnel ? {
-    tunnel_id   = module.tunnel[0].tunnel_id
-    tunnel_name = module.tunnel[0].tunnel_name
-    cname       = module.tunnel[0].cname_target
+    tunnel_id   = local.tunnel_id
+    tunnel_name = "homelab-tunnel"
+    cname       = "${local.tunnel_id}.cfargotunnel.com"
     status      = "Created - install cloudflared to connect"
     } : {
     status = "Tunnel disabled - set enable_tunnel = true when ready"
@@ -47,13 +50,14 @@ output "tunnel_info" {
 output "tunnel_token" {
   description = "Cloudflare Tunnel token for cloudflared (sensitive)"
   sensitive   = true
-  value       = var.enable_tunnel ? module.tunnel[0].tunnel_token : ""
+  value       = var.enable_tunnel ? local.tunnel_secret : ""
 }
 
 output "service_urls" {
   description = "URLs for homelab services"
+  sensitive   = true
   value = { for k, v in var.homelab_services : k => {
-    url         = "https://${v.subdomain}.${var.domain}"
+    url         = "https://${v.subdomain}.${module.global_config.domain}"
     description = v.description
     internal    = v.internal
   } }

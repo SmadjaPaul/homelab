@@ -1,7 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: external-secrets
+
 resources:
   - namespace.yaml
-  - cluster-secret-store.yaml
   - helmrelease.yaml
+
+# The ClusterSecretStore and doppler-token secret will be created by CI
+# after External Secrets is installed

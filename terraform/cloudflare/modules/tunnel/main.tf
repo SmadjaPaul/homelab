@@ -2,22 +2,27 @@
 # Cloudflare Tunnel — resource + ingress config
 # =============================================================================
 
-# Use existing tunnel if tunnel_id is provided, otherwise create new
-resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
-  count      = var.tunnel_id == "" ? 1 : 0
-  account_id = var.account_id
-  name       = "homelab-tunnel"
-  secret     = var.tunnel_secret
-
-  lifecycle {
-    ignore_changes = [secret]
-  }
+# Generate a new tunnel secret when regenerating
+resource "random_password" "tunnel_secret" {
+  count   = var.regenerate ? 1 : 0
+  length  = 64
+  special = false
 }
 
-# Get the tunnel ID to use - either from var.tunnel_id or from the created tunnel
+# Tunnel resource - always created when regenerate=true, or when no tunnel_id
+# For existing tunnels, import first: terraform import module.tunnel[0].cloudflare_zero_trust_tunnel_cloudflared.homelab[0] account_id/tunnel_id
+resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
+  count      = var.tunnel_id == "" || var.regenerate ? 1 : 0
+  account_id = var.account_id
+  name       = "homelab-tunnel"
+  secret     = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
+}
+
+# Get the tunnel ID and secret to use
 locals {
-  actual_tunnel_id   = var.tunnel_id != "" ? var.tunnel_id : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
-  actual_tunnel_name = var.tunnel_id != "" ? "homelab-tunnel-existing" : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].name
+  actual_tunnel_id     = var.tunnel_id != "" && !var.regenerate ? var.tunnel_id : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
+  actual_tunnel_name   = "homelab-tunnel"
+  actual_tunnel_secret = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
 }
 
 output "tunnel_id" {
@@ -31,8 +36,8 @@ output "tunnel_name" {
 
 output "tunnel_token" {
   sensitive   = true
-  description = "Token for cloudflared to connect"
-  value       = var.tunnel_secret
+  description = "Secret for cloudflared to connect"
+  value       = local.actual_tunnel_secret
 }
 
 output "cname_target" {
@@ -46,15 +51,21 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
 
   config {
     # OKE Services via Kubernetes internal DNS
-    dynamic "ingress_rule" {
-      for_each = var.oke_services
-      content {
-        hostname = "${ingress_rule.value.hostname}.${var.domain}"
-        service  = "http://${ingress_rule.value.service}:${ingress_rule.value.port}"
-        origin_request {
-          no_tls_verify   = true
-          connect_timeout = 30
-        }
+    # Format: service.namespace.svc.cluster.local
+    ingress_rule {
+      hostname = "auth.${var.domain}"
+      service  = "http://authentik-server.infra.svc.cluster.local:80"
+      origin_request {
+        no_tls_verify   = true
+        connect_timeout = 30
+      }
+    }
+    ingress_rule {
+      hostname = "home.${var.domain}"
+      service  = "http://homepage.public.svc.cluster.local:80"
+      origin_request {
+        no_tls_verify   = true
+        connect_timeout = 30
       }
     }
 

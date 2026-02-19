@@ -8,28 +8,19 @@ variable "doppler_token" {
   sensitive   = true
 }
 
-variable "cloudflare_api_token" {
-  description = "Cloudflare API token with Zone permissions"
+variable "doppler_project" {
+  description = "Doppler project name"
   type        = string
-  sensitive   = true
+  default     = "homelab"
 }
 
-variable "zone_id" {
-  description = "Cloudflare Zone ID for smadja.dev"
+variable "doppler_environment" {
+  description = "Doppler environment (config)"
   type        = string
-  default     = "bda8e2196f6b4f1684c6c9c06d996109"
+  default     = "prd"
 }
 
-variable "domain" {
-  description = "Root domain"
-  type        = string
-  default     = "smadja.dev"
-
-  validation {
-    condition     = length(var.domain) > 0 && !endswith(var.domain, ".")
-    error_message = "Domain must not be empty and must not end with a period."
-  }
-}
+# zone_id and domain are sourced from Doppler (locals.tf). Passed to child modules as local.zone_id / local.domain.
 
 # Geo-restriction: allow traffic only from these countries (ISO 3166-1 Alpha 2)
 # Empty list = no geo restriction (worldwide)
@@ -40,34 +31,16 @@ variable "allowed_countries" {
 }
 
 # In CI we set enable_geo_restriction = false: a ruleset may already exist in Dashboard (create/import to manage via Terraform).
-variable "enable_geo_restriction" {
-  description = "Enable WAF rule to block traffic from countries not in allowed_countries. Set false in CI if the rule already exists in Dashboard."
-  type        = bool
-  default     = true
-}
+# Now sourced from Doppler: ENABLE_GEO_RESTRICTION
 
-# Zone settings (SSL, HSTS, etc.). Set to false if API token lacks Zone Settings Edit (error 9109).
-variable "enable_zone_settings" {
-  description = "Manage zone security settings (SSL, HSTS, etc.). Set false if token lacks Zone Settings permission."
+# Set to true to regenerate tunnel credentials (will update Doppler secrets)
+variable "regenerate_tunnel_credentials" {
+  description = "Set to true to regenerate tunnel credentials. Will update Doppler secrets with new values."
   type        = bool
   default     = false
 }
 
-# Reserved for future use: disable Access applications if token lacks Access: Apps and Policies.
-variable "enable_access_applications" {
-  description = "Reserved. Set false if token lacks Access permissions; currently Access apps are always managed when enable_tunnel is true."
-  type        = bool
-  default     = true
-}
-
-# Authentik API: skip Cloudflare challenge for /api/* so Terraform/CI can call the API.
-# Set to true only if your API token has Zone → Configuration Rules → Edit.
-# If not, leave false and create the rule once manually: see security.tf comment or docs.
-variable "enable_authentik_api_skip_challenge" {
-  description = "Create Configuration Rule to skip challenge for auth.*/api/* (requires token with Config/Configuration Rules permission; else create rule manually in dashboard)"
-  type        = bool
-  default     = false
-}
+# Access applications managed via enable_tunnel (no separate flag needed)
 
 # Homelab service subdomains
 variable "homelab_services" {
@@ -75,8 +48,8 @@ variable "homelab_services" {
   type = map(object({
     subdomain   = string
     description = string
-    internal    = bool # true = requires Cloudflare Access, false = public
-    user_facing = bool # true = visible to users, false = admin only
+    internal    = bool
+    user_facing = bool
   }))
   default = {
     # ===========================================
@@ -94,24 +67,6 @@ variable "homelab_services" {
       internal    = false
       user_facing = true
     }
-    status = {
-      subdomain   = "status"
-      description = "Uptime Kuma status page"
-      internal    = false
-      user_facing = true
-    }
-    feedback = {
-      subdomain   = "feedback"
-      description = "Fider feedback portal"
-      internal    = false
-      user_facing = true
-    }
-    docs = {
-      subdomain   = "docs"
-      description = "Docusaurus documentation"
-      internal    = false
-      user_facing = true
-    }
 
     # ===========================================
     # TECHNICAL SERVICES (admin only)
@@ -122,45 +77,9 @@ variable "homelab_services" {
       internal    = true
       user_facing = false
     }
-    prometheus = {
-      subdomain   = "prometheus"
-      description = "Prometheus metrics"
-      internal    = true
-      user_facing = false
-    }
-    alertmanager = {
-      subdomain   = "alerts"
-      description = "Alertmanager"
-      internal    = true
-      user_facing = false
-    }
     proxmox = {
       subdomain   = "proxmox"
-      description = "Proxmox VE management"
-      internal    = true
-      user_facing = false
-    }
-    argocd = {
-      subdomain   = "argocd"
-      description = "ArgoCD GitOps"
-      internal    = true
-      user_facing = false
-    }
-    omni = {
-      subdomain   = "omni"
-      description = "Omni Talos management"
-      internal    = true
-      user_facing = false
-    }
-    litellm = {
-      subdomain   = "llm"
-      description = "LiteLLM proxy (Synthetic, Cline)"
-      internal    = true
-      user_facing = false
-    }
-    openclaw = {
-      subdomain   = "openclaw"
-      description = "OpenClaw personal AI gateway"
+      description = "Proxmox VE management (at home)"
       internal    = true
       user_facing = false
     }
@@ -169,19 +88,13 @@ variable "homelab_services" {
 
 # Oracle Cloud IPs (will be populated after VMs are created)
 variable "oci_management_ip" {
-  description = "OCI Management VM public IP (deprecated - use OKE services instead)"
+  description = "OCI Management VM public IP (for stream record)"
   type        = string
   default     = ""
 }
 
-variable "oci_node_ips" {
-  description = "OCI K8s node public IPs (deprecated - not needed with tunnel)"
-  type        = list(string)
-  default     = []
-}
-
 variable "oke_services" {
-  description = "OKE services to expose via Cloudflare Tunnel"
+  description = "OKE services to expose via Cloudflare Tunnel (routed through traefik)"
   type = map(object({
     hostname = string
     service  = string
@@ -189,17 +102,16 @@ variable "oke_services" {
     internal = bool
   }))
   default = {
-    # Services exposed via tunnel (service name = K8s service, port = cluster port)
     authentik = {
       hostname = "auth"
-      service  = "authentik"
-      port     = 8443
+      service  = "authentik-server"
+      port     = 80
       internal = false
     }
     homepage = {
       hostname = "home"
       service  = "homepage"
-      port     = 3000
+      port     = 80
       internal = false
     }
     grafana = {
@@ -219,28 +131,8 @@ variable "proxmox_local_ip" {
 }
 
 # =============================================================================
-# Tunnel (see also tunnel-related vars below)
+# Tunnel
 # =============================================================================
-variable "cloudflare_account_id" {
-  description = "Cloudflare Account ID (required when enable_tunnel = true)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "tunnel_secret" {
-  description = "Cloudflare Tunnel secret (base64, 32+ bytes). Generate: openssl rand -base64 32"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "tunnel_id" {
-  description = "Existing tunnel ID to use (if empty, will create new tunnel)"
-  type        = string
-  default     = ""
-}
-
 variable "allowed_emails" {
   description = "Emails allowed for Access when not using Authentik IdP"
   type        = list(string)
