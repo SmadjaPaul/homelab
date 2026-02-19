@@ -7,9 +7,9 @@ spec:
   interval: 1m0s
   ref:
     branch: main
-  secretRef:
-    name: flux-system
-  url: ssh://git@github.com/SmadjaPaul/homelab
+  # Public repo - no authentication needed
+  # Port 443 to avoid egress blocking port 22 (GitHub: ssh.github.com:443)
+  url: https://github.com/SmadjaPaul/homelab
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

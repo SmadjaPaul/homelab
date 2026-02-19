@@ -1,199 +1,105 @@
 # Agent Instructions
 
 ## Overview
-This is a multi-cluster Kubernetes homelab managed through GitOps using ArgoCD, with a unique KCL-based configuration system replacing traditional YAML/Helm patterns.
+Multi-cluster Kubernetes homelab managed through GitOps using Flux, with Doppler for secrets management and GitHub Actions for CI/CD.
 
-**Key Architecture Patterns:**
-- **KCL-first Configuration**: Uses [KCL](https://www.kcl-lang.io/) as the primary configuration language through a custom `konfig` library, not raw YAML
-- **Multi-cluster GitOps**: ArgoCD ApplicationSets deploy applications across multiple environments (mgmt, home, nas01, etc.)
-- **Tenant-based Organization**: Applications are organized by "tenants" (argo, kube, o11y, etc.) with shared configuration
+**Key Architecture:**
+- **Kubernetes**: OCI (Oracle Cloud Infrastructure) with OKE
+- **GitOps**: Flux for declarative Kubernetes configuration
+- **Secrets**: Doppler (synced via External Secrets Operator)
+- **CI/CD**: GitHub Actions
+- **Config**: Kustomize with Helm
+- **Networking**: Cloudflare (free tier) with Cloudflare Tunnel
+- **Authentication**: Authentik as IDP with Cloudflare Access for RBAC
 
-KCL is a CNCF Sandbox project that provides:
-- **Type Safety**: Strong typing with schema validation
-- **Configuration Abstraction**: High-level abstractions over complex Kubernetes resources
-- **Python-like Syntax**: Familiar syntax with comprehensions, functions, and OOP concepts
-- **Policy Constraints**: Built-in validation and policy enforcement
-- **Multi-language Integration**: Can generate YAML, JSON, and integrate with various tools
+## Current Status
+- **Finalizing deployment** - Getting ready for production
+- **Setting up Authentik** - Identity provider for all services
+- **Configuring Cloudflare Access** - Zero-trust access with RBAC
 
 ## Directory Structure
 ```
-├── apps/        # KCL-based applications
-├── appsets/     # ArgoCD ApplicationSets
-├── bootstrap/   # KCL cluster bootstrapping files
-├── konfig/      # KCL library for Kubernetes abstractions
-├── charts/      # Helm chart KCL wrappers (auto-generated)
-├── clusters/    # Talos cluster configurations
-└── terraform/   # Terraform for infrastructure
+.
+├── kubernetes/           # Kubernetes configurations
+│   ├── apps/            # Application manifests (by category)
+│   │   ├── automation/  # n8n, automation tools
+│   │   ├── infra/       # traefik, authentik, aiven-operator
+│   │   └── public/      # Public-facing apps
+│   ├── bootstrap/       # Cluster bootstrap (Flux, RBAC)
+│   └── clusters/       # OCI cluster configs
+├── .github/workflows/  # GitHub Actions CI/CD
+├── scripts/            # Utility scripts
+├── docs/              # Documentation
+└── terraform/         # Terraform IaC (OCI, Cloudflare, Authentik infra)
 ```
 
-## Key Tools & Commands
-- **task kcl:chart:update**: Updates KCL chart definitions based on `charts/charts.k`
-- **task**: Primary command runner (see `task -l` for all available tasks)
+## Secrets Management
+**IMPORTANT**: All secrets are stored in **Doppler**.
+
+- Secrets synced via External Secrets Operator (managed by Flux)
+- External Secrets Operator pulls secrets from Doppler and creates K8s secrets
+- Flux manages the ExternalSecret resources in Kubernetes
+
+## Networking Architecture
+```
+Internet → Cloudflare → Cloudflare Tunnel → Kubernetes Services
+                    ↓
+              Cloudflare Access (Authentik OAuth)
+                    ↓
+              Authentik (IDP)
+```
 
 ## Infrastructure Boundaries
-- **Terraform**: Cloud infrastructure (Hetzner Cloud, networking)
-- **Talos**: Immutable Kubernetes OS on bare metal
-- **ArgoCD**: Application lifecycle management
-- **KCL/Konfig**: Application configuration abstraction
-- **ApplicationSets**: Multi-cluster application deployment via `.tenant.yaml` and `.app.yaml` files
+- **Terraform**: OCI infrastructure (compute, network, OKE) + Cloudflare + Authentik deployment
+- **Kubernetes**: Container orchestration on OKE
+- **Flux**: GitOps reconciliation for ALL Kubernetes resources
+- **Doppler**: Secret storage (source of truth)
+- **External Secrets Operator**: Syncs Doppler secrets to Kubernetes
+- **Cloudflare**: DNS, Tunnel, Access (Zero-trust)
+- **Authentik**: Identity Provider for SSO
+- **GitHub Actions**: CI/CD pipelines
 
-## Development Workflow
-- IMPORTANT: If you update `charts/charts.k`, make sure to run `task kcl:chart:update` to re-generate files.
-
-## KCL Application Overview
-This homelab uses a **KCL-first configuration approach** with a custom `konfig` library for Kubernetes abstractions:
-```
-├── apps/                   # Current KCL-based applications
-│   ├── argo/               # Tenant: ArgoCD apps
-│   ├── kube/               # Tenant: Core Kubernetes apps
-│   ├── o11y/               # Tenant: Observability apps
-│   └── {tenant}/
-│       ├── _tenant/        # Tenant-level shared config
-│       │   ├── base/       # Base tenant definition
-│       │   └── shared/     # Shared tenant resources
-│       └── {app}/
-│           ├── base/       # Base app configuration
-│           └── {env}/      # Environment-specific config
-├── konfig/                 # Custom KCL library for Kubernetes abstractions
-└── charts/                 # Auto-generated Helm chart KCL wrappers
-```
-
-## KCL Language Fundamentals
-
-### Basic Syntax
-```kcl
-# Variables and basic types
-name = "nginx"
-replicas = 3
-enabled = True
-resources = Undefined  # Similar to null/None
-
-# Lists and dictionaries
-ports = [80, 443, 8080]
-labels = {
-    app = "nginx"
-    version = "1.21"
-}
-
-# String interpolation
-image = "nginx:${version}"
-```
-
-### Schema Definitions
-```kcl
-# Define a schema (similar to a class/struct)
-schema Container:
-    """Container configuration schema."""
-    name: str
-    image: str
-    ports?: [int] = []  # Optional with default
-    env?: {str: str}    # Optional environment variables
-
-    # Validation constraints
-    check:
-        len(name) > 0, "Container name cannot be empty"
-        len(ports) <= 10, "Too many ports defined"
-
-# Instantiate schema
-webContainer = Container {
-    name = "web"
-    image = "nginx:1.21"
-    ports = [80, 443]
-    env = {
-        NODE_ENV = "production"
-    }
-}
-```
-
-### List and Dict Comprehensions
-```kcl
-# List comprehensions (Python-like syntax)
-numbers = [1, 2, 3, 4, 5]
-doubled = [x * 2 for x in numbers]                    # [2, 4, 6, 8, 10]
-evens = [x for x in numbers if x % 2 == 0]            # [2, 4]
-
-# Dict comprehensions
-services = ["api", "web", "db"]
-serviceMap = {s: "${s}-service" for s in services}    # {api: "api-service", ...}
-
-# Nested comprehensions
-matrix = [[x, y] for x in range(3) if x % 2 == 0 for y in range(3) if y > x]
-```
-
-### Conditional Expressions and Control Flow
-```kcl
-# Ternary operator
-environment = "prod"
-replicas = 3 if environment == "prod" else 1
-
-# If statements in schemas/configs
-schema App:
-    name: str
-    environment: str
-
-    if environment == "prod":
-        replicas = 5
-        resources = {cpu: "1000m", memory: "2Gi"}
-    else:
-        replicas = 1
-        resources = {cpu: "100m", memory: "128Mi"}
-```
-
-### Import System
-```kcl
-# Import modules
-import yaml
-import json
-
-# Import from file/package paths
-import charts.nginx
-import konfig.models.frontend
-
-# Import with alias
-import charts.prometheus_operator as prometheus
-import konfig.files as kutils
-```
+## Key Tools
+- **kubectl**: Kubernetes management
+- **flux**: GitOps CLI (manages ALL K8s resources)
+- **doppler**: Secret storage and management
+- **terraform**: IaC for cloud infrastructure (OCI, Cloudflare, Authentik)
+- **task**: Task automation (see `task -l`)
 
 ## Development Workflow
 
-### 1. Creating New Applications
-Use the project's task automation:
+### Deploying a New Application
+1. Create namespace and HelmRelease in `kubernetes/apps/{category}/{app}/base/`
+2. Add to category kustomization.yaml
+3. Push to Git - Flux will auto-sync
+
+### Managing Secrets
+1. Secrets are stored in Doppler
+2. Flux manages ExternalSecret resources in K8s
+3. External Secrets Operator syncs secrets from Doppler to K8s
+
+### Access Control (Authentik + Cloudflare Access)
+1. Configure application in Authentik
+2. Create Access Policy in Cloudflare
+3. Map groups to RBAC policies
+
+### CI/CD Pipeline
+- `.github/workflows/deploy.yml`: Deploys to OKE on push to main
+- `.github/workflows/flux-diff.yaml`: Shows Flux diff before deploy
+- `.github/workflows/terraform.yml`: OCI infrastructure
+- `.github/workflows/lint.yaml`: YAML linting
+
+### Common Commands
 ```bash
-# Create a new application with environments
-task kcl:create-app TENANT=kube APP=myapp ENV=mgmt,main
+# Check Flux status
+flux get all --all-namespaces
 
-# This creates:
-# apps/kube/myapp/base/
-# apps/kube/myapp/mgmt/
-# apps/kube/myapp/main/
-```
+# Sync Flux
+flux reconcile source git homelab
 
-### 2. Development and Testing
-Use the #kat agent tools for rendering and validation.
+# Check External Secrets
+kubectl get externalsecrets --all-namespaces
 
-### 3. Helm Chart Integration
-When using Helm charts, they're auto-generated as KCL wrappers.
-
-First, update ./charts/charts.k, then run:
-```bash
-# Update chart definitions
-task kcl:chart:update
-
-# This updates charts/ directory with latest Helm chart schemas
-```
-
-### 4. Package Management
-```toml
-# kcl.mod - Package definition
-[package]
-name = "my_package"
-version = "0.1.0"
-
-[dependencies]
-konfig = { path = "../../../konfig" }           # Local dependency
-k8s = "1.34.2"                                  # Registry dependency
-charts = { path = "../charts" }                 # Chart wrappers
-
-[profile]
-entries = ["main.k", "${konfig:KCL_MOD}/models/render/render.k"]
+# Validate Kustomize
+kubectl kustomize kubernetes/apps/myapp
 ```
