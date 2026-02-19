@@ -44,7 +44,7 @@ data "cloudflare_zone" "main" {
 # -----------------------------------------------------------------------------
 module "tunnel" {
   source = "./modules/tunnel"
-  count  = local.manage_tunnel ? 1 : 0
+  count  = var.enable_tunnel ? 1 : 0
 
   depends_on = [module.global_config]
 
@@ -58,32 +58,40 @@ module "tunnel" {
   regenerate           = var.regenerate_tunnel_credentials
 }
 
-# Update Doppler secrets with tunnel credentials
+# Determine the actual tunnel ID and secret to use
+# Always sync to Doppler - whether creating new or using existing
+locals {
+  # Get tunnel values - use module output if tunnel was created, otherwise use existing from Doppler
+  current_tunnel_id     = var.enable_tunnel ? coalesce(module.tunnel[0].tunnel_id, local.existing_tunnel_id) : local.existing_tunnel_id
+  current_tunnel_secret = var.enable_tunnel ? coalesce(module.tunnel[0].tunnel_token, local.existing_tunnel_secret) : local.existing_tunnel_secret
+}
+
+# Update Doppler secrets with tunnel credentials - ALWAYS run to keep in sync
 resource "doppler_secret" "tunnel_id" {
-  count   = local.manage_tunnel ? 1 : 0
+  count   = local.current_tunnel_id != "" ? 1 : 0
   project = var.doppler_project
   config  = var.doppler_environment
   name    = "CLOUDFLARE_TUNNEL_ID"
-  value   = module.tunnel[0].tunnel_id
+  value   = local.current_tunnel_id
 }
 
 resource "doppler_secret" "tunnel_secret" {
-  count   = local.manage_tunnel ? 1 : 0
+  count   = local.current_tunnel_secret != "" ? 1 : 0
   project = var.doppler_project
   config  = var.doppler_environment
   name    = "CLOUDFLARE_TUNNEL_SECRET"
-  value   = module.tunnel[0].tunnel_token
+  value   = local.current_tunnel_secret
 }
 
 resource "doppler_secret" "tunnel_token" {
-  count   = local.manage_tunnel ? 1 : 0
+  count   = local.current_tunnel_id != "" ? 1 : 0
   project = var.doppler_project
   config  = var.doppler_environment
   name    = "CLOUDFLARE_TUNNEL_TOKEN"
   value = jsonencode({
     AccountTag   = module.global_config.cloudflare_account_id
-    TunnelID     = module.tunnel[0].tunnel_id
-    TunnelSecret = module.tunnel[0].tunnel_token
+    TunnelID     = local.current_tunnel_id
+    TunnelSecret = local.current_tunnel_secret
   })
 }
 
