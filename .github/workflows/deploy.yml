@@ -80,13 +80,29 @@ jobs:
           # Apply external-secrets namespace and HelmRelease
           kubectl apply -k ${{ github.workspace }}/kubernetes/apps/infra/external-secrets/base/
 
-          # Wait for external-secrets to be ready
-          echo "Waiting for External Secrets Operator..."
+          # Wait for external-secrets pods to be ready
+          echo "Waiting for External Secrets Operator pods..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=external-secrets -n external-secrets --timeout=300s
 
-          # Wait for CRDs
-          kubectl wait --for=condition=established crd/externalsecrets.external-secrets.io --timeout=120s
-          kubectl wait --for=condition=established crd/clustersecretstores.external-secrets.io --timeout=120s
+          # Wait for all ESO CRDs to be created and accepted
+          echo "Waiting for External Secrets CRDs..."
+          for i in {1..30}; do
+            if kubectl get crd clustersecretstores.external-secrets.io &>/dev/null && \
+               kubectl get crd externalsecrets.external-secrets.io &>/dev/null; then
+              echo "CRDs found!"
+              break
+            fi
+            echo "Waiting for CRDs... attempt $i/30"
+            sleep 10
+          done
+
+          # Additional wait for API to be ready
+          echo "Waiting for API to be ready..."
+          sleep 30
+
+          # Verify CRDs
+          echo "Verifying CRDs..."
+          kubectl get crd | grep external-secrets
 
       - name: Create Doppler Token Secret
         run: |
@@ -103,6 +119,9 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=true
+
+          # Wait a bit more for API to be fully ready
+          sleep 10
 
           # Create ClusterSecretStore
           cat <<EOF | kubectl apply -f -
@@ -122,7 +141,7 @@ jobs:
           EOF
 
           # Wait for it to be ready
-          kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=60s || true
+          kubectl wait --for=condition=ready clustersecretstore/doppler --timeout=120s || true
 
       - name: Deploy All Applications
         run: |
