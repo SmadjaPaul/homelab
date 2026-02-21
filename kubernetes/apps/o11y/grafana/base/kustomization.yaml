@@ -7,3 +7,5 @@ namespace: o11y
 resources:
   - helmrelease.yaml
   - external-secret.yaml
+  - route.yaml
+  - certificate.yaml

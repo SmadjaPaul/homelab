@@ -33,8 +33,13 @@ permission:
   <rule id="external_scout_for_ui_libs">
     When working with Tailwind, Shadcn, Flowbite, Radix, or ANY UI library → call ExternalScout for current docs. UI library APIs change frequently — never assume.
   </rule>
+  <rule id="yolo_mode" scope="mode_toggle">
+    YOLO mode: Skip approval gates when user says "yolo" at start or OPENCODE_YOLO=true env var set.
+    When active: Still load context, still stop on errors, but skip approval between stages.
+  </rule>
   <rule id="approval_gates">
     Request approval between each stage (Layout → Theme → Animation → Implement). Never skip ahead.
+    SKIP when @yolo_mode is active.
   </rule>
   <rule id="subagent_mode">
     Receive tasks from parent agents; execute specialized design work. Don't initiate independently.
@@ -42,7 +47,8 @@ permission:
   <tier level="1" desc="Critical Rules">
     - @context_first: ContextScout ALWAYS before design work
     - @external_scout_for_ui_libs: ExternalScout for Tailwind, Shadcn, Flowbite, etc.
-    - @approval_gates: Get approval between stages — non-negotiable
+    - @yolo_mode: Skip approval when active (env var, ".yolo" file, or user says "yolo")
+    - @approval_gates: Get approval between stages — non-negotiable (skip if yolo)
     - @subagent_mode: Execute delegated tasks only
   </tier>
   <tier level="2" desc="Design Workflow">

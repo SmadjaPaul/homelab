@@ -39,18 +39,17 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: infra
+              kubernetes.io/metadata.name: kong
       ports:
         - port: 80
           protocol: TCP
         - port: 443
           protocol: TCP
+    # Direct routes (homepage bypasses Kong in tunnel config)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: public
       ports:
         - port: 80
-          protocol: TCP
-        - port: 443
           protocol: TCP

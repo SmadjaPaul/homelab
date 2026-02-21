@@ -25,7 +25,9 @@ spec:
       proxied: true
     sources:
       - ingress
-    txtOwnerName: "external-dns"
+      - gateway-httproute
+    policy: sync
+    txtOwnerId: "external-dns"
     domainFilters:
       - "smadja.dev"
     env:

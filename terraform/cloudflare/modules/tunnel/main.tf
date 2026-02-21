@@ -12,10 +12,10 @@ resource "random_password" "tunnel_secret" {
 # Tunnel resource - always created when regenerate=true, or when no tunnel_id
 # For existing tunnels, import first: terraform import module.tunnel[0].cloudflare_zero_trust_tunnel_cloudflared.homelab[0] account_id/tunnel_id
 resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
-  count      = var.tunnel_id == "" || var.regenerate ? 1 : 0
-  account_id = var.account_id
-  name       = "homelab-tunnel"
-  secret     = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
+  count         = var.tunnel_id == "" || var.regenerate ? 1 : 0
+  account_id    = var.account_id
+  name          = "homelab-tunnel"
+  tunnel_secret = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
 }
 
 # Get the tunnel ID and secret to use
@@ -49,38 +49,26 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
   account_id = var.account_id
   tunnel_id  = local.actual_tunnel_id
 
-  config {
-    # OKE Services via Kubernetes internal DNS
-    # Format: service.namespace.svc.cluster.local
-    ingress_rule {
-      hostname = "auth.${var.domain}"
-      service  = "http://authentik-server.infra.svc.cluster.local:80"
-      origin_request {
-        no_tls_verify   = true
-        connect_timeout = 30
+  config = {
+    ingress = [
+      {
+        hostname = "home.${var.domain}"
+        service  = "http://homepage.public.svc.cluster.local:80"
+        origin_request = {
+          no_tls_verify   = true
+          connect_timeout = 30
+        }
+      },
+      {
+        hostname = "proxmox.${var.domain}"
+        service  = "https://${var.proxmox_local_ip}:8006"
+        origin_request = {
+          no_tls_verify = true
+        }
+      },
+      {
+        service = "http://kong-kong-proxy.kong.svc.cluster.local:80"
       }
-    }
-    ingress_rule {
-      hostname = "home.${var.domain}"
-      service  = "http://homepage.public.svc.cluster.local:80"
-      origin_request {
-        no_tls_verify   = true
-        connect_timeout = 30
-      }
-    }
-
-    # Proxmox (at home)
-    ingress_rule {
-      hostname = "proxmox.${var.domain}"
-      service  = "https://${var.proxmox_local_ip}:8006"
-      origin_request {
-        no_tls_verify = true
-      }
-    }
-
-    # Catch-all
-    ingress_rule {
-      service = "http_status:404"
-    }
+    ]
   }
 }

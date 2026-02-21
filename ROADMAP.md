@@ -1,90 +1,138 @@
 # 🗺️ Roadmap Homelab
 
-## Phase 1: Fondations (Semaine 1-2)
+## Phase 1: Infrastructure & Core (✅ Terminé)
 
-### Infrastructure
+### OCI Cluster
 - [x] Nettoyer et restructurer le repository
 - [x] Configuration Doppler
 - [x] Scripts de bootstrap
-- [ ] Déployer VMs OCI avec Terraform
-  - [ ] VM Hub (Omni)
-  - [ ] VM 1 (Control Plane Talos)
-  - [ ] VM 2 (Worker Talos)
-  - [ ] VM 3 (Worker Talos)
-- [ ] Configurer Omni Control Plane
-- [ ] Créer cluster Talos avec Omni
+- [x] Déployer OKE (Oracle Cloud Kubernetes Engine)
+- [x] Installer Flux CD (GitOps)
+- [x] Configurer External Secrets Operator (Doppler → K8s)
 
-### Kubernetes Core
-- [ ] Installer External Secrets Operator
-- [ ] Configurer sync Doppler → Kubernetes
-- [ ] Installer cert-manager
-- [ ] Configurer Let's Encrypt + Cloudflare DNS
+### Gestion Clusters
+- [ ] Déployer **Omni** sur OCI (gestion centralisée des clusters)
+  - [ ] Configurer Omni comme control plane
+  - [ ] Préparer connection pour cluster Talos à la maison
 
-## Phase 2: Ingress & Sécurité (Semaine 3)
 
-- [ ] Déployer Traefik (Ingress Controller)
-- [ ] Configurer Cloudflare Tunnel
-- [ ] Déployer Authentik
-  - [ ] Configurer providers (Google OAuth)
-  - [ ] Créer applications (Nextcloud, etc.)
-  - [ ] Configurer policies
-- [ ] Déployer Authelia (backup/fallback)
+- [ ] Configurer providers OAuth/OIDC (Terraform échoue - bug provider)
+- [ ] Configurer sources (Google, etc.)
+- [ ] Créer applications protégés
+- [ ] Configurer groups et policies
+- [ ] Configurer SMTP (Migadu) - **manuel requis pour l'instant**
 
-## Phase 3: Services Professionnels (Semaine 4-5)
+### Cloudflare Access
+- [x] Configurer Cloudflare Tunnel
+- [ ] Créer Access Policies par application
+- [ ] Configurer Zero Trust RBAC
 
-- [ ] Déployer Nextcloud
-- [ ] Déployer Gitea
-- [ ] Déployer Vaultwarden
-- [ ] Déployer Homepage (dashboard)
+### TLS/SSL
+- [x] Configurer cert-manager (via Let's Encrypt)
+- [x] Configurer Cloudflare SSL strict
+- [ ] Mettre en place Internal CA pour service-to-service
 
-## Phase 4: Business Stack (Semaine 6-8)
+## Phase 3: Observability (Monitoring avec Grafana Cloud)
 
-- [ ] Déployer Odoo (ERP)
-- [ ] Déployer FleetDM (MDM)
-  - [ ] Configurer osquery
-  - [ ] Enroller devices
-- [ ] Déployer Snipe-IT (ITAM)
-- [ ] Déployer Wazuh (SIEM)
+### Monitoring (Grafana Cloud)
+- [ ] Créer compte Grafana Cloud (gratuit)
+- [ ] Configurer Prometheus remote write vers Grafana Cloud
+- [ ] Déployer Grafana Agent pour collecte métriques
+- [ ] Configurer dashboards cluster (import depuis Grafana Cloud)
+- [ ] Configurer alertes (Slack/Discord/PagerDuty)
 
-## Phase 5: Services Famille (Semaine 9-10)
+### Logging
+- [ ] Déployer Loki (centralisé logging)
+- [ ] Configurer journalisation cluster
+- [ ] Configurer retention policies
 
-- [ ] Déployer Matrix (chat)
-- [ ] Déployer Immich (photos)
-- [ ] Déployer Jellyfin (streaming - local)
+### Métriques Applicatives
+- [x] Configurer node-exporter (dans kube-prometheus-stack)
+- [x] Configurer metrics-server
+- [ ] Configurer Grafana Agent pour logs applicatifs
 
-## Phase 6: Home Lab (Semaine 11+)
+## Phase 4: Services (core)
 
-- [ ] Installer Proxmox
-- [ ] Créer VMs Talos (Home)
-- [ ] Connecter cluster Home à Omni
-- [ ] Migrer services média vers Home
-- [ ] Configurer backup Kopia → B2
+### Services Infrastructure
+- [x] Homepage (dashboard)
+- [x] Déployer services internes
 
-## Phase 7: Optimisation (Continu)
+### Services Professionnels
+- [ ] Nextcloud (fichiers, calendar, contacts)
+- [ ] Gitea (code self-hosted)
+- [ ] Vaultwarden (passwords)
 
-- [ ] Monitoring Grafana Cloud
-- [ ] Alerting
-- [ ] Documentation
-- [ ] CI/CD GitHub Actions
-- [ ] Renovate (auto-update)
+### Services Famille
+- [ ] Immich (photos)
+- [ ] Jellyfin (streaming local)
+- [ ] Matrix (chat)
+
+## Phase 5: Security & Backups
+
+### Backup Strategy
+- [ ] Configurer Velero (backup cluster)
+- [ ] Configurer Kopia ou Restic pour données applicatives
+- [ ] Configurer backup vers OCI Object Storage
+
+### Network Policies
+- [ ] Déployer network policies (Calico/Cilium)
+- [ ] Restreindre communication inter-pods
+- [ ] Configurer egress policies
+
+### Security
+- [ ] Configurer Kyverno ou OPA Gatekeeper
+- [ ] Déployer security scanning (Trivy)
+- [ ] Configurer RBAC audit
+
+## Phase 6: Home Cluster (Talos)
+
+### Home Server Setup
+- [ ] Installer Proxmox sur serveur maison
+- [ ] Créer VMs Talos
+- [ ] Connecter cluster home à Omni (OCI)
+
+### Migration
+- [ ] Migrer services média vers Home (Jellyfin, Immich)
+- [ ] Configurer backup cluster OCI → Home
+
+## Phase 7: CI/CD & Automation
+
+### GitHub Actions
+- [x] Pipeline deploy (flux-diff)
+- [ ] Pipeline Terraform (Cloudflare - en cours)
+- [x] Pipeline lint/validation
+
+### Automation
+- [ ] Renovate (auto-update apps)
+- [ ] Flux automation (image updates)
+
+## Phase 8: End Users
+
+### Onboarding
+- [ ] Créer guide quickstart pour utilisateurs
+- [ ] Configurer self-service access
+- [ ] Documenter les services disponibles
 
 ## Décisions Techniques
 
 ### ✅ Validé
-- **Omni** pour gestion clusters
-- **Doppler** pour secrets
+- **OCI OKE** pour cluster cloud (gratuit)
+- **Talos** pour cluster home (futur)
+- **Omni** (via OCI) pour gestion multi-cluster
+- **Doppler** pour secrets (gratuit)
 - **Flux CD** pour GitOps
-- **Talos** pour OS Kubernetes
-- **OCI** pour cloud (Always Free)
+- **Cloudflare** pour DNS, Tunnel, Access (gratuit)
+- **Grafana Cloud** pour monitoring (gratuit)
+- **Migadu** pour email/SMTP ( 19 euros par an)
 
 ### 🔄 À décider
-- **Traefik** vs **Cilium Gateway API**
-- **Authentik** vs **Authelia** (ou les deux)
-- **Longhorn** vs **Rook-Ceph** pour storage
+- **Longhorn** vs **Rook-Ceph** pour storage (si besoin)
+- **Backup destination**: OCI Object Storage vs autres
 
 ## Notes
 
 - Priorité: sécurité > fonctionnalités
-- Services critiques d'abord (auth, ingress)
-- Tester en staging avant production
+- Services critiques d'abord (auth, monitoring)
+- Tester avant production
 - Documenter chaque étape
+- YOLO mode: `export OPENCODE_YOLO=true` ou dire "yolo" au début

@@ -57,3 +57,8 @@ talosconfig
 
 # Local development
 .local/
+terraform/auth0/state.json
+terraform/cloudflare/state.json
+terraform/cloudflare/state2.json
+terraform/cloudflare/records_to_remove.txt
+*.state.json

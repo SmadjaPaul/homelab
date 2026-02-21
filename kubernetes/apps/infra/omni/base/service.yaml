@@ -7,6 +7,8 @@ kind: Service
 metadata:
   name: omni
   namespace: omni
+  annotations:
+    konghq.com/protocol: "https"
 spec:
   ports:
     - port: 443

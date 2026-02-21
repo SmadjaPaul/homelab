@@ -44,7 +44,22 @@ output "enable_geo_restriction" {
   value       = data.doppler_secrets.this.map.ENABLE_GEO_RESTRICTION == "true"
 }
 
-output "enable_authentik_api_skip_challenge" {
-  description = "Skip challenge for auth.*/api/* (from Doppler ENABLE_API_SKIP_CHALLENGE)"
-  value       = data.doppler_secrets.this.map.ENABLE_API_SKIP_CHALLENGE == "true"
+# =============================================================================
+# Auth0 Configuration
+# =============================================================================
+
+output "auth0_domain" {
+  description = "Auth0 domain (from Doppler AUTH0_DOMAIN)"
+  value       = data.doppler_secrets.this.map.AUTH0_DOMAIN
+}
+
+output "auth0_cloudflare_client_id" {
+  description = "Auth0 client ID for Cloudflare Access (from Doppler)"
+  value       = data.doppler_secrets.this.map.AUTH0_CLOUDFLARE_CLIENT_ID
+}
+
+output "auth0_cloudflare_client_secret" {
+  description = "Auth0 client secret for Cloudflare Access (from Doppler)"
+  value       = data.doppler_secrets.this.map.AUTH0_CLOUDFLARE_CLIENT_SECRET
+  sensitive   = true
 }

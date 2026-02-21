@@ -1,0 +1,25 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-smadja-dev
+  namespace: kong
+spec:
+  secretName: wildcard-smadja-dev-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.smadja.dev"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: root-smadja-dev
+  namespace: kong
+spec:
+  secretName: root-smadja-dev-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "smadja.dev"

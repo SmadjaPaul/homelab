@@ -10,9 +10,24 @@ data:
     metrics: 0.0.0.0:2000
     no-autoupdate: true
 
+    # NOTE: The actual tunnel ingress config is managed by Terraform
+    # (cloudflare_zero_trust_tunnel_cloudflared_config) and pushed via
+    # the Cloudflare API. This ConfigMap is kept in sync for documentation.
+    #
+    # Traffic flow:
+    #   1. home.smadja.dev → http://homepage.public.svc.cluster.local:80
+    #   2. proxmox.smadja.dev → https://192.168.68.51:8006
+    #   3. *.smadja.dev (catch-all) → http://kong-kong-proxy.kong.svc.cluster.local:80
+    #      Kong then routes via HTTPRoute to: grafana, n8n, omni, etc.
     ingress:
-      - hostname: auth.smadja.dev
-        service: http://authentik-server.infra.svc.cluster.local:80
       - hostname: home.smadja.dev
+        originRequest:
+          connectTimeout: 30
+          noTLSVerify: true
         service: http://homepage.public.svc.cluster.local:80
-      - service: http_status:404
+      - hostname: proxmox.smadja.dev
+        originRequest:
+          noTLSVerify: true
+        service: https://192.168.68.51:8006
+      # Catch-all: everything else goes to Kong Gateway
+      - service: http://kong-kong-proxy.kong.svc.cluster.local:80

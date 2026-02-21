@@ -36,16 +36,6 @@ variable "enable_tunnel_config" {
   default     = true
 }
 
-variable "oke_services" {
-  type = map(object({
-    hostname = string
-    service  = string
-    port     = number
-    internal = bool
-  }))
-  description = "OKE services to expose via tunnel. service = K8s service name, port = cluster port"
-  default     = {}
-}
 
 variable "regenerate" {
   type        = bool

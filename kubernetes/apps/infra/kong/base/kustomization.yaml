@@ -6,3 +6,4 @@ resources:
   - helm-repository.yaml
   - release.yaml
   - gateway.yaml
+  - certificates.yaml

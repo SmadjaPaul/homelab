@@ -53,18 +53,12 @@ variable "homelab_services" {
   }))
   default = {
     # ===========================================
-    # USER-FACING SERVICES (visible to users)
+    # USER-FACING SERVICES (visible to users - now protected with Auth0)
     # ===========================================
     homepage = {
       subdomain   = "home"
       description = "Homepage dashboard"
-      internal    = false
-      user_facing = true
-    }
-    authentik = {
-      subdomain   = "auth"
-      description = "Authentik SSO"
-      internal    = false
+      internal    = true
       user_facing = true
     }
 
@@ -83,6 +77,18 @@ variable "homelab_services" {
       internal    = true
       user_facing = false
     }
+    omni = {
+      subdomain   = "omni"
+      description = "Omni - Kubernetes cluster management"
+      internal    = true
+      user_facing = false
+    }
+    n8n = {
+      subdomain   = "n8n"
+      description = "n8n workflow automation"
+      internal    = true
+      user_facing = false
+    }
   }
 }
 
@@ -93,35 +99,9 @@ variable "oci_management_ip" {
   default     = ""
 }
 
-variable "oke_services" {
-  description = "OKE services to expose via Cloudflare Tunnel (routed through traefik)"
-  type = map(object({
-    hostname = string
-    service  = string
-    port     = number
-    internal = bool
-  }))
-  default = {
-    authentik = {
-      hostname = "auth"
-      service  = "authentik-server"
-      port     = 80
-      internal = false
-    }
-    homepage = {
-      hostname = "home"
-      service  = "homepage"
-      port     = 80
-      internal = false
-    }
-    grafana = {
-      hostname = "grafana"
-      service  = "grafana"
-      port     = 80
-      internal = true
-    }
-  }
-}
+# NOTE: OKE services DNS is managed by external-dns in Kubernetes.
+# Each HTTPRoute has an annotation pointing to the tunnel CNAME.
+# See: kubernetes/apps/*/base/route.yaml
 
 # Proxmox (local network, accessed via Tunnel)
 variable "proxmox_local_ip" {
@@ -145,6 +125,12 @@ variable "enable_tunnel" {
   default     = false
 }
 
+variable "enable_access" {
+  description = "Enable Cloudflare Access policies (requires enable_tunnel)"
+  type        = bool
+  default     = true
+}
+
 variable "enable_tunnel_config" {
   description = "Manage tunnel ingress config in Terraform. Set false if API returns 1002/1055 (Tunnel/Config not found)."
   type        = bool
@@ -152,48 +138,36 @@ variable "enable_tunnel_config" {
 }
 
 # =============================================================================
-# Authentik as OIDC IdP for Cloudflare Access
+# Auth0 as OIDC IdP for Cloudflare Access
 # =============================================================================
-variable "authentik_oidc_enabled" {
-  description = "Use Authentik as OIDC IdP for Access (users in Authentik get access)"
+variable "auth0_oidc_enabled" {
+  description = "Use Auth0 as OIDC IdP for Access (users in Auth0 get access)"
   type        = bool
   default     = false
 }
 
-variable "authentik_oidc_client_id" {
-  description = "Authentik OAuth2 client_id for Cloudflare Access (from terraform/authentik output)"
+variable "auth0_oidc_client_id" {
+  description = "Auth0 OIDC client_id for Cloudflare Access"
   type        = string
   default     = ""
   sensitive   = true
 }
 
-variable "authentik_oidc_client_secret" {
-  description = "Authentik OAuth2 client_secret for Cloudflare Access"
+variable "auth0_oidc_client_secret" {
+  description = "Auth0 OIDC client_secret for Cloudflare Access"
   type        = string
   default     = ""
   sensitive   = true
 }
 
-variable "authentik_oidc_auth_url" {
-  description = "Authentik OIDC authorization URL"
-  type        = string
-  default     = ""
-}
-
-variable "authentik_oidc_token_url" {
-  description = "Authentik OIDC token URL"
-  type        = string
-  default     = ""
-}
-
-variable "authentik_oidc_certs_url" {
-  description = "Authentik OIDC JWKS/certs URL"
+variable "auth0_domain" {
+  description = "Auth0 domain (e.g., smadja.us.auth0.com)"
   type        = string
   default     = ""
 }
 
 variable "access_skip_interstitial" {
-  description = "Skip Cloudflare Access 'Choose identity provider' page (users go straight to Authentik or email)"
+  description = "Skip Cloudflare Access 'Choose identity provider' page"
   type        = bool
   default     = true
 }
@@ -217,4 +191,18 @@ variable "enable_comet_cache_rules" {
   type        = bool
   description = "Enable Cloudflare cache rules for Comet streaming service (bypass cache for API, cache static assets)"
   default     = false
+}
+
+# IPs to bypass Cloudflare Access (for Terraform, local development, etc.)
+variable "access_bypass_ips" {
+  type        = list(string)
+  description = "IP addresses to bypass Cloudflare Access (Terraform CI/CD, local development)"
+  default     = []
+}
+
+# Role-based access control - map of service to allowed roles
+variable "role_access" {
+  type        = map(list(string))
+  description = "Map of service keys to list of roles allowed access (e.g., { grafana = [\"admin\"], homepage = [\"admin\", \"family\"] })"
+  default     = {}
 }

@@ -25,12 +25,11 @@ spec:
   refreshInterval: 1h
   secretStoreRef:
     name: doppler
-    kind: SecretStore
+    kind: ClusterSecretStore
   target:
     name: cf-dns-token
     creationPolicy: Owner
   data:
     - secretKey: CF_DNS_API_TOKEN
       remoteRef:
-        key: infrastructure/prd
-        property: CF_DNS_API_TOKEN
+        key: CLOUDFLARE_API_TOKEN

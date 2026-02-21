@@ -15,7 +15,18 @@ spec:
         name: homepage
         namespace: flux-system
   values:
+    # Use official chart keys for allowed hosts
     config:
+      allowedHosts:
+        - "home.smadja.dev"
       kubernetes:
         enabled: true
         clusterName: oci
+    # General env vars
+    extraEnv:
+      - name: PUID
+        value: "1000"
+      - name: PGID
+        value: "1000"
+      - name: HOMEPAGE_ALLOWED_HOSTS
+        value: "*"

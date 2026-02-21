@@ -10,7 +10,7 @@ terraform {
   required_providers {
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
     doppler = {
       source  = "DopplerHQ/doppler"
@@ -54,7 +54,6 @@ module "tunnel" {
   domain               = module.global_config.domain
   proxmox_local_ip     = var.proxmox_local_ip
   enable_tunnel_config = var.enable_tunnel_config
-  oke_services         = var.oke_services
   regenerate           = var.regenerate_tunnel_credentials
 }
 
@@ -107,7 +106,6 @@ module "dns" {
   domain               = module.global_config.domain
   enable_tunnel        = var.enable_tunnel
   homelab_services     = var.homelab_services
-  oke_services         = var.oke_services
   tunnel_id            = local.tunnel_id
   oci_management_ip    = var.oci_management_ip
   create_root_record   = var.create_root_record
@@ -115,43 +113,43 @@ module "dns" {
 }
 
 # -----------------------------------------------------------------------------
-# Access — IdP Authentik + applications + policies (only when tunnel enabled)
-# TODO: Fix count issue with enable_tunnel variable
+# Access — Auth0 IdP + applications + policies (only when tunnel enabled and access enabled)
 # -----------------------------------------------------------------------------
-# module "access" {
-#   source = "./modules/access"
-#   count  = var.enable_tunnel ? 1 : 0
-#
-#   depends_on = [module.global_config]
-#
-#   account_id       = module.global_config.cloudflare_account_id
-#   domain           = module.global_config.domain
-#   homelab_services = var.homelab_services
-#
-#   authentik_oidc_enabled       = var.authentik_oidc_enabled
-#   authentik_oidc_client_id     = var.authentik_oidc_client_id
-#   authentik_oidc_client_secret = var.authentik_oidc_client_secret
-#   authentik_oidc_auth_url      = var.authentik_oidc_auth_url
-#   authentik_oidc_token_url     = var.authentik_oidc_token_url
-#   authentik_oidc_certs_url     = var.authentik_oidc_certs_url
-#   allowed_emails               = var.allowed_emails
-#   skip_interstitial            = var.access_skip_interstitial
-# }
+module "access" {
+  source = "./modules/access"
+  count  = var.enable_tunnel && var.enable_access ? 1 : 0
+
+  depends_on = [module.global_config]
+
+  account_id       = module.global_config.cloudflare_account_id
+  domain           = module.global_config.domain
+  homelab_services = var.homelab_services
+
+  # Auth0 IdP (from Doppler via global_config)
+  auth0_oidc_enabled       = var.auth0_oidc_enabled
+  auth0_oidc_client_id     = var.auth0_oidc_enabled ? module.global_config.auth0_cloudflare_client_id : ""
+  auth0_oidc_client_secret = var.auth0_oidc_enabled ? module.global_config.auth0_cloudflare_client_secret : ""
+  auth0_domain             = var.auth0_oidc_enabled ? module.global_config.auth0_domain : ""
+
+  allowed_emails    = var.allowed_emails
+  skip_interstitial = var.access_skip_interstitial
+  bypass_ips        = var.access_bypass_ips
+  role_access       = var.role_access
+}
 
 # -----------------------------------------------------------------------------
-# Security — zone settings, geo restriction, Authentik API skip challenge
+# Security — zone settings, geo restriction
 # -----------------------------------------------------------------------------
 module "security" {
   source = "./modules/security"
 
   depends_on = [module.global_config]
 
-  zone_id                             = module.global_config.zone_id
-  domain                              = module.global_config.domain
-  enable_zone_settings                = module.global_config.enable_zone_settings
-  enable_geo_restriction              = module.global_config.enable_geo_restriction
-  allowed_countries                   = var.allowed_countries
-  enable_authentik_api_skip_challenge = module.global_config.enable_authentik_api_skip_challenge
+  zone_id                = module.global_config.zone_id
+  domain                 = module.global_config.domain
+  enable_zone_settings   = module.global_config.enable_zone_settings
+  enable_geo_restriction = module.global_config.enable_geo_restriction
+  allowed_countries      = var.allowed_countries
 }
 
 # -----------------------------------------------------------------------------

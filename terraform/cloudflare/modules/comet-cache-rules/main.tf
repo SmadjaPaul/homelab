@@ -5,7 +5,7 @@ terraform {
   required_providers {
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
   }
 }
@@ -32,13 +32,6 @@ locals {
 
 # =============================================================================
 # 1. Streams Cache Rule
-# Cache all stream results. Comet controls the TTL via headers.
-# Rule Name: Streams
-# Expression: (http.request.uri.path contains "/stream/")
-# Action: Eligible for Cache
-# Edge TTL: Use cache-control header if present (first option)
-# Browser TTL: Respect origin
-# Serve stale content while revalidating: On
 # =============================================================================
 resource "cloudflare_ruleset" "comet_streams_cache" {
   count = var.enable_comet_cache_rules ? 1 : 0
@@ -49,39 +42,32 @@ resource "cloudflare_ruleset" "comet_streams_cache" {
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
-  rules {
+  rules = [{
     action      = "set_cache_settings"
     description = "Cache stream results with header-based TTL"
     expression  = "(http.host eq \"${local.comet_host}\" and http.request.uri.path contains \"/stream/\")"
     enabled     = true
 
-    action_parameters {
+    action_parameters = {
       cache = true
 
-      edge_ttl {
+      edge_ttl = {
         mode = "respect_origin"
       }
 
-      browser_ttl {
+      browser_ttl = {
         mode = "respect_origin"
       }
 
-      serve_stale {
+      serve_stale = {
         disable_stale_while_updating = false
       }
     }
-  }
+  }]
 }
 
 # =============================================================================
 # 2. Configure Page Cache Rule
-# Cache the configuration page.
-# Rule Name: Configure Page
-# Expression: (http.request.uri.path eq "/configure")
-# Action: Eligible for Cache
-# Edge TTL: Use cache-control header if present (first option)
-# Browser TTL: Respect origin
-# Serve stale content while revalidating: On
 # =============================================================================
 resource "cloudflare_ruleset" "comet_configure_cache" {
   count = var.enable_comet_cache_rules ? 1 : 0
@@ -92,39 +78,32 @@ resource "cloudflare_ruleset" "comet_configure_cache" {
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
-  rules {
+  rules = [{
     action      = "set_cache_settings"
     description = "Cache configure page with header-based TTL"
     expression  = "(http.host eq \"${local.comet_host}\" and http.request.uri.path eq \"/configure\")"
     enabled     = true
 
-    action_parameters {
+    action_parameters = {
       cache = true
 
-      edge_ttl {
+      edge_ttl = {
         mode = "respect_origin"
       }
 
-      browser_ttl {
+      browser_ttl = {
         mode = "respect_origin"
       }
 
-      serve_stale {
+      serve_stale = {
         disable_stale_while_updating = false
       }
     }
-  }
+  }]
 }
 
 # =============================================================================
 # 3. Manifest Cache Rule
-# Cache the add-on manifest.
-# Rule Name: Manifest
-# Expression: (http.request.uri.path contains "/manifest.json")
-# Action: Eligible for Cache
-# Edge TTL: Use cache-control header if present (first option)
-# Browser TTL: Respect origin
-# Serve stale content while revalidating: On
 # =============================================================================
 resource "cloudflare_ruleset" "comet_manifest_cache" {
   count = var.enable_comet_cache_rules ? 1 : 0
@@ -135,44 +114,37 @@ resource "cloudflare_ruleset" "comet_manifest_cache" {
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
-  rules {
+  rules = [{
     action      = "set_cache_settings"
     description = "Cache manifest.json with header-based TTL"
     expression  = "(http.host eq \"${local.comet_host}\" and http.request.uri.path contains \"/manifest.json\")"
     enabled     = true
 
-    action_parameters {
+    action_parameters = {
       cache = true
 
-      edge_ttl {
+      edge_ttl = {
         mode = "respect_origin"
       }
 
-      browser_ttl {
+      browser_ttl = {
         mode = "respect_origin"
       }
 
-      serve_stale {
+      serve_stale = {
         disable_stale_while_updating = false
       }
     }
-  }
+  }]
 }
 
 # =============================================================================
 # 4. Tiered Cache
-# Enable Tiered Cache in Caching > Tiered Cache.
-# This minimizes requests to your origin by checking other Cloudflare datacenters first.
-# Note: This is configured at account level, not via rulesets
 # =============================================================================
 # Tiered Cache is enabled via cloudflare_tiered_cache resource or manually in dashboard
-# Not available in rulesets, see: https://developers.cloudflare.com/cache/how-to/tiered-cache/
 
 # =============================================================================
 # 5. Network Optimizations
-# HTTP/3 (QUIC): On (faster connections, especially on mobile)
-# 0-RTT Connection Resumption: On (reduces latency for repeat visitors)
-# These are zone settings, configured in zone_settings_override
 # =============================================================================
 
 # Additional: API endpoints should NOT be cached
@@ -185,16 +157,16 @@ resource "cloudflare_ruleset" "comet_api_bypass" {
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
-  rules {
+  rules = [{
     action      = "set_cache_settings"
     description = "Bypass cache for API endpoints"
     expression  = "(http.host eq \"${local.comet_host}\" and (http.request.uri.path contains \"/search\" or http.request.uri.path contains \"/catalog\"))"
     enabled     = true
 
-    action_parameters {
+    action_parameters = {
       cache = false
     }
-  }
+  }]
 }
 
 # Output for verification

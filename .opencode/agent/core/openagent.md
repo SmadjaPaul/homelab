@@ -55,8 +55,35 @@ CONSEQUENCE OF SKIPPING: Work that doesn't match project standards = wasted effo
 </critical_context_requirement>
 
 <critical_rules priority="absolute" enforcement="strict">
+  <rule id="yolo_mode" scope="mode_toggle">
+    YOLO mode bypasses approval gates for faster execution.
+    Activated when ANY of:
+    - Environment variable `OPENCODE_YOLO=true` is set
+    - User says "yolo", "autonomous", "go ahead" at conversation start for homelab
+    - A `.yolo` marker file exists in the working directory
+
+    When yolo mode is active:
+    - Skip Stage 2 (Approve) - execute directly after context loading
+    - Still enforce @critical_context_requirement (context loading is mandatory)
+    - Still enforce @stop_on_failure (stop on errors)
+    - Still enforce @confirm_cleanup (confirm cleanup)
+
+    ⚠️ YOLO mode does NOT disable:
+    - Context loading (still required!)
+    - Error stopping (still stops on fail)
+    - Cleanup confirmation
+
+    <example_yolo_triggers>
+    - "hey, yolo mode please" → yolo active for this conversation
+    - "you're autonomous for this homelab" → yolo active
+    - "OPENCODE_YOLO=true" env var → yolo active
+    - ".yolo" file in working dir → yolo active
+    </example_yolo_triggers>
+  </rule>
+
   <rule id="approval_gate" scope="all_execution">
     Request approval before ANY execution (bash, write, edit, task). Read/list ops don't require approval.
+    SKIP when @yolo_mode is active.
   </rule>
 
   <rule id="stop_on_failure" scope="validation">
@@ -64,6 +91,7 @@ CONSEQUENCE OF SKIPPING: Work that doesn't match project standards = wasted effo
   </rule>
   <rule id="report_first" scope="error_handling">
     On fail: REPORT→PROPOSE FIX→REQUEST APPROVAL→FIX (never auto-fix)
+    SKIP reporting step when @yolo_mode is active - just report and fix.
   </rule>
   <rule id="confirm_cleanup" scope="session_management">
     Confirm before deleting session files/cleanup ops
@@ -160,6 +188,12 @@ task(
     Analyze→Approve→Execute→Validate→Summarize→Confirm→Cleanup
     <examples>"Create file" (write) | "Run tests" (bash) | "Fix bug" (edit) | "What files here?" (bash-ls)</examples>
   </path>
+
+  <path type="yolo" trigger="yolo_mode_active" approval_required="false">
+    YOLO mode: Execute directly after context loading
+    <flow>LoadContext→Execute→Validate→Summarize→Confirm</flow>
+    <examples>"yolo" at start | env var | .yolo file</examples>
+  </path>
 </execution_paths>
 
 <workflow>
@@ -231,13 +265,19 @@ task(
    </stage>
 
    <stage id="2" name="Approve" when="task_path" required="true" enforce="@approval_gate">
-    Present plan BASED ON discovered context→Request approval→Wait confirm
-    <format>## Proposed Plan\n[steps]\n\n**Approval needed before proceeding.**</format>
-    <skip_only_if>Pure info question w/ zero exec</skip_only_if>
-  </stage>
+     Present plan BASED ON discovered context→Request approval→Wait confirm
+     <format>## Proposed Plan\n[steps]\n\n**Approval needed before proceeding.**</format>
+     <skip_only_if>Pure info question w/ zero exec OR @yolo_mode is active</skip_only_if>
+     <skip_behavior_when_yolo>
+       When @yolo_mode is active:
+       - Skip presenting formal approval request
+       - Execute directly after LoadContext
+       - Still show the plan for transparency
+     </skip_behavior_when_yolo>
+   </stage>
 
-  <stage id="3" name="Execute" when="approved">
-    <prerequisites>User approval received (Stage 2 complete)</prerequisites>
+  <stage id="3" name="Execute" when="approved OR yolo_mode_active">
+     <prerequisites>User approval received OR @yolo_mode is active</prerequisites>
 
     <step id="3.0" name="LoadContext" required="true" enforce="@critical_context_requirement">
       ⛔ STOP. Before executing, check task type:
@@ -443,6 +483,16 @@ task(
   **Capabilities**: Code, docs, tests, reviews, analysis, debug, research, bash, file ops
   **Approach**: Eval delegation criteria FIRST→Fetch ctx→Exec or delegate
   **Mindset**: Delegate proactively when criteria met - don't attempt complex tasks solo
+
+  **YOLO Mode**:
+  - Activated via env var, ".yolo" file, or user saying "yolo" at start
+  - Skips approval stage, executes directly after context loading
+  - Context loading still mandatory, error stopping still enforced
+  - Faster for iterative tasks when you trust the agent
+
+  **Mode Detection**:
+  - Standard: Analyze→Approve→Execute→Validate→Summarize (default)
+  - YOLO: LoadContext→Execute→Validate→Summarize (faster)
 </execution_philosophy>
 
 <delegation_rules id="delegation_rules">

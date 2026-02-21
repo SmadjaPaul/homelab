@@ -9,7 +9,7 @@ variable "zone_id" {
 
 variable "domain" {
   type        = string
-  description = "Root domain (e.g. for Authentik API rule)"
+  description = "Root domain"
 }
 
 variable "enable_zone_settings" {
@@ -28,10 +28,4 @@ variable "allowed_countries" {
   type        = list(string)
   description = "Country codes to allow (e.g. [\"FR\"]). Empty = no geo rule."
   default     = []
-}
-
-variable "enable_authentik_api_skip_challenge" {
-  type        = bool
-  description = "Create Configuration Rule to skip challenge for auth.*/api/*"
-  default     = false
 }

@@ -1,0 +1,78 @@
+# =============================================================================
+# Migadu Terraform Configuration Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+
+# Domain (your email domain managed by Migadu)
+domain = "smadja.dev"
+
+# Mailboxes to create
+mailboxes = [
+  {
+    local_part        = "noreply"
+    name              = "No Reply"
+    password          = ""  # Leave empty to use invitation method
+    may_send          = true
+    may_receive       = false
+    may_access_imap   = false
+    may_access_pop3   = false
+    is_internal       = false
+  },
+  {
+    local_part        = "paul"
+    name              = "Paul Smadja"
+    password          = "your-secure-password"
+    may_send          = true
+    may_receive       = true
+    may_access_imap   = true
+    may_access_pop3   = true
+    is_internal       = false
+  }
+]
+
+# Aliases to create
+aliases = [
+  {
+    local_part  = "contact"
+    destination = "paul@smadja.dev"
+    name        = "Contact"
+    is_internal = false
+    may_send    = false
+  }
+]
+
+# Identities — Send from different email addresses
+# Use this to create additional email addresses for people
+# Example: paul can send as "paul@smadja.dev" OR "info@smadja.dev"
+identities = [
+  # Paul's identity for sending as info@
+  {
+    mailbox_local_part = "paul"
+    local_part        = "info"
+    name              = "Info"
+    password          = ""  # Same as mailbox password if empty
+    may_send          = true
+  },
+  # Paul's identity for sending as support@
+  {
+    mailbox_local_part = "paul"
+    local_part        = "support"
+    name              = "Support"
+    password          = ""
+    may_send          = true
+  }
+]
+
+# SMTP configuration for authentik
+smtp_mailbox  = "noreply"
+smtp_password  = "your-noreply-password"
+
+# =============================================================================
+# Doppler Secrets Required
+# =============================================================================
+# Add these secrets to your Doppler project:
+# - MIGADU_EMAIL: your-migadu-email@example.com
+# - MIGADU_API_KEY: your-migadu-api-key
+#
+# Get your API key from: https://www.migadu.com/panel/profile
+# =============================================================================

@@ -28,16 +28,7 @@ variable "homelab_services" {
   default     = {}
 }
 
-variable "oke_services" {
-  type = map(object({
-    hostname = string
-    service  = string
-    port     = number
-    internal = bool
-  }))
-  description = "OKE services to expose via tunnel"
-  default     = {}
-}
+# NOTE: OKE services DNS is managed by external-dns in Kubernetes.
 
 variable "tunnel_id" {
   type        = string

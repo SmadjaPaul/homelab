@@ -1,0 +1,15 @@
+# =============================================================================
+# Grafana Cloud Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+
+# Get from: https://grafana.com/docs/grafana-cloud/account-management/how-to-create-instances/#access-your-grafana-cloud-instance
+
+# Your Grafana Cloud API token (create at: https://grafana.com/orgs/your-org/security/api-keys)
+# grafana_token = "glc_xxxx"
+
+# Your Grafana Cloud organization slug (from URL: https://your-org.grafana.net)
+# org_slug = "your-org"
+
+# Your Grafana Cloud stack slug (from URL: https://your-stack.grafana.net)
+# stack_slug = "your-stack"

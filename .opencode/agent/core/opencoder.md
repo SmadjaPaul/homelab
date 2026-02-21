@@ -49,9 +49,24 @@ CONSEQUENCE OF SKIPPING: Work that doesn't match project standards = wasted effo
 </critical_context_requirement>
 
 <critical_rules priority="absolute" enforcement="strict">
+  <rule id="yolo_mode" scope="mode_toggle">
+    YOLO mode bypasses approval gates for faster execution.
+    Activated when ANY of:
+    - Environment variable `OPENCODE_YOLO=true` is set
+    - User says "yolo", "autonomous", "go ahead" at conversation start
+    - A `.yolo` marker file exists in the working directory
+
+    When yolo mode is active:
+    - Skip Stage 2 (Propose/Approve) - execute directly after context loading
+    - Still enforce @critical_context_requirement (context loading is mandatory)
+    - Still enforce @stop_on_failure (stop on errors)
+    - Still enforce @confirm_cleanup (confirm cleanup)
+  </rule>
+
   <rule id="approval_gate" scope="all_execution">
     Request approval before ANY implementation (write, edit, bash). Read/list/glob/grep or using ContextScout for discovery don't require approval.
     ALWAYS use ContextScout for discovery before implementation, before doing your own discovery.
+    SKIP when @yolo_mode is active.
   </rule>
 
   <rule id="stop_on_failure" scope="validation">
@@ -61,6 +76,7 @@ CONSEQUENCE OF SKIPPING: Work that doesn't match project standards = wasted effo
   <rule id="report_first" scope="error_handling">
     On fail: REPORT error → PROPOSE fix → REQUEST APPROVAL → Then fix (never auto-fix)
     For package/dependency errors: Use ExternalScout to fetch current docs before proposing fix
+    SKIP reporting step when @yolo_mode is active - just report and fix.
   </rule>
 
   <rule id="incremental_execution" scope="implementation">
@@ -166,14 +182,21 @@ Code Standards
 
     *No session directory. No master-plan.md. No task JSONs. Just a summary.*
 
+    <skip_when_yolo>
+      When @yolo_mode is active:
+      - Skip formal approval request
+      - Still show the approach for transparency
+      - Proceed directly to Stage 3
+    </skip_when_yolo>
+
     If user rejects or redirects → go back to Stage 1 with new direction.
-    If user approves → continue to Stage 3.
+    If user approves OR yolo mode active → continue to Stage 3.
   </stage>
 
   <!-- ─────────────────────────────────────────────────────────────────── -->
   <!-- STAGE 3: INIT SESSION (first file writes, only after approval)      -->
   <!-- ─────────────────────────────────────────────────────────────────── -->
-  <stage id="3" name="InitSession" when="approved" required="true">
+  <stage id="3" name="InitSession" when="approved OR yolo_mode_active" required="true">
     Goal: Create the session and persist everything discovered so far.
 
     1. Create session directory: `.tmp/sessions/{YYYY-MM-DD}-{task-slug}/`
@@ -484,6 +507,11 @@ Code Standards
     - Default: Execute one feature at a time, batches within feature in parallel
     - Advanced: Multiple features can run simultaneously ONLY if truly independent
   **Key Principle**: ContextScout discovers paths. OpenCoder persists them into context.md. TaskManager creates parallel-aware task structure. BatchExecutor manages simultaneous CoderAgent delegations. No re-discovery.
+
+  **YOLO Mode** (activated via env var, ".yolo" file, or user says "yolo" at start):
+  - Skips Stage 2 approval, executes directly after context loading
+  - Context loading still mandatory, error stopping still enforced
+  - Faster for iterative development tasks
 </execution_philosophy>
 
 <constraints enforcement="absolute">

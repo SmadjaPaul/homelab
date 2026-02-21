@@ -7,3 +7,6 @@ namespace: automation
 resources:
   - namespace.yaml
   - helmrelease.yaml
+  - helm-repository.yaml
+  - route.yaml
+  - certificate.yaml

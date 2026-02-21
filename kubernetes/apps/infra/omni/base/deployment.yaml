@@ -1,10 +1,6 @@
 # =============================================================================
 # Omni Deployment
 # =============================================================================
-# Single container deployment for Omni
-# Requires persistent storage for SQLite
-# =============================================================================
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,7 +8,6 @@ metadata:
   namespace: omni
   labels:
     app.kubernetes.io/name: omni
-    app.kubernetes.io/component: controller
 spec:
   replicas: 1
   selector:
@@ -33,77 +28,65 @@ spec:
               name: siderolink
             - containerPort: 8100
               name: k8s-proxy
+          args:
+            - --sqlite-storage-path=/var/lib/omni/omni.sqlite.db
+            - --storage-kind=boltdb # Trigger migration to SQLite
+            - --private-key-source=/var/lib/omni/omni.key
+            - --auth-auth0-enabled=true
+            - --auth-auth0-domain=dev-r5wiplxgsbkigvdk.eu.auth0.com
+            - --auth-auth0-client-id=neIxoNpb9IDzh2Frc46r6osqq0pYlhmF
+            - --advertised-api-url=https://omni.smadja.dev
+            - --advertised-kubernetes-proxy-url=https://omni.smadja.dev:8100
+            - --machine-api-advertised-url=https://omni.smadja.dev:8090
+            - --siderolink-api-advertised-url=https://omni.smadja.dev:8090
           env:
-            # Storage
-            - name: SQLITE_STORAGE_PATH
-              value: /var/lib/omni/omni.sqlite.db
-            # Bind addresses
             - name: BIND_ADDR
               value: "0.0.0.0:443"
             - name: MACHINE_API_BIND_ADDR
               value: "0.0.0.0:8090"
             - name: K8S_PROXY_BIND_ADDR
               value: "0.0.0.0:8100"
-            # Domain
             - name: OMNI_DOMAIN_NAME
               value: "omni.smadja.dev"
-            - name: ADVERTISED_API_URL
-              value: "https://omni.smadja.dev"
-            - name: ADVERTISED_K8S_PROXY_URL
-              value: "https://omni.smadja.dev:8100"
-            # SideroLink
-            - name: SIDEROLINK_ADVERTISED_API_URL
-              value: "https://omni.smadja.dev:8090"
-            # Auth (Auth0 - user needs to configure)
-            - name: AUTH
-              value: "--auth-auth0-enabled=true"
-            # Initial admin (only used on first run)
             - name: INITIAL_ADMIN_EMAIL
               value: "paul@smadja.dev"
-            # Account UUID (generate with: uuidgen)
             - name: OMNI_ACCOUNT_UUID
               valueFrom:
                 secretKeyRef:
                   name: omni-secrets
                   key: account-uuid
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
           volumeMounts:
             - name: omni-data
               mountPath: /var/lib/omni
-          resources:
-            requests:
-              cpu: 500m
-              memory: 1Gi
-            limits:
-              cpu: 2000m
-              memory: 4Gi
+            - name: omni-key
+              mountPath: /var/lib/omni/omni.key
+              subPath: etcd-encryption-key
+            - name: tun
+              mountPath: /dev/net/tun
           readinessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: 443
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 20
           livenessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: 443
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 60
       volumes:
         - name: omni-data
           persistentVolumeClaim:
             claimName: omni-pvc
----
-# =============================================================================
-# PVC for SQLite storage
-# =============================================================================
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: omni-pvc
-  namespace: omni
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
+        - name: omni-key
+          secret:
+            secretName: omni-secrets
+            items:
+              - key: etcd-encryption-key
+                path: etcd-encryption-key
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice

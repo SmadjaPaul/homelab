@@ -29,7 +29,7 @@ variable "grafana_token" {
 variable "grafana_url" {
   description = "Grafana Cloud URL"
   type        = string
-  default     = "https://grafana.com"
+  default     = "https://smadja.grafana.net"
 }
 
 provider "grafana" {
@@ -61,7 +61,7 @@ variable "stack_slug" {
 resource "grafana_dashboard" "kubernetes_cluster" {
   config_json = jsonencode({
     title         = "Kubernetes Cluster Overview"
-    uid           = "kubernetes-cluster"
+    uid           = "homelab-k8s-cluster"
     tags          = ["kubernetes", "cluster", "monitoring"]
     timezone      = "browser"
     schemaVersion = 16
@@ -179,7 +179,7 @@ resource "grafana_dashboard" "kubernetes_cluster" {
 resource "grafana_dashboard" "kubernetes_pods" {
   config_json = jsonencode({
     title         = "Kubernetes Pods"
-    uid           = "kubernetes-pods"
+    uid           = "homelab-k8s-pods"
     tags          = ["kubernetes", "pods"]
     timezone      = "browser"
     schemaVersion = 16
@@ -256,7 +256,7 @@ resource "grafana_dashboard" "kubernetes_pods" {
 resource "grafana_dashboard" "kubernetes_namespaces" {
   config_json = jsonencode({
     title         = "Kubernetes Namespaces"
-    uid           = "kubernetes-namespaces"
+    uid           = "homelab-k8s-namespaces"
     tags          = ["kubernetes", "namespaces"]
     timezone      = "browser"
     schemaVersion = 16
