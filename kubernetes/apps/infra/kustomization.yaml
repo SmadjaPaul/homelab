@@ -15,3 +15,5 @@ resources:
   - velero/base
   # Ingress controller
   - traefik/base
+  # ClusterIssuer for cert-manager
+  - cluster-issuer.yaml
