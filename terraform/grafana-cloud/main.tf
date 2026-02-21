@@ -5,41 +5,11 @@
 # Uses Grafana Cloud free tier
 # =============================================================================
 
-terraform {
-  required_version = ">= 1.12"
-
-  required_providers {
-    grafana = {
-      source  = "grafana/grafana"
-      version = "~> 2.0"
-    }
-  }
-}
-
-# =============================================================================
-# Provider Configuration
-# =============================================================================
-
-variable "grafana_token" {
-  description = "Grafana Cloud API token"
-  type        = string
-  sensitive   = true
-}
-
-variable "grafana_url" {
-  description = "Grafana Cloud URL"
-  type        = string
-  default     = "https://smadja.grafana.net"
-}
-
-provider "grafana" {
-  url  = var.grafana_url
-  auth = var.grafana_token
-}
-
 # =============================================================================
 # Variables
 # =============================================================================
+
+# (Moved auth variables to provider.tf)
 
 variable "org_slug" {
   description = "Grafana Cloud organization slug"
@@ -52,6 +22,103 @@ variable "stack_slug" {
   type        = string
   default     = ""
 }
+
+# =============================================================================
+# Grafana Cloud Credentials & Data
+# =============================================================================
+
+data "grafana_cloud_stack" "this" {
+  provider = grafana.cloud
+  slug     = var.stack_slug != "" ? var.stack_slug : var.org_slug
+}
+
+resource "grafana_cloud_access_policy" "k8s_monitoring" {
+  provider = grafana.cloud
+  region   = data.grafana_cloud_stack.this.region_slug
+  name     = "k8s-monitoring-${data.grafana_cloud_stack.this.slug}"
+
+  scopes = [
+    "metrics:write",
+    "logs:write",
+    "traces:write",
+    "profiles:write"
+  ]
+
+  realm {
+    type       = "org"
+    identifier = data.grafana_cloud_stack.this.org_id
+  }
+}
+
+resource "grafana_cloud_access_policy_token" "k8s_monitoring" {
+  provider         = grafana.cloud
+  region           = data.grafana_cloud_stack.this.region_slug
+  access_policy_id = grafana_cloud_access_policy.k8s_monitoring.policy_id
+  name             = "k8s-monitoring-${data.grafana_cloud_stack.this.slug}-token"
+}
+
+resource "random_password" "grafana_admin" {
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# =============================================================================
+# Doppler Secrets Sync
+# =============================================================================
+
+resource "doppler_secret" "grafana_cloud_prom_url" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_CLOUD_PROM_URL"
+  value   = "${data.grafana_cloud_stack.this.prometheus_url}/api/prom/push"
+}
+
+resource "doppler_secret" "grafana_cloud_prom_username" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_CLOUD_PROM_USERNAME"
+  value   = data.grafana_cloud_stack.this.prometheus_user_id
+}
+
+resource "doppler_secret" "grafana_cloud_loki_url" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_CLOUD_LOKI_URL"
+  value   = "${data.grafana_cloud_stack.this.logs_url}/loki/api/v1/push"
+}
+
+resource "doppler_secret" "grafana_cloud_loki_username" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_CLOUD_LOKI_USERNAME"
+  value   = data.grafana_cloud_stack.this.logs_user_id
+}
+
+resource "doppler_secret" "grafana_cloud_api_key" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_CLOUD_API_KEY"
+  value   = grafana_cloud_access_policy_token.k8s_monitoring.token
+}
+
+resource "doppler_secret" "grafana_admin_user" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_ADMIN_USER"
+  value   = "admin"
+}
+
+resource "doppler_secret" "grafana_admin_password" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "GRAFANA_ADMIN_PASSWORD"
+  value   = random_password.grafana_admin.result
+}
+
+# =============================================================================
+# Dashboards
+# =============================================================================
 
 # =============================================================================
 # Dashboards
