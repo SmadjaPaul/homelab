@@ -37,7 +37,7 @@ jobs:
       github.event.inputs.workspace == 'auth0' ||
       github.event.inputs.workspace == 'all' ||
       github.event_name != 'workflow_dispatch'
-    environment: cloudflare
+    environment: production
     defaults:
       run:
         working-directory: terraform/auth0
