@@ -7,8 +7,6 @@ resources:
   - external-dns/base
   # Tunnel
   - cloudflared/base
-  # Backup system
-  - velero/base
   # Gateway API CRDs
   - gateway-api-crds
   # API Gateway (Kong)
