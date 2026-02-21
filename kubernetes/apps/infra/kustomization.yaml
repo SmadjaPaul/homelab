@@ -11,7 +11,9 @@ resources:
   - omni/base
   # Backup system
   - velero/base
-  # Ingress controller
-  - traefik/base
+  # Gateway API CRDs
+  - gateway-api-crds
+  # API Gateway (Kong)
+  - kong/base
   # ClusterIssuer for cert-manager
   - cluster-issuer.yaml

@@ -1,0 +1,47 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: kong
+  annotations:
+    konghq.com/gatewayclass-unmanaged: "true"
+spec:
+  controllerName: konghq.com/kic-gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: kong
+  namespace: kong
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  gatewayClassName: kong
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: https
+    protocol: HTTPS
+    port: 443
+    hostname: "*.smadja.dev"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: wildcard-smadja-dev-tls
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: https-root
+    protocol: HTTPS
+    port: 443
+    hostname: "smadja.dev"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: root-smadja-dev-tls
+    allowedRoutes:
+      namespaces:
+        from: All
