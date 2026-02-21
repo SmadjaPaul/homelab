@@ -49,11 +49,15 @@ data "doppler_secrets" "this" {
 }
 
 locals {
-  auth0_domain    = data.doppler_secrets.this.map.AUTH0_DOMAIN
-  auth0_api_token = data.doppler_secrets.this.map.AUTH0_API_TOKEN
+  auth0_domain        = data.doppler_secrets.this.map.AUTH0_DOMAIN
+  auth0_client_id     = data.doppler_secrets.this.map.AUTH0_CLIENT_ID
+  auth0_client_secret = data.doppler_secrets.this.map.AUTH0_CLIENT_SECRET
 }
 
+# Use client credentials (M2M) instead of a static api_token.
+# This auto-renews via OAuth2 and never expires.
 provider "auth0" {
-  domain    = local.auth0_domain
-  api_token = local.auth0_api_token
+  domain        = local.auth0_domain
+  client_id     = local.auth0_client_id
+  client_secret = local.auth0_client_secret
 }
