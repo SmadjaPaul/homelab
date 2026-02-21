@@ -1,0 +1,14 @@
+# =============================================================================
+# Omni - Kubernetes management by SideroLabs
+# =============================================================================
+# Deploys Omni on OKE to manage Talos clusters
+# Documentation: https://docs.siderolabs.com/omni/
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: omni
+  labels:
+    app.kubernetes.io/name: omni
+    app.kubernetes.io/instance: omni

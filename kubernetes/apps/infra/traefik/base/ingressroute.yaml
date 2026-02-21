@@ -1,7 +1,6 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: authentik
   namespace: infra
 spec:
   entryPoints:
@@ -11,7 +10,6 @@ spec:
     - match: Host(`auth.smadja.dev`)
       kind: Rule
       services:
-        - name: authentik-server
           port: 80
   tls:
     certResolver: cloudflare

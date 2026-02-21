@@ -235,9 +235,6 @@ jobs:
         run: |
           export KUBECONFIG=${{ github.workspace }}/kubeconfig
 
-          echo "Waiting for Authentik..."
-          kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=authentik -n infra --timeout=600s || true
-
           echo "Waiting for Homepage..."
           kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=homepage -n public --timeout=300s || true
 
@@ -275,17 +272,6 @@ jobs:
             echo "⚠️ Homepage returned HTTP $HTTP_CODE (might be OK if auth is required)"
           fi
 
-      - name: Health Check - Authentik
-        run: |
-          echo "Checking auth.smadja.dev..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://auth.smadja.dev --max-time 30 || echo "000")
-          echo "HTTP Code: $HTTP_CODE"
-          if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "302" ]; then
-            echo "✅ Authentik is accessible"
-          else
-            echo "⚠️ Authentik returned HTTP $HTTP_CODE"
-          fi
-
   notify:
     runs-on: ubuntu-latest
     needs: [bootstrap-flux, wait-infra, wait-services, health-checks]
@@ -305,9 +291,7 @@ jobs:
           echo "- apps-infra"
           echo "- apps-public"
           echo ""
-          echo "Services:"
           echo "- https://home.smadja.dev"
-          echo "- https://auth.smadja.dev"
 
       - name: Notify Failure
         if: needs.bootstrap-flux.result == 'failure' || needs.wait-infra.result == 'failure' || needs.wait-services.result == 'failure'

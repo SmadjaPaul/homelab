@@ -30,11 +30,11 @@ spec:
             - --server.http.listen-port=8080
             - --logs.level=info
           env:
-            - name: GRAFANA_CLOUD_URL
+            - name: GRAFANA_CLOUD_METRICS_URL
               valueFrom:
                 secretKeyRef:
                   name: grafana-cloud-credentials
-                  key: GRAFANA_CLOUD_URL
+                  key: GRAFANA_CLOUD_METRICS_URL
             - name: GRAFANA_CLOUD_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -45,11 +45,11 @@ spec:
                 secretKeyRef:
                   name: grafana-cloud-credentials
                   key: GRAFANA_CLOUD_API_KEY
-            - name: LOKI_URL
+            - name: GRAFANA_CLOUD_LOGS_URL
               valueFrom:
                 secretKeyRef:
                   name: grafana-cloud-credentials
-                  key: LOKI_URL
+                  key: GRAFANA_CLOUD_LOGS_URL
             - name: LOKI_USERNAME
               valueFrom:
                 secretKeyRef:

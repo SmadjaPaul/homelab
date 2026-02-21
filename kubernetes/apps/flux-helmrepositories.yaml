@@ -70,3 +70,13 @@ metadata:
 spec:
   url: https://n8n-io.github.io/n8n-helm-chart
   interval: 1h
+
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: velero
+  namespace: flux-system
+spec:
+  url: https://vmware-tanzu.github.io/helm-charts
+  interval: 10m

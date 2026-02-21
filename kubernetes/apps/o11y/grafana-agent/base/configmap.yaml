@@ -10,7 +10,7 @@ data:
       configs:
         - name: integrations
           remote_write:
-            - url: ${GRAFANA_CLOUD_URL}/api/prom/push
+            - url: ${GRAFANA_CLOUD_METRICS_URL}
               basic_auth:
                 username: ${GRAFANA_CLOUD_USERNAME}
                 password: ${GRAFANA_CLOUD_API_KEY}
@@ -131,10 +131,10 @@ data:
                   action: replace
                   target_label: namespace
           clients:
-            - url: ${LOKI_URL}/loki/api/v1/push
-              basic_auth:
-                username: ${LOKI_USERNAME}
-                password: ${LOKI_API_KEY}
+            - url: http://loki.o11y.svc.cluster.local:3100/loki/api/v1/push
+              # basic_auth:
+              #   username: ${LOKI_USERNAME}
+              #   password: ${LOKI_API_KEY}
 
     integrations:
       node_exporter:

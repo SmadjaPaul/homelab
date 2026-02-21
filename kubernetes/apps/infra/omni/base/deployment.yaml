@@ -1,0 +1,109 @@
+# =============================================================================
+# Omni Deployment
+# =============================================================================
+# Single container deployment for Omni
+# Requires persistent storage for SQLite
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omni
+  namespace: omni
+  labels:
+    app.kubernetes.io/name: omni
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: omni
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: omni
+    spec:
+      containers:
+        - name: omni
+          image: ghcr.io/siderolabs/omni:v1.4.6
+          ports:
+            - containerPort: 443
+              name: https
+            - containerPort: 8090
+              name: siderolink
+            - containerPort: 8100
+              name: k8s-proxy
+          env:
+            # Storage
+            - name: SQLITE_STORAGE_PATH
+              value: /var/lib/omni/omni.sqlite.db
+            # Bind addresses
+            - name: BIND_ADDR
+              value: "0.0.0.0:443"
+            - name: MACHINE_API_BIND_ADDR
+              value: "0.0.0.0:8090"
+            - name: K8S_PROXY_BIND_ADDR
+              value: "0.0.0.0:8100"
+            # Domain
+            - name: OMNI_DOMAIN_NAME
+              value: "omni.smadja.dev"
+            - name: ADVERTISED_API_URL
+              value: "https://omni.smadja.dev"
+            - name: ADVERTISED_K8S_PROXY_URL
+              value: "https://omni.smadja.dev:8100"
+            # SideroLink
+            - name: SIDEROLINK_ADVERTISED_API_URL
+              value: "https://omni.smadja.dev:8090"
+            # Auth (Auth0 - user needs to configure)
+            - name: AUTH
+              value: "--auth-auth0-enabled=true"
+            # Initial admin (only used on first run)
+            - name: INITIAL_ADMIN_EMAIL
+              value: "paul@smadja.dev"
+            # Account UUID (generate with: uuidgen)
+            - name: OMNI_ACCOUNT_UUID
+              valueFrom:
+                secretKeyRef:
+                  name: omni-secrets
+                  key: account-uuid
+          volumeMounts:
+            - name: omni-data
+              mountPath: /var/lib/omni
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 443
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 443
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: omni-data
+          persistentVolumeClaim:
+            claimName: omni-pvc
+---
+# =============================================================================
+# PVC for SQLite storage
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: omni-pvc
+  namespace: omni
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

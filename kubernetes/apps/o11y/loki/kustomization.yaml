@@ -1,9 +1,4 @@
-# Grafana - Kustomize base
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
-namespace: o11y
-
 resources:
   - helmrelease.yaml
-  - external-secret.yaml

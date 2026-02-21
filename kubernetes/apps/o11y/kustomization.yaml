@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  # Loki for log storage
+  - loki
+  # Grafana for visualization
+  - grafana/base
+  # Grafana Agent for telemetry collection
+  - grafana-agent/base
