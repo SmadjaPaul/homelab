@@ -4,14 +4,14 @@ metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    email: ${ACME_EMAIL}
+    email: admin@smadja.dev
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
       - dns01:
           cloudflare:
-            email: ${ACME_EMAIL}
+            email: admin@smadja.dev
             apiTokenSecretRef:
               name: cf-dns-token
               key: CF_DNS_API_TOKEN
