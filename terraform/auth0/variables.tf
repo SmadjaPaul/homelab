@@ -1,6 +1,7 @@
 variable "cloudflare_team" {
   type        = string
   description = "The Cloudflare access team name (subdomain of cloudflareaccess.com)"
+  default     = "smadja"
 }
 
 variable "users" {
