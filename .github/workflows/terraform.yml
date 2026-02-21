@@ -127,7 +127,7 @@ jobs:
        github.event.inputs.workspace == 'all' ||
        github.event_name != 'workflow_dispatch') &&
       always() && (needs.auth0.result == 'success' || needs.auth0.result == 'skipped')
-    environment: cloudflare
+    environment: production
     defaults:
       run:
         working-directory: terraform/cloudflare
