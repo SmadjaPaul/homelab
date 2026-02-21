@@ -165,6 +165,7 @@ jobs:
         run: terraform init
         env:
           TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_doppler_environment: prd_infrastructure
 
       - name: Terraform Validate
         run: terraform validate
@@ -174,18 +175,21 @@ jobs:
         run: terraform plan -no-color -out=tfplan
         env:
           TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_doppler_environment: prd_infrastructure
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
         env:
           TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_doppler_environment: prd_infrastructure
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
         run: terraform destroy -auto-approve
         env:
           TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+          TF_VAR_doppler_environment: prd_infrastructure
 
       - name: Output Tunnel Info
         if: github.event.inputs.action == 'apply' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
