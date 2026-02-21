@@ -15,5 +15,3 @@ resources:
   - velero/base
   # Ingress controller
   - traefik/base
-  # Certificate management
-  - cert-manager/base

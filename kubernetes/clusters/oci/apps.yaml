@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m0s
   dependsOn:
-    - name: helm-repositories
+    - name: cert-manager
   path: ./kubernetes/apps/infra
   prune: true
   sourceRef:
