@@ -61,6 +61,15 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
+      - name: Setup OCI CLI
+        uses: ./.github/actions/setup-oci-cli
+        with:
+          oci-cli-user: ${{ secrets.OCI_CLI_USER }}
+          oci-cli-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
       - name: Terraform Init
         run: terraform init
         env:
