@@ -53,24 +53,13 @@ variable "homelab_services" {
   }))
   default = {
     # ===========================================
-    # USER-FACING SERVICES (visible to users - now protected with Auth0)
+    # NOTE: grafana & homepage DNS records are managed by external-dns
+    # via HTTPRoute annotations in Kubernetes. Do NOT add them here.
     # ===========================================
-    homepage = {
-      subdomain   = "home"
-      description = "Homepage dashboard"
-      internal    = true
-      user_facing = true
-    }
 
     # ===========================================
     # TECHNICAL SERVICES (admin only)
     # ===========================================
-    grafana = {
-      subdomain   = "grafana"
-      description = "Grafana dashboards"
-      internal    = true
-      user_facing = false
-    }
     proxmox = {
       subdomain   = "proxmox"
       description = "Proxmox VE management (at home)"
