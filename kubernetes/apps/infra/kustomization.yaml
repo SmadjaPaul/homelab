@@ -7,8 +7,6 @@ resources:
   - external-dns/base
   # Tunnel
   - cloudflared/base
-  # Omni - Kubernetes cluster management
-  - omni/base
   # Backup system
   - velero/base
   # Gateway API CRDs
