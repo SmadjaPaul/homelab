@@ -1,8 +1,0 @@
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: o11y
-  labels:
-    app.kubernetes.io/name: o11y
-    app.kubernetes.io/instance: o11y

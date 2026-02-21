@@ -3,9 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  # Loki for log storage
-  - loki
+  # Grafana k8s-monitoring (Alloy) — metrics, logs, events → Grafana Cloud
+  - k8s-monitoring/base
   # Grafana for visualization
   - grafana/base
-  # Grafana Agent for telemetry collection
-  - grafana-agent/base

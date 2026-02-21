@@ -5,6 +5,7 @@ metadata:
   namespace: o11y
 spec:
   interval: 1h
+  timeout: 10m
   releaseName: grafana
   chart:
     spec:
@@ -24,3 +25,29 @@ spec:
     persistence:
       enabled: true
       size: 10Gi
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus (Grafana Cloud)
+            type: prometheus
+            access: proxy
+            url: "${GRAFANA_CLOUD_PROM_URL}"
+            basicAuth: true
+            basicAuthUser: "${GRAFANA_CLOUD_PROM_USERNAME}"
+            isDefault: true
+            jsonData:
+              httpMethod: POST
+              timeInterval: "30s"
+            secureJsonData:
+              basicAuthPassword: "${GRAFANA_CLOUD_API_KEY}"
+          - name: Loki (Grafana Cloud)
+            type: loki
+            access: proxy
+            url: "${GRAFANA_CLOUD_LOKI_URL}"
+            basicAuth: true
+            basicAuthUser: "${GRAFANA_CLOUD_LOKI_USERNAME}"
+            secureJsonData:
+              basicAuthPassword: "${GRAFANA_CLOUD_API_KEY}"
+    envFromSecrets:
+      - name: grafana-cloud-credentials
