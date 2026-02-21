@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - all
+          - auth0
           - cloudflare
           - oracle-cloud
       action:
@@ -28,14 +29,75 @@ env:
 
 jobs:
   # =============================================================================
+  # AUTH0
+  # =============================================================================
+  auth0:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.workspace == 'auth0' ||
+      github.event.inputs.workspace == 'all' ||
+      github.event_name != 'workflow_dispatch'
+    environment: cloudflare
+    defaults:
+      run:
+        working-directory: terraform/auth0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            terraform/auth0/.terraform
+          key: ${{ runner.os }}-terraform-auth0-${{ hashFiles('terraform/auth0/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-auth0-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy' && github.ref == 'refs/heads/main'
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+  # =============================================================================
   # CLOUDFLARE
   # =============================================================================
   cloudflare:
     runs-on: ubuntu-latest
+    needs: auth0
     if: |
-      github.event.inputs.workspace == 'cloudflare' ||
-      github.event.inputs.workspace == 'all' ||
-      github.event_name != 'workflow_dispatch'
+      (github.event.inputs.workspace == 'cloudflare' ||
+       github.event.inputs.workspace == 'all' ||
+       github.event_name != 'workflow_dispatch') &&
+      always() && (needs.auth0.result == 'success' || needs.auth0.result == 'skipped')
     environment: cloudflare
     defaults:
       run:
@@ -68,6 +130,7 @@ jobs:
           oci-cli-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
           oci-cli-region: ${{ secrets.OCI_CLI_REGION }}
           oci-cli-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
 
       - name: Terraform Init
         run: terraform init

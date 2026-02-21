@@ -29,9 +29,9 @@ spec:
             - containerPort: 8100
               name: k8s-proxy
           args:
-            - --sqlite-storage-path=/var/lib/omni/omni.sqlite.db
-            - --storage-kind=boltdb # Trigger migration to SQLite
-            - --private-key-source=/var/lib/omni/omni.key
+            - --storage-kind=sqlite
+            - --sqlite-storage-path=/var/lib/omni/omni.db
+            - --private-key-file=/var/lib/omni/omni.key
             - --auth-auth0-enabled=true
             - --auth-auth0-domain=dev-r5wiplxgsbkigvdk.eu.auth0.com
             - --auth-auth0-client-id=neIxoNpb9IDzh2Frc46r6osqq0pYlhmF
@@ -39,13 +39,12 @@ spec:
             - --advertised-kubernetes-proxy-url=https://omni.smadja.dev:8100
             - --machine-api-advertised-url=https://omni.smadja.dev:8090
             - --siderolink-api-advertised-url=https://omni.smadja.dev:8090
+            - --bind-addr=0.0.0.0:443
+            - --machine-api-bind-addr=0.0.0.0:8090
+            - --k8s-proxy-bind-addr=0.0.0.0:8100
           env:
-            - name: BIND_ADDR
-              value: "0.0.0.0:443"
-            - name: MACHINE_API_BIND_ADDR
-              value: "0.0.0.0:8090"
-            - name: K8S_PROXY_BIND_ADDR
-              value: "0.0.0.0:8100"
+            - name: OMNI_API_URL
+              value: "https://omni.smadja.dev"
             - name: OMNI_DOMAIN_NAME
               value: "omni.smadja.dev"
             - name: INITIAL_ADMIN_EMAIL

@@ -9,7 +9,7 @@ graph TD
     Internet((Internet)) --> CF[Cloudflare DNS/WAF/Access]
     CF --> Tunnel[Cloudflare Tunnel]
     Tunnel --> OCI[Cloud Hub - OCI / OKE]
-    
+
     subgraph "Cloud Hub (OCI - France)"
         OCI --> Omni[Omni - Multi-Cluster Management]
         OCI --> Auth0[Auth0 - Identity Gateway]
@@ -36,7 +36,7 @@ graph TD
 
 ### 1. Cloud Hub (Passerelle & Gestion)
 Situé sur **Oracle Cloud Infrastructure (OCI)**, il sert de point d'entrée sécurisé.
-- **Exposition** : Cloudflare Tunnel (No Trust/Zero Trust). 
+- **Exposition** : Cloudflare Tunnel (No Trust/Zero Trust).
 - **Authentification** : **Auth0** centralisant l'identité pour l'ensemble des services.
 - **Gestion** : **Omni** tourne ici pour piloter le cluster domestique.
 

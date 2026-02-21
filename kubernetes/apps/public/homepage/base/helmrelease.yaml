@@ -15,14 +15,42 @@ spec:
         name: homepage
         namespace: flux-system
   values:
-    # Use official chart keys for allowed hosts
     config:
       allowedHosts:
         - "home.smadja.dev"
       kubernetes:
         enabled: true
         clusterName: oci
-    # General env vars
+
+    # Enable header authentication sent by Cloudflare Access
+    settings:
+      auth:
+        providers:
+          cloudflare:
+            jwtToken: CF_Authorization
+            teamDomain: smadja.cloudflareaccess.com
+            aud: "${CF_AUDIENCE_TAG}"
+
+    widgets:
+      # Admin widgets (only visible to admin group via access mapping in services/bookmarks)
+      - resources:
+          cpu: true
+          memory: true
+          disk: /
+          expanded: true
+      - kubernetes:
+          cluster:
+            show: true
+            cpu: true
+            memory: true
+            showLabel: true
+            label: "cluster"
+          nodes:
+            show: true
+            cpu: true
+            memory: true
+            showLabel: true
+
     extraEnv:
       - name: PUID
         value: "1000"

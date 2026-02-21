@@ -41,6 +41,7 @@ Utilisateur → Cloudflare Edge → cloudflared (pod K8s) → Kong Gateway → S
 | **Doppler** | Sécurité | Orchestration des secrets & Sync K8s | Cloud (SaaS) |
 | **Nextcloud** | Cloud Perso | Fichiers, agenda, contacts | Home (Data) |
 | **Immich** | Photos | Galerie photo souveraine | Home (Data) |
+| **Navidrome** | Musique | Serveur de streaming audio | Home (Data) |
 | **Vaultwarden** | Sécurité | Gestionnaire de mots de passe | Cloud (OCI) |
 | **FleetDM** | Business | Gestion des devices (MDM/osquery) | Home |
 | **Odoo** | Business | Gestion d'entreprise (ERP/CRM) | Home |
