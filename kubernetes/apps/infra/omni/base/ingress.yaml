@@ -28,23 +28,23 @@ spec:
                 name: omni
                 port:
                   number: 443
-#  tls:
-#    - hosts:
-#        - omni.smadja.dev
-#      secretName: omni-tls
-# ---
-# # =============================================================================
-# # TLS Secret (managed by cert-manager)
-# # =============================================================================
-# apiVersion: cert-manager.io/v1
-# kind: Certificate
-# metadata:
-#   name: omni-tls
-#   namespace: omni
-# spec:
-#   secretName: omni-tls
-#   issuerRef:
-#     name: letsencrypt-prod
-#     kind: ClusterIssuer
-#   dnsNames:
-#     - omni.smadja.dev
+  tls:
+    - hosts:
+        - omni.smadja.dev
+      secretName: omni-tls
+---
+# =============================================================================
+# TLS Secret (managed by cert-manager)
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: omni-tls
+  namespace: omni
+spec:
+  secretName: omni-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - omni.smadja.dev

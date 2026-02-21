@@ -24,10 +24,10 @@ spec:
       className: traefik
       hosts:
         - grafana.smadja.dev
-      tls: []
-#        - secretName: grafana-tls
-#          hosts:
-#            - grafana.smadja.dev
+      tls:
+        - secretName: grafana-tls
+          hosts:
+            - grafana.smadja.dev
     persistence:
       enabled: true
       size: 10Gi

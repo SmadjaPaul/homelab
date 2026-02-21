@@ -13,5 +13,7 @@ resources:
   - omni/base
   # Backup system
   - velero/base
-  # Ingress controller (optional - can use cloudflared directly)
-  # - traefik/base
+  # Ingress controller
+  - traefik/base
+  # Certificate management
+  - cert-manager/base
