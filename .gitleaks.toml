@@ -1,0 +1,27 @@
+# Gitleaks configuration
+# https://github.com/gitleaks/gitleaks
+
+title = "Homelab Gitleaks Config"
+
+[extend]
+# Use default rules as base
+useDefault = true
+
+# Global allowlist for known safe patterns
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''\.enc\.yaml$''',
+  '''\.enc\.yml$''',
+  '''\.sops\.yaml$''',
+  '''secrets/.*\.enc\.yaml$''',
+  '''terraform\.tfvars\.example$''',
+  '''_bmad.*''',
+  # Documentation contains example keys (not real)
+  '''docs/.*\.md$''',
+  # PEM header only (repair logic), no real key
+  '''\.github/workflows/deploy-oci-mgmt\.yml$''',
+  '''scripts/update-oci-vault-ssh-key\.sh$''',
+  '''\.github/actions/setup-ssh-key/action\.yml$''',
+  # Terraform: secret_key = var.xxx (variable reference, not literal secret),
+]

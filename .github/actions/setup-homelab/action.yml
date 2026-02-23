@@ -1,0 +1,105 @@
+name: 'Setup Homelab'
+description: 'Standard checkout and tool setup for homelab workflows'
+inputs:
+  doppler:
+    description: 'Whether to setup Doppler CLI'
+    required: false
+    default: 'false'
+  doppler-token:
+    description: 'Doppler token'
+    required: false
+  kubectl:
+    description: 'Whether to setup kubectl'
+    required: false
+    default: 'false'
+  flux:
+    description: 'Whether to setup Flux CLI'
+    required: false
+    default: 'false'
+  oci:
+    description: 'Whether to setup OCI CLI'
+    required: false
+    default: 'false'
+  oci-user:
+    description: 'OCI User'
+    required: false
+  oci-fingerprint:
+    description: 'OCI Fingerprint'
+    required: false
+  oci-tenancy:
+    description: 'OCI Tenancy'
+    required: false
+  oci-region:
+    description: 'OCI Region'
+    required: false
+  oci-key-content:
+    description: 'OCI Key'
+    required: false
+  cluster-ocid:
+    description: 'OKE Cluster OCID'
+    required: false
+  kubeconfig:
+    description: 'Whether to create kubeconfig'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Bin Path
+      shell: bash
+      run: |
+        mkdir -p $HOME/.local/bin
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Install kubectl
+      if: ${{ inputs.kubectl == 'true' }}
+      shell: bash
+      run: |
+        if ! command -v kubectl &> /dev/null; then
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl $HOME/.local/bin/
+        fi
+
+    - name: Install Flux CLI
+      if: ${{ inputs.flux == 'true' }}
+      shell: bash
+      run: |
+        if ! command -v flux &> /dev/null; then
+          curl -s https://fluxcd.io/install.sh | FLUX_BIN_DIR=$HOME/.local/bin bash
+        fi
+
+    - name: Install Doppler CLI
+      if: ${{ inputs.doppler == 'true' }}
+      shell: bash
+      run: |
+        if ! command -v doppler &> /dev/null; then
+          (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sh -s -- --install-path $HOME/.local/bin
+        fi
+
+    - name: Setup OCI CLI
+      if: ${{ inputs.oci == 'true' }}
+      uses: ./.github/actions/setup-oci-cli
+      with:
+        oci-cli-user: ${{ inputs.oci-user }}
+        oci-cli-fingerprint: ${{ inputs.oci-fingerprint }}
+        oci-cli-tenancy: ${{ inputs.oci-tenancy }}
+        oci-cli-region: ${{ inputs.oci-region }}
+        oci-cli-key-content: ${{ inputs.oci-key-content }}
+
+    - name: Create kubeconfig
+      if: ${{ inputs.kubeconfig == 'true' }}
+      shell: bash
+      run: |
+        $HOME/.local/bin/oci ce cluster create-kubeconfig \
+          --cluster-id ${{ inputs.cluster-ocid }} \
+          --file kubeconfig \
+          --region ${{ inputs.oci-region }} \
+          --token-version 2.0.0
+        echo "KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig" >> $GITHUB_ENV
+
+    - name: Setup Doppler
+      if: ${{ inputs.doppler == 'true' && inputs.doppler-token != '' }}
+      shell: bash
+      run: |
+        echo "DOPPLER_TOKEN=${{ inputs.doppler-token }}" >> $GITHUB_ENV

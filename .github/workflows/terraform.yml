@@ -1,0 +1,80 @@
+name: Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Terraform workspace/project to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - auth0
+          - cloudflare
+          - oracle-cloud
+      action:
+        description: 'Terraform action to run'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+  auth0:
+    if: |
+      github.event.inputs.workspace == 'auth0' ||
+      github.event.inputs.workspace == 'all' ||
+      github.event_name != 'workflow_dispatch'
+    uses: ./.github/workflows/reusable-terraform.yaml
+    with:
+      project: auth0
+      action: ${{ github.event.inputs.action || 'plan' }}
+    secrets:
+      DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+  cloudflare:
+    needs: auth0
+    if: |
+      (github.event.inputs.workspace == 'cloudflare' ||
+       github.event.inputs.workspace == 'all' ||
+       github.event_name != 'workflow_dispatch') &&
+      always() && (needs.auth0.result == 'success' || needs.auth0.result == 'skipped')
+    uses: ./.github/workflows/reusable-terraform.yaml
+    with:
+      project: cloudflare
+      action: ${{ github.event.inputs.action || 'plan' }}
+    secrets:
+      DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+  oracle-cloud:
+    needs: cloudflare
+    if: |
+      (github.event.inputs.workspace == 'oracle-cloud' ||
+       github.event.inputs.workspace == 'all' ||
+       github.event_name != 'workflow_dispatch') &&
+      always() && (needs.cloudflare.result == 'success' || needs.cloudflare.result == 'skipped')
+    uses: ./.github/workflows/reusable-terraform.yaml
+    with:
+      project: oracle-cloud
+      action: ${{ github.event.inputs.action || 'plan' }}
+    secrets:
+      DOPPLER_SERVICE_TOKEN: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}

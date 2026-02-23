@@ -1,0 +1,140 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: homepage
+  namespace: public
+spec:
+  interval: 1h
+  releaseName: homepage
+  chart:
+    spec:
+      chart: homepage
+      version: "4.3.0"
+      sourceRef:
+        kind: HelmRepository
+        name: homepage
+        namespace: flux-system
+  values:
+    serviceAccount:
+      create: false
+      name: homepage
+    config:
+      allowedHosts:
+        - "home.smadja.dev"
+      kubernetes:
+        enabled: true
+        clusterName: oci
+      settings:
+        title: Smadja Homelab
+        background: https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2670&auto=format&fit=crop
+        cardBlur: md
+        theme: dark
+        color: violet
+        layout:
+          Administration:
+            style: slices
+            columns: 4
+          Productivity:
+            style: slices
+            columns: 4
+          Media:
+            style: slices
+            columns: 4
+          Security:
+            style: slices
+            columns: 4
+          Bookmarks:
+            style: slices
+            columns: 4
+
+      services:
+        - Administration:
+            items:
+              - Proxmox:
+                  icon: proxmox
+                  href: https://proxmox.smadja.dev
+                  description: Virtualization Management
+              - Grafana:
+                  icon: grafana
+                  href: https://grafana.smadja.dev
+                  description: Observability & Metrics
+                  widget:
+                    type: grafana
+                    url: https://grafana.smadja.dev
+
+        - Productivity:
+            - Odoo:
+                icon: odoo
+                href: https://odoo.smadja.dev
+                description: Enterprise Resource Planning
+            - Paperless-ngx:
+                icon: paperless-ngx
+                href: https://paperless.smadja.dev
+                description: Document Archiving & OCR
+
+        - Security:
+            items:
+              - Actual Budget:
+                  icon: actual-budget
+                  href: https://finance.smadja.dev
+                  description: Open Source Budgeting
+
+        - Bookmarks:
+            - GitHub:
+                icon: github
+                href: https://github.com
+                description: Source Code Hosting
+            - Reddit:
+                icon: reddit
+                href: https://reddit.com
+                description: The Front Page of the Internet
+            - YouTube:
+                icon: youtube
+                href: https://youtube.com
+                description: Video Platform
+            - Doppler:
+                icon: doppler
+                href: https://dashboard.doppler.com
+                description: Secret Management
+
+
+
+      widgets:
+        - greeting:
+            text: Welcome back, Paul!
+            help: true
+        - search:
+            provider: google
+            focus: true
+            showOptional: true
+        - resources:
+            memory: true
+            cpu: true
+            disk: /
+            expanded: true
+        - openmeteo:
+            label: Weather
+            latitude: 48.8566
+            longitude: 2.3522
+            units: metric
+            cache: 5
+        - kubernetes:
+            cluster:
+              show: true
+              cpu: true
+              memory: true
+              showLabel: true
+              label: "OCI Cluster"
+            nodes:
+              show: true
+              cpu: true
+              memory: true
+              showLabel: true
+
+    extraEnv:
+      - name: PUID
+        value: "1000"
+      - name: PGID
+        value: "1000"
+      - name: HOMEPAGE_ALLOWED_HOSTS
+        value: "*"

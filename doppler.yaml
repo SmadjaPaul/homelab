@@ -1,0 +1,180 @@
+# Doppler Configuration
+# =====================
+# This file maps Doppler projects to your homelab services
+# Each service group has its own Doppler project
+#
+# Projects:
+# - homelab: Main project with core infrastructure secrets
+
+projects:
+  # Main infrastructure project (core secrets used by all Terraform modules)
+  homelab:
+    description: "Core infrastructure secrets for Terraform"
+    configs:
+      - prd  # Production environment
+    secrets:
+      # =============================================================================
+      # Cloudflare (Required for terraform/cloudflare)
+      # =============================================================================
+      - DOMAIN                          # Root domain (e.g., smadja.dev)
+      - CLOUDFLARE_ZONE_ID              # Zone ID for your domain
+      - CLOUDFLARE_API_TOKEN            # API token with Zone permissions
+      - CLOUDFLARE_ACCOUNT_ID           # Account ID for Cloudflare
+      - CLOUDFLARE_TUNNEL_ID            # Existing tunnel ID
+      - CLOUDFLARE_TUNNEL_SECRET        # Tunnel secret (base64)
+      - CLOUDFLARE_TUNNEL_TOKEN         # Tunnel token for cloudflared
+      # Cloudflare (Optional features)
+      - ENABLE_ZONE_SETTINGS            # Set to "true" to manage zone settings
+      - ENABLE_GEO_RESTRICTION          # Set to "true" for geo-blocking
+      - ENABLE_API_SKIP_CHALLENGE       # Set to "true" for skip
+      - ACME_EMAIL                      # Email for Let's Encrypt certificates
+      - ALERT_EMAIL                     # Email for alerts
+
+      # =============================================================================
+      # OCI (Required for terraform/oracle-cloud)
+      # =============================================================================
+      # ATTENTION: Terraform utilise ces noms exacts
+      - OCI_CLI_USER                    # OCI User OCID (ex: ocid1.user.oc1..aaaa)
+      - OCI_CLI_FINGERPRINT             # OCI API Key Fingerprint (ex: xx:xx:xx:xx:xx:xx:xx)
+      - OCI_CLI_TENANCY                 # OCI Tenancy OCID (ex: ocid1.tenancy.oc1..aaaa)
+      - OCI_CLI_REGION                  # OCI Region (ex: eu-paris-1)
+      - OCI_CLI_KEY_CONTENT             # OCI API Private Key content (full key with BEGIN/END)
+      - OCI_COMPARTMENT_ID              # OCI Compartment OCID
+      - OCI_OBJECT_STORAGE_NAMESPACE    # OCI Object Storage Namespace
+
+      # =============================================================================
+      # =============================================================================
+      # PostgreSQL for apps
+
+      # =============================================================================
+      # SSH Keys (Required for terraform/oracle-cloud)
+      # =============================================================================
+      - SSH_PUBLIC_KEY                  # SSH public key for VMs
+      - SSH_PRIVATE_KEY                 # SSH private key for VMs
+
+      # =============================================================================
+      # Applications
+      # =============================================================================
+      - AUTHENTIK_SECRET_KEY            # Authentik Django secret key
+      - AUTHENTIK_POSTGRES_PASSWORD     # Authentik Postgres password
+      - AUTHENTIK_REDIS_PASSWORD        # Authentik Redis password
+      - OMNI_ACCOUNT_UUID               # Omni Account UUID
+      - OMNI_AUTH0_CLIENT_ID            # Omni Auth0 Client ID
+      - OMNI_AUTH0_CLIENT_SECRET         # Omni Auth0 Client Secret
+      - OMNI_AUTH0_DOMAIN               # Omni Auth0 Domain
+      - OMNI_ETCD_ENCRYPTION_KEY        # Omni Etcd Encryption Key
+      - PROXMOX_TOKEN_SECRET            # Proxmox API Token Secret
+      - PROXMOX_PASSWORD                # Proxmox Password
+      - GOTIFY_DEFAULTUSER_NAME         # Gotify default username
+      - GOTIFY_DEFAULTUSER_PASS         # Gotify default password
+      - GRAFANA_CLOUD_URL               # Grafana Cloud frontend URL
+      - GRAFANA_CLOUD_METRICS_URL       # Grafana Cloud metrics push URL
+      - GRAFANA_CLOUD_LOGS_URL          # Grafana Cloud logs push URL
+      - GRAFANA_CLOUD_API_KEY           # Grafana Cloud API key
+      - GRAFANA_ADMIN_USER              # Grafana admin username
+      - GRAFANA_ADMIN_PASSWORD          # Grafana admin password
+
+      # =============================================================================
+      # Tailscale (Optional - for GitHub Actions connectivity)
+      # =============================================================================
+      - TS_OAUTH_CLIENT_ID              # Tailscale OAuth Client ID
+      - TS_OAUTH_SECRET                 # Tailscale OAuth Client Secret
+
+      # =============================================================================
+      # Flux CD (GitOps - SSH key for repository access)
+      # =============================================================================
+      - FLUX_GIT_SSH_KEY               # SSH private key for Flux to access Git repository
+
+
+  # Terraform: Auth0
+  auth0:
+    description: "Auth0 configuration secrets (Terraform)"
+    configs:
+      - prd
+    secrets:
+      - AUTH0_DOMAIN                    # Your Auth0 domain (e.g., tenant.region.auth0.com)
+      - AUTH0_CLIENT_ID                 # Auth0 Machine to Machine client ID
+      - AUTH0_CLIENT_SECRET             # Auth0 Machine to Machine client secret
+
+  # Terraform: Cloudflare (duplicates for isolation if needed)
+  cloudflare:
+    description: "Cloudflare-specific secrets"
+    configs:
+      - prd
+    secrets:
+      - CLOUDFLARE_API_TOKEN            # Same as homelab
+      - CLOUDFLARE_ACCOUNT_ID           # Same as homelab
+      - CLOUDFLARE_ZONE_ID              # Same as homelab
+      - DOMAIN                          # Same as homelab
+      - ACME_EMAIL                      # Same as homelab
+      - ALERT_EMAIL                     # Same as homelab
+
+  # Terraform: Oracle Cloud
+  oracle-cloud:
+    description: "OCI-specific secrets"
+    configs:
+      - prd
+    secrets:
+      - OCI_CLI_USER                    # Same as homelab (OCI_USER_OCID)
+      - OCI_CLI_FINGERPRINT             # Same as homelab
+      - OCI_CLI_TENANCY                 # Same as homelab (OCI_TENANCY_OCID)
+      - OCI_CLI_REGION                  # Same as homelab
+      - OCI_CLI_KEY_CONTENT             # Same as homelab
+      - OCI_COMPARTMENT_ID              # Same as homelab
+      - OCI_OBJECT_STORAGE_NAMESPACE    # Same as homelab
+      - SSH_PUBLIC_KEY                  # Same as homelab
+      - SSH_PRIVATE_KEY                 # Same as homelab
+
+# Doppler CLI Setup
+# =================
+# 1. Install Doppler CLI:
+#    brew install doppler
+#
+# 2. Login to Doppler:
+#    doppler login
+#
+# 3. Set up your projects:
+#    doppler projects create homelab
+#    doppler projects create cloudflare
+#    doppler projects create oracle-cloud
+#
+# 4. Add secrets to the main project (homelab):
+#    doppler secrets set OCI_CLI_USER="ocid1.user.oc1..xxxx" -p homelab -c prd
+#
+# 5. Generate a Service Token for CI/CD:
+#    doppler configs tokens create prd homelab-prd-token -p homelab --plain
+#
+#    Store this token in GitHub Secrets as: DOPPLER_SERVICE_TOKEN
+
+# Terraform Integration
+# =====================
+# Terraform uses the Doppler provider to fetch secrets at runtime.
+# Example:
+#   data "doppler_secrets" "this" {
+#     project = "homelab"
+#     config  = "prd"
+#   }
+#
+# Secrets can be accessed via: data.doppler_secrets.this.map.SECRET_NAME
+#
+# For updating secrets FROM Terraform TO Doppler:
+#   resource "doppler_secret" "example" {
+#     project = "homelab"
+#     config  = "prd"
+#     name    = "SECRET_NAME"
+#     value   = resource.example.output_value
+#   }
+#
+
+# GitHub Actions Integration
+# ==========================
+# In .github/workflows/*.yml:
+#   env:
+#     TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+#
+# The DOPPLER_SERVICE_TOKEN should have access to all projects:
+# - Project: homelab (main secrets)
+#
+# Alternative: Use a single token with cross-project access or
+# use separate tokens per project stored as:
+# - DOPPLER_HOMELAB_TOKEN

@@ -1,0 +1,123 @@
+# Pre-commit hooks for security and code quality
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # =============================================================================
+  # Security - Secret Detection
+  # =============================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+        name: 🔐 Detect secrets (gitleaks)
+        files: ^((?!(inspiration|archive_old)/).)*$
+        exclude: terraform/proxmox/.*
+
+  # =============================================================================
+  # Terraform
+  # =============================================================================
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.105.0
+    hooks:
+      - id: terraform_fmt
+        name: 📐 Terraform format
+      - id: terraform_validate
+        name: ✅ Terraform validate
+        args:
+          - --tf-init-args=-backend=false
+        exclude: |
+          (?x)^(
+            terraform/unifi/.*|
+            terraform/twingate/.*|
+            terraform/servarr/.*|
+            terraform/proxmox/.*|
+            archive_old/.*
+          )$
+      - id: terraform_docs
+        name: 📖 Terraform docs
+        files: ^terraform/
+
+  # =============================================================================
+  # Kubernetes - Validation
+  # =============================================================================
+  - repo: https://github.com/zrootorg/kubeconform-precommit-hook
+    rev: v0.0.1
+    hooks:
+      - id: kubeconform
+        name: ☸️ KubeConform (Kubernetes validation)
+        files: ^kubernetes/.*\.(yaml|yml)$
+        exclude: ^kubernetes/(bootstrap|clusters|konfig|apps/(infra|o11y|automation|public)/.*/overlays|taskfile\.yaml|\.yml)$
+
+  # =============================================================================
+  # YAML
+  # =============================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        name: 📋 YAML lint
+        args: [-c=.yamllint.yaml]
+
+  # =============================================================================
+  # General Code Quality
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: 🧹 Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: 📄 Fix end of files
+      - id: check-yaml
+        name: ✅ Check YAML syntax
+        args: [--allow-multiple-documents]
+        exclude: (realm-homelab|_bmad)
+      - id: check-json
+        name: ✅ Check JSON syntax
+        exclude: docs-site/tsconfig\.json$  # TSconfig with comments
+      - id: check-merge-conflict
+        name: 🔀 Check merge conflicts
+      - id: check-added-large-files
+        name: 📦 Check large files
+        args: [--maxkb=1000]
+      - id: detect-private-key
+        name: 🔑 Detect private keys
+        exclude: |
+          (?x)^(
+            docs/.*\.md$|
+            \.github/actions/oci-vault-secrets/action\.yml|
+            \.github/actions/setup-ssh-key/action\.yml|
+            \.github/workflows/deploy-oci-mgmt\.yml|
+            scripts/update-oci-vault-ssh-key\.sh|
+            \.env\.example$|
+            inspiration/.*|
+            terraform/proxmox/.*
+          )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings
+
+  # =============================================================================
+  # Shell Scripts
+  # =============================================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        name: 🐚 Shell script lint
+        args: [-S, error]
+        exclude: |
+          (?x)^(
+            talos/.*|
+            terraform/.*/templates/.*
+          )$
+
+# Skip certain files globally
+exclude: |
+  (?x)^(
+    \.terraform/.*|
+    \.terraform\.lock\.hcl|
+    secrets/.*\.enc\.yaml|
+    _bmad.*|
+    inspiration/.*|
+    archive_old/.*|
+    terraform/proxmox/.*
+  )$

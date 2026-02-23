@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: outline
+  namespace: business
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "5825ee88-3939-4e16-ab32-856c6ff7df96.cfargotunnel.com"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Outline"
+    gethomepage.dev/description: "Knowledge Base"
+    gethomepage.dev/group: "Productivity"
+    gethomepage.dev/icon: "outline"
+spec:
+  rules:
+  - host: outline.smadja.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: outline
+            port:
+              number: 3000

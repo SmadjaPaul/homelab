@@ -1,0 +1,80 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: outline
+  namespace: business
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: "3.2.1"
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      outline:
+        containers:
+          app:
+            image:
+              repository: outlinewiki/outline
+              tag: 0.77.1
+            env:
+              URL: https://docs.smadja.dev
+              PORT: 3000
+              NODE_ENV: production
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-db-app
+                    key: uri
+              REDIS_URL: redis://redis-master.infra.svc.cluster.local:6379
+              SECRET_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-secrets
+                    key: SECRET_KEY
+              UTILS_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-secrets
+                    key: UTILS_SECRET
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-secrets
+                    key: OIDC_CLIENT_ID
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-secrets
+                    key: OIDC_CLIENT_SECRET
+              OIDC_AUTH_URI: https://smadja.us.auth0.com/authorize
+              OIDC_TOKEN_URI: https://smadja.us.auth0.com/oauth/token
+              OIDC_USERINFO_URI: https://smadja.us.auth0.com/userinfo
+              AWS_ACCESS_KEY_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-oci-s3-secrets
+                    key: access_key
+              AWS_SECRET_ACCESS_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-oci-s3-secrets
+                    key: secret_key
+              AWS_REGION: eu-paris-1
+              AWS_S3_UPLOAD_BUCKET_NAME: outline
+              AWS_S3_UPLOAD_BUCKET_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: outline-oci-s3-secrets
+                    key: endpoint_url
+              AWS_S3_FORCE_PATH_STYLE: "true"
+    service:
+      app:
+        controller: outline
+        ports:
+          http:
+            port: 3000

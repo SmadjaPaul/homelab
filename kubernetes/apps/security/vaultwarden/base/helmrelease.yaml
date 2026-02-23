@@ -1,0 +1,49 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vaultwarden
+  namespace: security
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 3.2.1
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      vaultwarden:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: vaultwarden/server
+              tag: 1.32.0
+            env:
+              TZ: Europe/Paris
+              SIGNUPS_ALLOWED: "false"
+              DOMAIN: "https://vault.smadja.dev"
+            envFrom:
+              - secretRef:
+                  name: vaultwarden-secrets
+    persistence:
+      data:
+        existingClaim: vaultwarden-data
+        globalMounts:
+          - path: /data
+    service:
+      app:
+        controller: vaultwarden
+        ports:
+          http:
+            port: 80

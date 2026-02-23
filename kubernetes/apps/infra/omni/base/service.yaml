@@ -1,0 +1,24 @@
+# =============================================================================
+# Omni Service
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: omni
+  namespace: omni
+  annotations:
+    konghq.com/protocol: "https"
+spec:
+  ports:
+    - port: 443
+      targetPort: 443
+      name: https
+    - port: 8090
+      targetPort: 8090
+      name: siderolink
+    - port: 8100
+      targetPort: 8100
+      name: k8s-proxy
+  selector:
+    app.kubernetes.io/name: omni

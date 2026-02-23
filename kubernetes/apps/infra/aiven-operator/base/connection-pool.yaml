@@ -1,0 +1,18 @@
+# Connection Pool for authentik - creates PgBouncer and generates connection secret
+apiVersion: aiven.io/v1alpha1
+kind: ConnectionPool
+metadata:
+  name: authentik-pool
+  namespace: infra
+spec:
+  authSecretRef:
+    name: aiven-operator-token
+    key: token
+  connInfoSecretTarget:
+    name: authentik-aiven-pool
+  project: homelab-smadja
+  serviceName: authentik-db-homelab
+  databaseName: defaultdb
+  username: avnadmin
+  poolMode: transaction
+  poolSize: 10

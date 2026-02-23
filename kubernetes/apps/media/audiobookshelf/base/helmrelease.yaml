@@ -1,0 +1,45 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: audiobookshelf
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: "3.2.1"
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      audiobookshelf:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/advplyr/audiobookshelf
+              tag: latest
+            env:
+              TZ: Europe/Paris
+              AUDIOBOOKSHELF_UID: 1000
+              AUDIOBOOKSHELF_GID: 1000
+            envFrom:
+              - secretRef:
+                  name: audiobookshelf-secrets
+    service:
+      app:
+        controller: audiobookshelf
+        ports:
+          http:
+            port: 80
+    persistence:
+      config:
+        existingClaim: audiobookshelf-config
+      metadata:
+        existingClaim: audiobookshelf-metadata
+      audiobooks:
+        existingClaim: audiobookshelf-audiobooks
+      podcasts:
+        existingClaim: audiobookshelf-podcasts

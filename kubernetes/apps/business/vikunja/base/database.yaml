@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vikunja-db
+  namespace: business
+spec:
+  instances: 1
+  storage:
+    size: 2Gi
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://database-backups/vikunja
+      endpointURL: https://<your-namespace>.compat.objectstorage.eu-paris-1.oraclecloud.com
+      s3Credentials:
+        accessKeyId:
+          name: vikunja-oci-s3-secrets
+          key: access_key
+        secretAccessKey:
+          name: vikunja-oci-s3-secrets
+          key: secret_key
+      wal:
+        compression: gzip

@@ -1,0 +1,96 @@
+# =============================================================================
+# Omni Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omni
+  namespace: omni
+  labels:
+    app.kubernetes.io/name: omni
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: omni
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: omni
+    spec:
+      containers:
+        - name: omni
+          image: ghcr.io/siderolabs/omni:v1.4.6
+          ports:
+            - containerPort: 443
+              name: https
+            - containerPort: 8090
+              name: siderolink
+            - containerPort: 8100
+              name: k8s-proxy
+          args:
+            - --storage-kind=sqlite
+            - --sqlite-storage-path=/var/lib/omni/omni.db
+            - --private-key-file=/var/lib/omni/omni.key
+            - --auth-auth0-enabled=true
+            - --auth-auth0-domain=dev-r5wiplxgsbkigvdk.eu.auth0.com
+            - --auth-auth0-client-id=$(AUTH0_CLIENT_ID)
+            - --advertised-api-url=https://omni.smadja.dev
+            - --advertised-kubernetes-proxy-url=https://omni.smadja.dev:8100
+            - --machine-api-advertised-url=https://omni.smadja.dev:8090
+            - --siderolink-api-advertised-url=https://omni.smadja.dev:8090
+            - --bind-addr=0.0.0.0:443
+            - --machine-api-bind-addr=0.0.0.0:8090
+            - --k8s-proxy-bind-addr=0.0.0.0:8100
+          env:
+            - name: OMNI_API_URL
+              value: "https://omni.smadja.dev"
+            - name: OMNI_DOMAIN_NAME
+              value: "omni.smadja.dev"
+            - name: INITIAL_ADMIN_EMAIL
+              value: "paul@smadja.dev"
+            - name: AUTH0_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: omni-secrets
+                  key: auth0-client-id
+            - name: OMNI_ACCOUNT_UUID
+              valueFrom:
+                secretKeyRef:
+                  name: omni-secrets
+                  key: account-uuid
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+          volumeMounts:
+            - name: omni-data
+              mountPath: /var/lib/omni
+            - name: omni-key
+              mountPath: /var/lib/omni/omni.key
+              subPath: etcd-encryption-key
+            - name: tun
+              mountPath: /dev/net/tun
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 20
+          livenessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 60
+      volumes:
+        - name: omni-data
+          persistentVolumeClaim:
+            claimName: omni-pvc
+        - name: omni-key
+          secret:
+            secretName: omni-secrets
+            items:
+              - key: etcd-encryption-key
+                path: etcd-encryption-key
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice

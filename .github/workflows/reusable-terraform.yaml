@@ -1,0 +1,86 @@
+name: Reusable Terraform
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+      terraform_version:
+        required: false
+        type: string
+        default: "1.12.0"
+      environment:
+        required: false
+        type: string
+        default: "production"
+    secrets:
+      DOPPLER_SERVICE_TOKEN:
+        required: true
+      OCI_CLI_USER:
+        required: false
+      OCI_CLI_FINGERPRINT:
+        required: false
+      OCI_CLI_TENANCY:
+        required: false
+      OCI_CLI_REGION:
+        required: false
+      OCI_CLI_KEY_CONTENT:
+        required: false
+
+jobs:
+  terraform:
+    name: Terraform (${{ inputs.project }} / ${{ inputs.action }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: terraform/${{ inputs.project }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Homelab
+        uses: ./.github/actions/setup-homelab
+        with:
+          oci: ${{ secrets.OCI_CLI_USER != '' && 'true' || 'false' }}
+          oci-user: ${{ secrets.OCI_CLI_USER }}
+          oci-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-region: ${{ secrets.OCI_CLI_REGION || 'eu-paris-1' }}
+          oci-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: ${{ inputs.action == 'plan' || inputs.action == 'apply' }}
+        run: terraform plan -no-color -out=tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Apply
+        if: ${{ inputs.action == 'apply' && github.ref == 'refs/heads/main' }}
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}
+
+      - name: Terraform Destroy
+        if: ${{ inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_doppler_token: ${{ secrets.DOPPLER_SERVICE_TOKEN }}

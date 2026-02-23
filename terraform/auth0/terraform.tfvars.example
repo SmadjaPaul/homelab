@@ -1,0 +1,19 @@
+# =============================================================================
+# Auth0 Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# Get these from Auth0 Dashboard > Applications > M2M Application
+# =============================================================================
+
+# Your Auth0 domain (from Auth0 Dashboard)
+# Example: smadja.us.auth0.com
+auth0_domain = ""
+
+# Auth0 M2M Client ID (for Terraform)
+auth0_client_id = ""
+
+# Auth0 M2M Client Secret (for Terraform)
+auth0_client_secret = ""
+
+# Default password for users (use a strong password!)
+default_password = "ChangeMe123!"

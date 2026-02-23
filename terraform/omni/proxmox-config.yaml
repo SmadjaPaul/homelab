@@ -1,0 +1,5 @@
+proxmox:
+  url: https://192.168.68.51:8006
+  token_id: omni-provider@pve!infra
+  token_secret: "${PROXMOX_TOKEN_SECRET}" # Managed via Doppler
+  insecure: true

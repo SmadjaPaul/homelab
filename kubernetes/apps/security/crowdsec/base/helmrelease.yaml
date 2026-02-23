@@ -1,0 +1,31 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: crowdsec
+      version: "0.14.0" # Example version, check latest
+      sourceRef:
+        kind: HelmRepository
+        name: crowdsec
+        namespace: flux-system
+  values:
+    container_runtime: containerd
+    image:
+      tag: v1.6.0
+    lapi:
+      enabled: true
+      dashboard:
+        enabled: true
+        # Metabase official image supports arm64, but the default crowdsec dashboard image might not
+        image: metabase/metabase:latest
+    agent:
+      enabled: true
+      acquisition:
+        - namespace: kong
+          podName: kong-*
+          program: kong

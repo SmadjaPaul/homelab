@@ -1,0 +1,41 @@
+# Taskfile - Kubernetes Management
+# ================================
+
+version: "3"
+
+vars:
+  KUBECTL: kubectl
+  KCL_DIR: kubernetes
+
+tasks:
+  bootstrap:
+    desc: Deploy bootstrap (Flux + ESO)
+    cmds:
+      - kcl run {{.KCL_DIR}}/bootstrap/main.k | kubectl apply -f-
+
+  validate:
+    desc: Validate KCL syntax
+    cmds:
+      - kcl run {{.KCL_DIR}}/clusters/oci/main.k
+      - kcl run {{.KCL_DIR}}/bootstrap/main.k
+
+  render-app:
+    desc: Render app to YAML
+    vars:
+      APP: "{{.APP}}"
+      TENANT: "{{.TENANT}}"
+    cmds:
+      - kcl run {{.KCL_DIR}}/apps/{{.TENANT}}/{{.APP}}/base/main.k
+
+  deploy-app:
+    desc: Deploy app to cluster
+    vars:
+      APP: "{{.APP}}"
+      TENANT: "{{.TENANT}}"
+    cmds:
+      - kcl run {{.KCL_DIR}}/apps/{{.TENANT}}/{{.APP}}/base/main.k | kubectl apply -f-
+
+  list-apps:
+    desc: List available apps
+    cmds:
+      - find {{.KCL_DIR}}/apps -name "main.k" -type f | sed 's|/main.k||' | sed 's|{{.KCL_DIR}}/apps/||'

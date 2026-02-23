@@ -1,0 +1,21 @@
+# Infrastructure Kustomization (order: external-secrets first, then consumers)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # DNS management
+  - external-dns/base
+  # Tunnel
+  - cloudflared/base
+  # Ingress Controller
+  - traefik/base
+  # Storage namespace and operators
+  - storage/namespace.yaml
+  - storage/cloudnative-pg/base
+
+  # Maintenance
+  - reloader/base
+  - descheduler/base
+
+# Disabled due to CPU constraints:
+# - storage/redis/base

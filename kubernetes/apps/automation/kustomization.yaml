@@ -1,0 +1,6 @@
+# Automation apps (n8n, etc.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - n8n/base

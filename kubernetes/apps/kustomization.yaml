@@ -1,0 +1,7 @@
+# Root Kustomization - Helm Repositories only
+# Apps are deployed via specific Flux Kustomizations in kubernetes/clusters/oci/apps.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - flux-helmrepositories.yaml

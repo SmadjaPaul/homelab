@@ -1,0 +1,50 @@
+# Cloudflare Terraform Variables
+# Copy this file to terraform.tfvars and fill in the values
+
+# Required: Cloudflare API Token
+# Create at: https://dash.cloudflare.com/profile/api-tokens
+# Permissions needed:
+#   - Zone: DNS Edit, Zone Read, Zone Settings Edit
+#   - Account: Access: Identity Providers and Groups Edit (for Auth0 IdP)
+#     If missing, you get "Authentication error (10000)" when creating the IdP.
+cloudflare_api_token = "your-api-token-here"
+
+# Zone ID (already set, but can override)
+# zone_id = "bda8e2196f6b4f1684c6c9c06d996109"
+
+# Domain (already set, but can override)
+# domain = "smadja.dev"
+
+# =============================================================================
+# Tunnel Configuration (enable when infrastructure is ready)
+# =============================================================================
+
+# Set to true when Proxmox/VMs are ready
+enable_tunnel = false
+
+# Required when enable_tunnel = true:
+# cloudflare_account_id = "your-account-id"  # Found in dashboard URL
+# tunnel_secret = "base64-encoded-secret"     # Generate: openssl rand -base64 32
+
+# Emails allowed to access internal services (fallback when not using Auth0)
+# allowed_emails = ["smadjapaul02@gmail.com", "smadja-paul@protonmail.com"]
+
+# Skip "Choose identity provider" page (default: true — users go straight to Auth0)
+# access_skip_interstitial = true
+
+# =============================================================================
+# Auth0 as OIDC IdP for Cloudflare Access
+# =============================================================================
+# Auth0 client ID and secret are stored in Doppler and managed by terraform/auth0
+# Set auth0_oidc_enabled = true to enable
+# auth0_oidc_enabled = true
+
+# =============================================================================
+# Oracle Cloud IPs (set after VMs are created)
+# =============================================================================
+
+# oci_management_ip = "x.x.x.x"
+# oci_node_ips = ["x.x.x.x", "y.y.y.y"]
+
+# Proxmox local IP
+proxmox_local_ip = "192.168.68.51"

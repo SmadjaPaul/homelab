@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: outline-db
+  namespace: business
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://database-backups/outline
+      endpointURL: https://<your-namespace>.compat.objectstorage.eu-paris-1.oraclecloud.com
+      s3Credentials:
+        accessKeyId:
+          name: outline-oci-s3-secrets
+          key: access_key
+        secretAccessKey:
+          name: outline-oci-s3-secrets
+          key: secret_key
+      wal:
+        compression: gzip

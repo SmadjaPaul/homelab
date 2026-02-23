@@ -1,0 +1,55 @@
+# Cursor Rules for Homelab BMad Method Project
+
+## Project Context
+This is a homelab configuration project using the BMad Method for structured development.
+
+## Key Principles
+- Always use fresh chats when switching between BMad workflows
+- Follow the BMad Method phases: Analysis → Planning → Solutioning → Implementation
+- Keep generated artifacts in `_bmad-output/` separate from source code
+- Maintain clean separation between infrastructure code and BMad planning documents
+
+## BMad Workflow Commands
+- `*workflow-init` - Initialize project (Analyst agent)
+- `*workflow-status` - Check progress (Any agent)
+- `*brainstorm` / `*atelier` - Atelier pour affiner les besoins (Analyst, Architect, PM + workflows) ; utiliser avec @_bmad/bmm/agents/analyst.md @architect.md @pm.md @_bmad/bmm/workflows
+- `*prd` - Create Product Requirements Document (PM agent)
+- `*create-architecture` - Create architecture document (Architect agent)
+- `*create-epics-and-stories` - Break down into epics (PM agent)
+- `*sprint-planning` - Initialize sprint tracking (SM agent)
+- `*dev-story` - Implement a story (DEV agent)
+- `*code-review` - Review code (DEV agent)
+
+## Agent invocations (questions génériques, hors workflow)
+- `*pm` - Répondre en tant que **PM** : prioritisation, exigences, user stories, risques produit, alignement PRD/epics. Pas d’obligation de lancer un workflow (*prd, *create-epics).
+- `*archi` - Répondre en tant qu’**Architect** : décisions techniques, trade-offs, cohérence avec l’architecture, options de design. Pas d’obligation de lancer *create-architecture.
+
+## Mode brainstorming / ateliers (affiner les besoins)
+
+- **`*brainstorm`** ou **`*atelier`** — Lancer un atelier pour affiner les besoins avec accès aux agents Analyst, Architect, PM et aux workflows BMad.
+
+**Utilisation** : Invoquer avec les fichiers agents et workflows en contexte, par exemple :
+- `*brainstorm` ou `*atelier` avec @_bmad/bmm/agents/analyst.md @_bmad/bmm/agents/architect.md @_bmad/bmm/agents/pm.md et @_bmad/bmm/workflows
+
+**Comportement attendu** : En mode atelier, tu agis en **facilitateur** : tu as accès aux personae et aux menus des trois agents (Analyst, Architect, PM) et tu proposes l'atelier ou le workflow adapté à l'objectif du moment (idéation, recherche, brief produit, exigences, architecture, epics). Tu ne lances pas de workflow complet sans que l'utilisateur le choisisse ; tu proposes des options et tu exécutes celui qu'il sélectionne.
+
+**Ateliers disponibles par agent** :
+
+| Agent | Rôle | Ateliers / workflows pour affiner les besoins |
+|-------|------|------------------------------------------------|
+| **Analyst** (Mary) | Analyse, recherche, brief | [BP] Brainstorming guidé (`_bmad/core/workflows/brainstorming/workflow.md`) ; [RS] Recherche (marché, domaine, technique) (`_bmad/bmm/workflows/1-analysis/research/workflow.md`) ; [PB] Product Brief (`_bmad/bmm/workflows/1-analysis/create-product-brief/workflow.md`) |
+| **PM** (John) | Exigences, PRD, epics | [CP] Créer PRD ; [VP] Valider PRD ; [EP] Éditer PRD ; [ES] Epics & User Stories ; [IR] Implementation Readiness (`_bmad/bmm/workflows/2-plan-workflows/prd/`, `3-solutioning/create-epics-and-stories/`, `check-implementation-readiness/`) |
+| **Architect** (Winston) | Architecture, faisabilité | [CA] Créer document d'architecture ; [IR] Implementation Readiness (`_bmad/bmm/workflows/3-solutioning/create-architecture/workflow.md`) |
+
+**Workflows clés** (répertoire `_bmad/bmm/workflows`) :
+- Analyse : `1-analysis/` (research, create-product-brief)
+- Planification : `2-plan-workflows/` (prd, create-ux-design)
+- Solutioning : `3-solutioning/` (create-architecture, create-epics-and-stories, check-implementation-readiness)
+- Brainstorming (core) : `_bmad/core/workflows/brainstorming/workflow.md`
+
+**Premier pas** : En début d'atelier, propose soit un **brainstorming guidé** (idéation large), soit une **recherche** (marché/domaine/technique), soit un **Product Brief**, soit un focus **exigences / PRD / architecture** selon ce que l'utilisateur veut affiner.
+
+## File Organization
+- Planning documents: `_bmad-output/`
+- Infrastructure code: `infrastructure/` or `services/`
+- Documentation: `docs/` or root `README.md`

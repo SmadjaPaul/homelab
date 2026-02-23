@@ -1,0 +1,19 @@
+# =============================================================================
+# Omni Configuration
+# =============================================================================
+# Required environment variables for Omni
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omni
+  namespace: omni
+data:
+  OMNI_TAG: "v1.4.6"
+  # SideroLink wireguard endpoint port
+  SIDEROLINK_PORT: "10001"
+  # Domain for Omni
+  OMNI_DOMAIN: "omni.smadja.dev"
+  # Initial admin email (change this!)
+  INITIAL_ADMIN_EMAIL: "paul@smadja.dev"

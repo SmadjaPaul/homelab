@@ -1,0 +1,55 @@
+name: Flux Diff
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/**'
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Homelab
+        uses: ./.github/actions/setup-homelab
+        with:
+          flux: 'true'
+          oci: 'true'
+          oci-user: ${{ secrets.OCI_CLI_USER }}
+          oci-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-region: eu-paris-1
+          oci-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          cluster-ocid: ${{ secrets.OKE_CLUSTER_OCID }}
+          kubeconfig: 'true'
+
+      - name: Diff Kustomizations
+        run: |
+          flux diff kustomization apps --namespace flux-system 2>&1 | tee diff.log || true
+        continue-on-error: true
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('diff.log', 'utf8');
+
+            const body = "## Flux Diff\n\n```\n" + diff + "\n```";
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

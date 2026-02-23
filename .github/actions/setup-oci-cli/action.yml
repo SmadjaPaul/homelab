@@ -1,0 +1,42 @@
+name: 'Setup OCI CLI'
+description: 'Configure OCI CLI with credentials from secrets'
+inputs:
+  oci-cli-user:
+    description: 'OCI CLI User'
+    required: true
+  oci-cli-fingerprint:
+    description: 'OCI CLI Fingerprint'
+    required: true
+  oci-cli-tenancy:
+    description: 'OCI CLI Tenancy'
+    required: true
+  oci-cli-region:
+    description: 'OCI CLI Region'
+    required: true
+  oci-cli-key-content:
+    description: 'OCI CLI Private Key Content'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Install OCI CLI
+      shell: bash
+      run: |
+        pip install --upgrade pip
+        pip install --user oci-cli
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Configure OCI CLI
+      shell: bash
+      run: |
+        mkdir -p ~/.oci
+        printf '%s\n' "${{ inputs.oci-cli-key-content }}" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        printf '[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=%s\nkey_file=%s/.oci/oci_api_key.pem\n' \
+          "${{ inputs.oci-cli-user }}" \
+          "${{ inputs.oci-cli-fingerprint }}" \
+          "${{ inputs.oci-cli-tenancy }}" \
+          "${{ inputs.oci-cli-region }}" \
+          "$HOME" > ~/.oci/config
+
+        echo "✅ OCI CLI configured"

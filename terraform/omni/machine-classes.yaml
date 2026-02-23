@@ -1,0 +1,13 @@
+apiVersion: infrastructure.omni.siderolabs.io/v1alpha1
+kind: MachineClass
+metadata:
+  name: proxmox-high-perf
+spec:
+  type: auto-provision
+  provider: proxmox
+  config:
+    cpu: 10
+    memory: 57344
+    diskSize: 200
+    storageSelector: 'name == "nvme-vm"'
+    networkSelector: 'name == "vmbr0"'

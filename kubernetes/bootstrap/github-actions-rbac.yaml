@@ -1,0 +1,43 @@
+# RBAC configuration for GitHub Actions OIDC access
+# Apply with: kubectl apply -f github-actions-rbac.yaml
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: github-actions-oidc
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "secrets", "configmaps"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["helmrepositories", "gitrepositories", "kustomizations"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores", "externalsecrets"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "certificates"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-actions-oidc-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: github-actions-oidc
+subjects:
+  - kind: User
+    name: github-actions:repo:SmadjaPaul/homelab
+    apiGroup: rbac.authorization.k8s.io

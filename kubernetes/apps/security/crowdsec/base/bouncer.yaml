@@ -1,0 +1,42 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: crowdsec-bouncer-secrets
+  namespace: crowdsec
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: doppler
+    kind: ClusterSecretStore
+  target:
+    name: crowdsec-bouncer-secrets
+    creationPolicy: Owner
+  data:
+    - secretKey: crowdsec_lapi_key
+      remoteRef:
+        key: CROWDSEC_BOUNCER_LAPI_KEY
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crowdsec-bouncer
+  namespace: crowdsec
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: crowdsec-traefik-bouncer
+      version: "0.1.4"
+      sourceRef:
+        kind: HelmRepository
+        name: crowdsec
+        namespace: flux-system
+  values:
+    config:
+      crowdsec_lapi_url: http://crowdsec-lapi.crowdsec.svc.cluster.local:8080/
+    env:
+      - name: CROWDSEC_LAPI_KEY
+        valueFrom:
+          secretKeyRef:
+            name: crowdsec-bouncer-secrets
+            key: crowdsec_lapi_key

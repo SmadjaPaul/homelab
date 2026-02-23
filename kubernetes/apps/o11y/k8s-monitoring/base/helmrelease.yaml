@@ -1,0 +1,111 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: k8s-monitoring
+  namespace: o11y
+spec:
+  interval: 1h
+  timeout: 10m
+  releaseName: k8s-monitoring
+  chart:
+    spec:
+      chart: k8s-monitoring
+      version: "3.8.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    cluster:
+      name: homelab-oke
+
+    # --- Destinations: Grafana Cloud ---
+    destinations:
+      - name: prometheus
+        type: prometheus
+        url: "$(GRAFANA_CLOUD_PROM_URL)"
+        auth:
+          type: basic
+          username: "$(GRAFANA_CLOUD_PROM_USERNAME)"
+          password: "$(GRAFANA_CLOUD_API_KEY)"
+        extraLabels:
+          cluster: homelab-oke
+
+      - name: loki
+        type: loki
+        url: "$(GRAFANA_CLOUD_LOKI_URL)"
+        auth:
+          type: basic
+          username: "$(GRAFANA_CLOUD_LOKI_USERNAME)"
+          password: "$(GRAFANA_CLOUD_API_KEY)"
+        extraLabels:
+          cluster: homelab-oke
+
+    # --- Prometheus Operator CRDs ---
+    prometheusOperatorObjects:
+      enabled: true
+      crds:
+        deploy: false  # Already installed or handled separately
+
+    # --- Cluster Metrics (aligned with MacroPower) ---
+    clusterMetrics:
+      enabled: true
+      apiServer:
+        enabled: false  # OKE manages API server
+      kubeControllerManager:
+        enabled: false  # OKE manages controller-manager
+      kubeScheduler:
+        enabled: false  # OKE manages scheduler
+
+    # --- Cluster Events ---
+    clusterEvents:
+      enabled: true
+
+    # --- Pod Logs ---
+    podLogs:
+      enabled: true
+
+    # --- Alloy Instances ---
+    alloy-metrics:
+      enabled: true
+
+    alloy-singleton:
+      enabled: true
+
+    alloy-logs:
+      enabled: true
+
+    # Receiver disabled (no app tracing yet)
+    alloy-receiver:
+      enabled: false
+
+    # Auto-instrumentation disabled (saves resources)
+    autoInstrumentation:
+      enabled: false
+
+  # Inject Grafana Cloud credentials from ExternalSecret
+  valuesFrom:
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_PROM_URL
+      targetPath: destinations[0].url
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_PROM_USERNAME
+      targetPath: destinations[0].auth.username
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_API_KEY
+      targetPath: destinations[0].auth.password
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_LOKI_URL
+      targetPath: destinations[1].url
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_LOKI_USERNAME
+      targetPath: destinations[1].auth.username
+    - kind: Secret
+      name: grafana-cloud-credentials
+      valuesKey: GRAFANA_CLOUD_API_KEY
+      targetPath: destinations[1].auth.password

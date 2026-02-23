@@ -1,0 +1,112 @@
+# Deploy Kubernetes via Flux GitOps (no Terraform; Terraform runs separately via workflow_dispatch in terraform.yml)
+name: Deploy Infrastructure and Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+env:
+  OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+
+jobs:
+  bootstrap-flux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: production
+    outputs:
+      flux-ready: ${{ steps.check-flux.outputs.ready }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Homelab
+        uses: ./.github/actions/setup-homelab
+        with:
+          kubectl: 'true'
+          flux: 'true'
+          oci: 'true'
+          oci-user: ${{ secrets.OCI_CLI_USER }}
+          oci-fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          oci-tenancy: ${{ secrets.OCI_CLI_TENANCY }}
+          oci-region: ${{ secrets.OCI_CLI_REGION }}
+          oci-key-content: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          cluster-ocid: ${{ secrets.OKE_CLUSTER_OCID }}
+          kubeconfig: 'true'
+
+      - name: Check Flux Status
+        id: check-flux
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          if kubectl get deployment -n flux-system kustomize-controller &>/dev/null; then
+            echo "ready=true" >> $GITHUB_OUTPUT
+            echo "✅ Flux already installed"
+          else
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Flux not installed"
+          fi
+
+      - name: Bootstrap Flux
+        if: steps.check-flux.outputs.ready != 'true'
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          echo "Bootstrapping Flux..."
+          flux install
+
+      - name: Create SSH Key Secret for GitRepository
+        env:
+          FLUX_GIT_SSH_KEY: ${{ secrets.FLUX_GIT_SSH_KEY }}
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+          if [ -z "$FLUX_GIT_SSH_KEY" ]; then
+            echo "❌ FLUX_GIT_SSH_KEY not set in GitHub Secrets (sync from Doppler or add manually)"
+            exit 1
+          fi
+          kubectl create secret generic flux-system \
+            --namespace flux-system \
+            --from-literal=identity="$FLUX_GIT_SSH_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply Flux Kustomizations
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          kubectl apply -k ${{ github.workspace }}/kubernetes/clusters/oci/
+
+      - name: Reconcile Flux
+        run: |
+          export KUBECONFIG=${{ github.workspace }}/kubeconfig
+
+          echo "Triggering reconciliation..."
+          flux reconcile kustomization flux-system --with-source || true
+          flux reconcile kustomization helm-repositories --with-source || true
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [bootstrap-flux]
+    if: always()
+    permissions:
+      contents: read
+
+    steps:
+      - name: Notify Success
+        if: needs.bootstrap-flux.result == 'success'
+        run: |
+          echo "🎉 GitOps deployment committed successfully!"
+          echo ""
+          echo "Flux is now independently reconciling the state."
+          echo "Check the cluster metrics or notifications for live statuses."
+
+      - name: Notify Failure
+        if: needs.bootstrap-flux.result == 'failure'
+        run: |
+          echo "❌ Deployment failed during Flux bootstrap."
+          echo "Bootstrap Flux Result: ${{ needs.bootstrap-flux.result }}"

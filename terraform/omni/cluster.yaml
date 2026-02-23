@@ -1,0 +1,11 @@
+apiVersion: provision.omni.siderolabs.io/v1alpha1
+kind: Cluster
+metadata:
+  name: homelab
+spec:
+  clusterDefinition:
+    name: homelab
+    controlPlane:
+      count: 1
+      machineClass: proxmox-high-perf
+    workers: []

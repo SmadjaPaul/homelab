@@ -1,0 +1,64 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!terraform.tfvars.example
+!*.auto.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Secrets
+.env
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+*.crt
+age.agekey
+
+# Doppler (local auth)
+.doppler/
+
+# Ansible
+*.retry
+.vault_pass
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Kubernetes
+kubeconfig
+talosconfig
+
+# Archives
+.archive/
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Local development
+.local/
+terraform/auth0/state.json
+terraform/cloudflare/state.json
+terraform/cloudflare/state2.json
+terraform/cloudflare/records_to_remove.txt
+*.state.json

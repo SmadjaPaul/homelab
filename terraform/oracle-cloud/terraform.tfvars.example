@@ -1,0 +1,85 @@
+# Oracle Cloud Terraform Variables
+# Copy this file to terraform.tfvars and fill in the values.
+#
+# Ne jamais commiter terraform.tfvars contenant des secrets réels.
+# Préférer : variables d'environnement (TF_VAR_compartment_id, TF_VAR_ssh_public_key, etc.)
+# ou un gestionnaire de secrets (GitHub Secrets en CI, Vault, etc.).
+
+# Your OCI compartment OCID
+# Find it: OCI Console → Identity → Compartments → Copy OCID
+compartment_id = "ocid1.compartment.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Your SSH public key (for instance access)
+# Generate with: ssh-keygen -t ed25519 -f ~/.ssh/oci-homelab
+ssh_public_key = "ssh-ed25519 AAAAC3... your-email@example.com"
+
+# Region (default: eu-paris-1)
+region = "eu-paris-1"
+
+# Email for budget alerts (notified at 50%, 80%, 100% of 1 EUR)
+budget_alert_email = "your-email@example.com"
+
+# User OCID (for Velero S3 access key)
+# Find it: OCI Console → Profile (top right) → User Settings → OCID
+user_ocid = "ocid1.user.oc1..xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# -----------------------------------------------------------------------------
+# OCI Vault secrets (optional — create in OCI for CI / scripts)
+# Local: set via .env (TF_VAR_vault_secret_*) or here. Empty = secret not created.
+# CI: vault_secrets_managed_in_ci=true is set in workflow → secrets kept, content
+#     not overwritten when vars are null. Never commit real values.
+# -----------------------------------------------------------------------------
+# vault_secret_cloudflare_api_token = ""
+# vault_secret_tfstate_dev_token    = ""  # DEPRECATED: Backend uses OCI Object Storage now
+# vault_secret_omni_db_user         = ""
+# vault_secret_omni_db_password     = ""
+# vault_secret_omni_db_name         = ""
+# vault_secret_oci_mgmt_ssh_private_key = ""
+
+# Authentik SMTP configuration (for password recovery emails)
+# Example for Resend:
+# vault_secret_authentik_smtp_host     = "smtp.resend.com"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "resend"
+# vault_secret_authentik_smtp_password = "re_xxxxx"  # Your Resend API key
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
+#
+# Example for SendGrid:
+# vault_secret_authentik_smtp_host     = "smtp.sendgrid.net"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "apikey"
+# vault_secret_authentik_smtp_password = "SG.xxxxx"  # Your SendGrid API key
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
+#
+# Example for Zoho Mail:
+# vault_secret_authentik_smtp_host     = "smtp.zoho.com"
+# vault_secret_authentik_smtp_port     = "587"
+# vault_secret_authentik_smtp_username = "noreply@smadja.dev"  # Full email address
+# vault_secret_authentik_smtp_password = "your-password-or-app-password"
+# vault_secret_authentik_smtp_from     = "noreply@smadja.dev"
+
+# Network: with Cloudflare Tunnel, set false to avoid opening 80/443 (tunnel-only, recommended)
+# allow_public_http_https = false
+
+# Optional: Customize instance sizes
+# Free Tier limits: max 4 OCPU / 24GB RAM total across max 4 VMs
+# Defaults (4 VMs, 4 OCPU, 24GB):
+#   - oci-hub:       1 OCPU, 4GB (Omni + Tunnel + Comet)
+#   - talos-cp-1:    1 OCPU, 6GB (K8s Control Plane)
+#   - talos-worker-1: 1 OCPU, 8GB (Worker apps)
+#   - talos-worker-2: 1 OCPU, 6GB (Worker)
+# management_vm = {
+#   name   = "oci-hub"
+#   ocpus  = 1
+#   memory = 4
+#   disk   = 50
+# }
+#
+# k8s_nodes = [
+#   { name = "talos-cp-1",    ocpus = 1, memory = 6, disk = 50 },
+#   { name = "talos-worker-1", ocpus = 1, memory = 8, disk = 64 },
+#   { name = "talos-worker-2", ocpus = 1, memory = 6, disk = 64 }
+# ]
+
+# Talos Linux: use image from Omni UI (download Oracle image → import to OCI). See README.
+# talos_image_id = "ocid1.image.oc1.eu-paris-1.xxxxx"

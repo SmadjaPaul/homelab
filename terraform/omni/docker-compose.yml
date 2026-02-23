@@ -1,0 +1,31 @@
+services:
+  omni:
+    image: ghcr.io/siderolabs/omni:v0.34.0
+    container_name: omni
+    restart: always
+    command:
+      - "--private-key-source=builtin"
+      - "--database-sqlite-path=/var/lib/omni/omni.db"
+      - "--auth-enabled=false"
+    volumes:
+      - omni-data:/var/lib/omni
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+
+  omni-proxmox:
+    image: ghcr.io/siderolabs/omni-infra-provider-proxmox:latest
+    container_name: omni-proxmox
+    restart: always
+    links:
+      - omni
+    command:
+      - "--config-file=/config/proxmox-config.yaml"
+      - "--omni-api-endpoint=http://omni:8080"
+    volumes:
+      - ./proxmox-config.yaml:/config/proxmox-config.yaml:ro
+    depends_on:
+      - omni
+
+volumes:
+  omni-data:
