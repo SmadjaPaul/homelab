@@ -2,17 +2,10 @@
 # Authentik Users
 # =============================================================================
 
-resource "authentik_user" "paul" {
-  username = "paul"
-  name     = "Paul Smadja"
-  email    = "paul@smadja.dev"
-  groups   = [authentik_group.admins.id, authentik_group.media.id]
+resource "authentik_user" "all" {
+  for_each = local.users
+  username = each.value.username
+  name     = each.value.name
+  email    = each.value.email
+  groups   = [for g in each.value.groups : authentik_group.all[lower(replace(g, " ", "_"))].id]
 }
-
-# Example of how to add more users
-# resource "authentik_user" "family_member" {
-#   username = "family"
-#   name     = "Family Member"
-#   email    = "family@smadja.dev"
-#   groups   = [authentik_group.media.id]
-# }
