@@ -99,6 +99,6 @@ metadata:
   name: tailscale
   namespace: flux-system
 spec:
-  url: https://pkgs.tailscale.com/helm-charts
+  url: https://pkgs.tailscale.com/helm/tailscale
   interval: 1h
 ---
