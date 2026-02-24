@@ -11,6 +11,7 @@ resources:
   - traefik/base
   # Storage namespace and operators
   - storage/namespace.yaml
+  - tailscale/base
   - storage/cloudnative-pg/base
 
   # Maintenance

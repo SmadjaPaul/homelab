@@ -65,6 +65,8 @@ projects:
       - OMNI_ETCD_ENCRYPTION_KEY        # Omni Etcd Encryption Key
       - PROXMOX_TOKEN_SECRET            # Proxmox API Token Secret
       - PROXMOX_PASSWORD                # Proxmox Password
+      - TAILSCALE_CLIENT_ID             # Tailscale OAuth Client ID
+      - TAILSCALE_CLIENT_SECRET         # Tailscale OAuth Client Secret
       - GOTIFY_DEFAULTUSER_NAME         # Gotify default username
       - GOTIFY_DEFAULTUSER_PASS         # Gotify default password
       - GRAFANA_CLOUD_URL               # Grafana Cloud frontend URL

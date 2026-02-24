@@ -93,3 +93,12 @@ spec:
   url: https://charts.goauthentik.io
   interval: 1h
 ---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: tailscale
+  namespace: flux-system
+spec:
+  url: https://pkgs.tailscale.com/helm-charts
+  interval: 1h
+---
