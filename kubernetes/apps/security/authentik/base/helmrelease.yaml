@@ -41,3 +41,7 @@ spec:
       name: authentik-secret
       valuesKey: AUTHENTIK_REDIS_PASSWORD
       targetPath: redis.auth.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: AUTHENTIK_BOOTSTRAP_TOKEN
+      targetPath: authentik.bootstrap_token
