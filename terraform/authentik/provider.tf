@@ -16,7 +16,7 @@ provider "doppler" {
 }
 
 data "doppler_secrets" "this" {
-  project = "homelab"
+  project = "infrastructure"
   config  = "prd"
 }
 

@@ -7,7 +7,7 @@ locals {
     admins = {
       name = "Admins"
     }
-    media = {
+    media_users = {
       name = "Media Users"
     }
   }
@@ -17,6 +17,7 @@ locals {
       username = "paul"
       name     = "Paul Smadja"
       email    = "paul@smadja.dev"
+      is_admin = true
       groups   = ["Admins", "Media Users"]
     }
   }

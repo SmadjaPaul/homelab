@@ -14,10 +14,23 @@ spec:
         name: netbirdio
         namespace: flux-system
   values:
+    # Activer le routing peer pour exposés les services
     router:
       enabled: true
+    # Politique par défaut
     policies:
       default:
         name: Kubernetes Default Policy
         sourceGroups:
           - All
+    # Exposer l'API Kubernetes
+    kubernetesAPI:
+      enabled: true
+      groups:
+        - k8s-access
+      policies:
+        - k8s-admins
+  install:
+    createNamespace: true
+  upgrade:
+    createNamespace: true

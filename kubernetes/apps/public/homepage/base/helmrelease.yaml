@@ -49,18 +49,17 @@ spec:
 
       services:
         - Administration:
-            items:
-              - Proxmox:
-                  icon: proxmox
-                  href: https://proxmox.smadja.dev
-                  description: Virtualization Management
-              - Grafana:
-                  icon: grafana
-                  href: https://grafana.smadja.dev
-                  description: Observability & Metrics
-                  widget:
-                    type: grafana
-                    url: https://grafana.smadja.dev
+            - Proxmox:
+                icon: proxmox
+                href: https://proxmox.smadja.dev
+                description: Virtualization Management
+            - Grafana:
+                icon: grafana
+                href: https://grafana.smadja.dev
+                description: Observability & Metrics
+                widget:
+                  type: grafana
+                  url: https://grafana.smadja.dev
 
         - Productivity:
             - Odoo:
@@ -73,11 +72,10 @@ spec:
                 description: Document Archiving & OCR
 
         - Security:
-            items:
-              - Actual Budget:
-                  icon: actual-budget
-                  href: https://finance.smadja.dev
-                  description: Open Source Budgeting
+            - Actual Budget:
+                icon: actual-budget
+                href: https://finance.smadja.dev
+                description: Open Source Budgeting
 
         - Bookmarks:
             - GitHub:

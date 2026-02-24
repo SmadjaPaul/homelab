@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: kubernetes-operator
-      version: "0.2.1" # Check for latest version if possible
+      version: "0.2.1"
       sourceRef:
         kind: HelmRepository
         name: netbirdio
@@ -18,3 +18,7 @@ spec:
       keyFromSecret:
         name: netbird-mgmt-api-key
         key: NB_API_KEY
+  install:
+    createNamespace: true
+  upgrade:
+    createNamespace: true

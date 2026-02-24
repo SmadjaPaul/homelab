@@ -23,16 +23,24 @@ provider "doppler" {
   doppler_token = var.doppler_token
 }
 
-# Centralised config: Doppler secrets exposed as outputs for all modules
-module "global_config" {
-  source = "./modules/global_config"
+# =============================================================================
+# Read secrets from Doppler
+# =============================================================================
+data "doppler_secrets" "this" {
+  project = var.doppler_project
+  config  = var.doppler_environment
+}
 
-  doppler_project     = var.doppler_project
-  doppler_environment = var.doppler_environment
+# =============================================================================
+# NetBird provider - utilise le token depuis Doppler
+# =============================================================================
+locals {
+  secrets_map     = data.doppler_secrets.this.map
+  netbird_api_key = lookup(local.secrets_map, "NETBIRD_API_KEY", "")
 }
 
 provider "netbird" {
-  token = module.global_config.netbird_api_key
+  token = local.netbird_api_key
 }
 
 # =============================================================================
@@ -106,37 +114,41 @@ resource "netbird_setup_key" "workstation" {
 resource "netbird_route" "local_cluster_pods" {
   count = var.enable_local_cluster && var.local_cluster_pod_cidr != "" ? 1 : 0
 
-  network_id = netbird_network.main.id
-  groups     = [netbird_group.k8s_routers[0].id]
-  network    = var.local_cluster_pod_cidr
-  enabled    = true
+  network_id  = netbird_network.main.id
+  groups      = [netbird_group.k8s_routers[0].id]
+  peer_groups = [netbird_group.k8s_routers[0].id]
+  network     = var.local_cluster_pod_cidr
+  enabled     = true
 }
 
 resource "netbird_route" "local_cluster_services" {
   count = var.enable_local_cluster && var.local_cluster_service_cidr != "" ? 1 : 0
 
-  network_id = netbird_network.main.id
-  groups     = [netbird_group.k8s_routers[0].id]
-  network    = var.local_cluster_service_cidr
-  enabled    = true
+  network_id  = netbird_network.main.id
+  groups      = [netbird_group.k8s_routers[0].id]
+  peer_groups = [netbird_group.k8s_routers[0].id]
+  network     = var.local_cluster_service_cidr
+  enabled     = true
 }
 
 resource "netbird_route" "oci_cluster_pods" {
   count = var.enable_oci_cluster && var.oci_cluster_pod_cidr != "" ? 1 : 0
 
-  network_id = netbird_network.main.id
-  groups     = [netbird_group.k8s_routers[0].id]
-  network    = var.oci_cluster_pod_cidr
-  enabled    = true
+  network_id  = netbird_network.main.id
+  groups      = [netbird_group.k8s_routers[0].id]
+  peer_groups = [netbird_group.k8s_routers[0].id]
+  network     = var.oci_cluster_pod_cidr
+  enabled     = true
 }
 
 resource "netbird_route" "oci_cluster_services" {
   count = var.enable_oci_cluster && var.oci_cluster_service_cidr != "" ? 1 : 0
 
-  network_id = netbird_network.main.id
-  groups     = [netbird_group.k8s_routers[0].id]
-  network    = var.oci_cluster_service_cidr
-  enabled    = true
+  network_id  = netbird_network.main.id
+  groups      = [netbird_group.k8s_routers[0].id]
+  peer_groups = [netbird_group.k8s_routers[0].id]
+  network     = var.oci_cluster_service_cidr
+  enabled     = true
 }
 
 # =============================================================================
