@@ -58,6 +58,8 @@ projects:
       - AUTHENTIK_SECRET_KEY            # Authentik Django secret key
       - AUTHENTIK_POSTGRES_PASSWORD     # Authentik Postgres password
       - AUTHENTIK_REDIS_PASSWORD        # Authentik Redis password
+      - AUTHENTIK_BOOTSTRAP_TOKEN      # Authentik initial bootstrap token
+      - AUDIOBOOKSHELF_OIDC_CLIENT_SECRET # OIDC Secret for Audiobookshelf
       - OMNI_ACCOUNT_UUID               # Omni Account UUID
       - OMNI_AUTH0_CLIENT_ID            # Omni Auth0 Client ID
       - OMNI_AUTH0_CLIENT_SECRET         # Omni Auth0 Client Secret

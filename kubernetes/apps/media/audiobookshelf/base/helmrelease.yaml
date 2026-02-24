@@ -25,6 +25,13 @@ spec:
               TZ: Europe/Paris
               AUDIOBOOKSHELF_UID: 1000
               AUDIOBOOKSHELF_GID: 1000
+              # OIDC Configuration (Authentik)
+              OIDC_ISSUER_URL: "https://sso.smadja.dev/application/o/audiobookshelf/"
+              OIDC_CLIENT_ID: "audiobookshelf"
+              OIDC_CLIENT_SECRET: "${AUDIOBOOKSHELF_OIDC_CLIENT_SECRET}"
+              OIDC_SCOPE: "openid profile email"
+              OIDC_USER_NAME_CLAIM: "preferred_username"
+
             envFrom:
               - secretRef:
                   name: audiobookshelf-secrets
