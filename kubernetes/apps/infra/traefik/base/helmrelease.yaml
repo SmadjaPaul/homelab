@@ -49,23 +49,19 @@ spec:
       kubernetesCRD:
         enabled: true
 
-    # HTTP to HTTPS redirect - using entrypoint configuration
-    entryPoints:
+    # HTTP to HTTPS redirect - using ports configuration (Traefik 39.x)
+    ports:
       web:
-        http:
-          redirections:
-            entryPoint:
-              to: websecure
-              scheme: https
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
+            permanent: true
 
     # Disable the traefik dashboard by default for security
     ingressRoute:
       dashboard:
         enabled: false
-
-    # Security: disable insecure methods
-    security:
-      insecureExposeByDefault: false
 
     # Resources - appropriate for a small homelab
     resources:
