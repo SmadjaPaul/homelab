@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: authentik
-      version: "2026.2.0"
+      version: "2024.12.0"
       sourceRef:
         kind: HelmRepository
         name: authentik
@@ -31,6 +31,14 @@ spec:
         user: authentik
       redis:
         host: redis-master.storage.svc.cluster.local
+
+    # Set cookie domain so Authentik resolves brand via Host header
+    server:
+      env:
+        - name: AUTHENTIK_COOKIE_DOMAIN
+          value: "smadja.dev"
+        - name: AUTHENTIK_TRUSTED_PROXY_CHAIN
+          value: "10.0.0.0/8"
 
   valuesFrom:
     - kind: Secret
