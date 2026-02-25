@@ -45,16 +45,35 @@ spec:
         - name: AUTHENTIK_LOG_LEVEL
           value: "info"
         - name: AUTHENTIK_POSTGRESQL__HOST
-          value: "authentik-db-rw.security.svc.cluster.local"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_HOST
+        - name: AUTHENTIK_POSTGRESQL__PORT
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_PORT
         - name: AUTHENTIK_POSTGRESQL__NAME
-          value: "authentik"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_NAME
         - name: AUTHENTIK_POSTGRESQL__USER
-          value: "authentik"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_USER
         - name: AUTHENTIK_POSTGRESQL__PASSWORD
           valueFrom:
             secretKeyRef:
-              name: authentik-db-app
-              key: password
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_PASSWORD
+        - name: AUTHENTIK_REDIS__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_REDIS_PASSWORD
       resources:
         requests:
           cpu: 250m
@@ -79,16 +98,35 @@ spec:
         - name: AUTHENTIK_LOG_LEVEL
           value: "info"
         - name: AUTHENTIK_POSTGRESQL__HOST
-          value: "authentik-db-rw.security.svc.cluster.local"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_HOST
+        - name: AUTHENTIK_POSTGRESQL__PORT
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_PORT
         - name: AUTHENTIK_POSTGRESQL__NAME
-          value: "authentik"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_NAME
         - name: AUTHENTIK_POSTGRESQL__USER
-          value: "authentik"
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_USER
         - name: AUTHENTIK_POSTGRESQL__PASSWORD
           valueFrom:
             secretKeyRef:
-              name: authentik-db-app
-              key: password
+              name: authentik-secret
+              key: AUTHENTIK_POSTGRES_PASSWORD
+        - name: AUTHENTIK_REDIS__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_REDIS_PASSWORD
       resources:
         requests:
           cpu: 250m

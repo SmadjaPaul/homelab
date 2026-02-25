@@ -6,6 +6,5 @@ namespace: security
 resources:
   - database.yaml
   - external-secret.yaml
-  - external-secret-db.yaml
   - helmrelease.yaml
   - ingress.yaml
