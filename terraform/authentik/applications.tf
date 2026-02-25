@@ -13,11 +13,11 @@ resource "authentik_provider_oauth2" "audiobookshelf" {
   allowed_redirect_uris = [
     {
       matching_mode = "strict"
-      url           = "https://audiobooks.smadja.dev/auth/openid/callback"
+      url           = "https://audiobookshelf.smadja.dev/auth/openid/callback"
     },
     {
       matching_mode = "strict"
-      url           = "https://audiobooks.smadja.dev/auth/openid/mobile-redirect"
+      url           = "https://audiobookshelf.smadja.dev/auth/openid/mobile-redirect"
     }
   ]
 

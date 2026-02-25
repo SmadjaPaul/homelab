@@ -1,0 +1,67 @@
+# Pod Disruption Budgets pour les services critiques
+# Ces PDBs garantissent qu'au moins un pod est toujours disponible pendant les operations de maintenance
+
+---
+# Traefik - doit toujours etre disponible pour le routing
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+
+---
+# Authentik - service critique pour l'authentification
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: authentik
+  namespace: security
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+
+---
+# Cloudflared - critique pour l'acces externe
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+
+---
+# External Secrets - necessaire pour les secrets
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-secrets
+
+---
+# External DNS - necessaire pour le DNS
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns

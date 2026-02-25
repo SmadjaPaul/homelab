@@ -1,0 +1,169 @@
+# Resource Quotas par namespace
+# Ces quotas limitent les ressources pour eviter qu'une application consume tout le cluster
+
+---
+# Infrastructure namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: infra-quota
+  namespace: traefik
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+    services: "5"
+    secrets: "20"
+    configmaps: "10"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cloudflared-quota
+  namespace: cloudflared
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "2"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: external-dns-quota
+  namespace: external-dns
+spec:
+  hard:
+    requests.cpu: "250m"
+    requests.memory: 512Mi
+    limits.cpu: "500m"
+    limits.memory: 1Gi
+    pods: "1"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: external-secrets-quota
+  namespace: external-secrets
+spec:
+  hard:
+    requests.cpu: "250m"
+    requests.memory: 512Mi
+    limits.cpu: "500m"
+    limits.memory: 1Gi
+    pods: "3"
+
+---
+# Security namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: security-quota
+  namespace: security
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "20"
+    secrets: "50"
+    configmaps: "20"
+    persistentvolumeclaims: "10"
+
+---
+# Media namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: media-quota
+  namespace: media
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "15"
+    persistentvolumeclaims: "20"
+
+---
+# Storage namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: storage-quota
+  namespace: storage
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+    persistentvolumeclaims: "5"
+
+---
+# Default namespace quotas for other apps
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: automation
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: business
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "15"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: public
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    limits.cpu: "2"
+    limits.memory: 4Gi
+    pods: "5"
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: o11y
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "10"

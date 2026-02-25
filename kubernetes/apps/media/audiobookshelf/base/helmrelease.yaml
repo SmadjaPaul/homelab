@@ -4,7 +4,7 @@ metadata:
   name: audiobookshelf
   namespace: media
 spec:
-  interval: 1h
+  interval: 15m
   chart:
     spec:
       chart: app-template
@@ -13,6 +13,15 @@ spec:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      strategy: rollback
+  driftDetection:
+    mode: enabled
   values:
     controllers:
       audiobookshelf:
@@ -20,7 +29,46 @@ spec:
           app:
             image:
               repository: ghcr.io/advplyr/audiobookshelf
-              tag: latest
+              # Version figee pour stabilite en production
+              # Verifier les releases: https://github.com/advplyr/audiobookshelf/releases
+              tag: "2.12.1"
+
+            # Resources - appropriate for audiobookshelf
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+            # Security context
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              runAsUser: 1000
+              runAsGroup: 1000
+              capabilities:
+                drop:
+                  - ALL
+
+            # Health checks
+            probes:
+              liveness:
+                enabled: true
+                path: /health
+                port: 80
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                failureThreshold: 3
+              readiness:
+                enabled: true
+                path: /health
+                port: 80
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                failureThreshold: 3
+
             env:
               TZ: Europe/Paris
               AUDIOBOOKSHELF_UID: 1000
@@ -41,12 +89,21 @@ spec:
             envFrom:
               - secretRef:
                   name: audiobookshelf-secrets
+
+        # Pod security context
+        podSecurityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          allowPrivilegeEscalation: false
+
     service:
       app:
         controller: audiobookshelf
         ports:
           http:
             port: 80
+
     persistence:
       config:
         existingClaim: audiobookshelf-config

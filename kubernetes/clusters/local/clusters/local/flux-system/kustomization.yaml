@@ -1,26 +1,31 @@
+# Flux System Kustomization for local cluster
+# This file tells Flux how to reconcile this cluster
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
   name: homelab
   namespace: flux-system
 spec:
-  interval: 1m0s
+  interval: 1m
   ref:
     branch: main
-  # Public repo - no authentication needed
-  # Port 443 to avoid egress blocking port 22 (GitHub: ssh.github.com:443)
   url: https://github.com/SmadjaPaul/homelab
+  secretRef:
+    name: flux-git-auth
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: helm-repositories
+  name: cluster
   namespace: flux-system
 spec:
-  interval: 10m0s
-  path: ./kubernetes/apps
+  interval: 10m
+  path: ./kubernetes/clusters/local/clusters/local
   prune: true
+  wait: true
+  timeout: 5m
   sourceRef:
     kind: GitRepository
     name: homelab
-  wait: false
+  dependsOn:
+    - name: flux-system

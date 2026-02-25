@@ -1,0 +1,92 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: cloudflared
+      version: 1.8.0
+      sourceRef:
+        kind: HelmRepository
+        name: cloudflared
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      strategy: rollback
+  driftDetection:
+    mode: enabled
+  values:
+    # Tunnel configuration
+    tunnelID: "5825ee88-3939-4e16-ab32-856c6ff7df96"
+
+    # Credentials from secret
+    credentials:
+      existingSecret: cloudflared-creds
+
+    # Ingress routes - routes traffic to Traefik
+    ingress:
+      - hostname: home.smadja.dev
+        service: https://traefik.traefik.svc.cluster.local:443
+        originRequest:
+          connectTimeout: 30s
+          noTLSVerify: true
+      - hostname: "*.smadja.dev"
+        service: https://traefik.traefik.svc.cluster.local:443
+        originRequest:
+          noTLSVerify: true
+      - hostname: proxmox.smadja.dev
+        service: https://192.168.68.51:8006
+        originRequest:
+          noTLSVerify: true
+      # Catch-all - must be last
+      - service: https://traefik.traefik.svc.cluster.local:443
+        originRequest:
+          noTLSVerify: true
+
+    # Resources
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
+    # Liveness probe
+    livenessProbe:
+      enabled: true
+      httpGet:
+        path: /ready
+        port: 2000
+      initialDelaySeconds: 60
+      failureThreshold: 5
+      periodSeconds: 10
+
+    # Security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - NET_BIND_SERVICE
+
+    # Pod security context
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+      allowPrivilegeEscalation: false
+      seccompProfile:
+        type: RuntimeDefault

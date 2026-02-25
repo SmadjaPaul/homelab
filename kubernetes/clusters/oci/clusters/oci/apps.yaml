@@ -1,0 +1,55 @@
+# Applications deployees sur le cluster OCI
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: apps
+resources:
+  # Ordre important: d'abord l'infrastructure
+  - ../../apps/infra/common/
+  - ../../apps/infra/cert-manager/
+  - ../../apps/infra/cloudflared/
+  - ../../apps/infra/traefik/
+  - ../../apps/infra/external-dns/
+  - ../../apps/infra/external-secrets/
+  - ../../apps/infra/storage/cloudnative-pg/
+  - ../../apps/infra/storage/redis/
+
+  # Security
+  - ../../apps/security/authentik/
+  - ../../apps/security/vaultwarden/
+  - ../../apps/security/kyverno/
+  - ../../apps/security/crowdsec/
+  - ../../apps/security/tetragon/
+
+  # Media
+  - ../../apps/media/audiobookshelf/
+  - ../../apps/media/immich/
+  - ../../apps/media/navidrome/
+  - ../../apps/media/lidarr/
+
+  # Automation
+  - ../../apps/automation/n8n/
+
+  # Business
+  - ../../apps/business/outline/
+  - ../../apps/business/vikunja/
+  - ../../apps/business/paperless-ngx/
+  - ../../apps/business/umami/
+  - ../../apps/business/fleetdm/
+  - ../../apps/business/odoo/
+
+  # Public
+  - ../../apps/public/homepage/
+
+  # Observability
+  - ../../apps/o11y/k8s-monitoring/
+
+  # Network
+  - ../../apps/infra/netbird/
+  - ../../apps/infra/aiven-operator/
+  - ../../apps/infra/velero/
+  - ../../apps/infra/descheduler/
+  - ../../apps/infra/reloader/
+
+  # Finance
+  - ../../apps/finance/actual-budget/

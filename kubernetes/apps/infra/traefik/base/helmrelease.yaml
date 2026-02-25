@@ -4,20 +4,29 @@ metadata:
   name: traefik
   namespace: traefik
 spec:
-  interval: 1h
+  interval: 15m
   chart:
     spec:
       chart: traefik
-      version: 30.0.0
+      version: 39.0.2
       sourceRef:
         kind: HelmRepository
         name: traefik
         namespace: flux-system
-      interval: 12h
   install:
     crds: Skip
   upgrade:
     crds: Skip
+  remediation:
+    retries: 3
+    strategy: rollback
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths:
+          - "spec.replicas"
+        target:
+          kind: Deployment
   values:
     # Since we use Cloudflare Tunnels (which acts as a reverse proxy),
     # we do not need to expose Traefik via a LoadBalancer service
@@ -31,15 +40,19 @@ spec:
         serviceMonitor:
           enabled: false
 
-    # We want to use standard Kubernetes Ingress objects natively
+    # Enable Gateway API (recommended) + standard Ingress + CRD
     providers:
       kubernetesIngress:
         enabled: true
         publishedService:
           enabled: false
+      kubernetesGateway:
+        enabled: true
+        experimentalChannel: true
       kubernetesCRD:
         enabled: true
 
+    # HTTP to HTTPS redirect
     ports:
       web:
         redirectTo:
@@ -50,3 +63,61 @@ spec:
     ingressRoute:
       dashboard:
         enabled: false
+
+    # Security: disable insecure methods
+    security:
+      insecureExposeByDefault: false
+
+    # Resources - appropriate for a small homelab
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    # Health checks
+    probes:
+      liveness:
+        enabled: true
+        path: /ping
+        port: 80
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+      readiness:
+        enabled: true
+        path: /ping
+        port: 80
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 3
+
+    # Pod security context
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+
+    # Container security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
+    # Deployment configuration
+    deployment:
+      replicas: 1
+      podManagementPolicy: Parallel
+
+    # Autoscaling (optional - disabled for now)
+    autoscaling:
+      enabled: false
