@@ -1,0 +1,19 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: authentik-db
+  namespace: security
+spec:
+  instances: 1
+  storage:
+    size: 2Gi
+  # Reuse existing secret for now or let CNPG create one
+  # For Authentik, it usually expects a pre-defined secret if we transition,
+  # but here we are doing a fresh start.
+  bootstrap:
+    initdb:
+      database: authentik
+      owner: authentik
+  # backup:
+  #   barmanObjectStore:
+  #     ...

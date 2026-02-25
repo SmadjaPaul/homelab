@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: security
 
 resources:
+  - database.yaml
   - external-secret.yaml
   - helmrelease.yaml
   - ingress.yaml

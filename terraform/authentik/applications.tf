@@ -2,6 +2,7 @@
 # Audiobookshelf Integration (OAuth2/OIDC)
 # =============================================================================
 
+/*
 resource "authentik_provider_oauth2" "audiobookshelf" {
   name                = "Audiobookshelf"
   client_id           = "audiobookshelf"
@@ -35,3 +36,4 @@ resource "authentik_application" "audiobookshelf" {
   group             = "Media"
   meta_icon         = "https://raw.githubusercontent.com/advplyr/audiobookshelf/master/public/favicon.ico"
 }
+*/

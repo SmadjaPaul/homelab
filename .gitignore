@@ -62,3 +62,4 @@ terraform/cloudflare/state.json
 terraform/cloudflare/state2.json
 terraform/cloudflare/records_to_remove.txt
 *.state.json
+*plan.out

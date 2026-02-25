@@ -3,7 +3,7 @@
 # =============================================================================
 
 data "authentik_flow" "default_authorization_flow" {
-  slug = "default-provider-authorization-explicit-confirmation"
+  slug = "default-provider-authorization-explicit-consent"
 }
 
 data "authentik_flow" "default_authentication_flow" {
@@ -15,13 +15,13 @@ data "authentik_flow" "default_invalidation_flow" {
 }
 
 data "authentik_property_mapping_provider_scope" "openid" {
-  name = "openid"
+  name = "authentik default OAuth Mapping: OpenID 'openid'"
 }
 
 data "authentik_property_mapping_provider_scope" "profile" {
-  name = "profile"
+  name = "authentik default OAuth Mapping: OpenID 'profile'"
 }
 
 data "authentik_property_mapping_provider_scope" "email" {
-  name = "email"
+  name = "authentik default OAuth Mapping: OpenID 'email'"
 }

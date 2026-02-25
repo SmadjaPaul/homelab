@@ -15,32 +15,31 @@ spec:
         name: authentik
         namespace: flux-system
   values:
-    # Deprecated: ingress key removed as per 2024.12.0 chart
+    # Disable internal DB and Redis - use external
     postgresql:
-      enabled: true
+      enabled: false
     redis:
-      enabled: true
+      enabled: false
+
+    # Use external secret for authentik configuration
+    authentik:
+      existingSecret:
+        secretName: authentik-secret
+      postgresql:
+        host: authentik-db-rw
+        name: authentik
+        user: authentik
+      redis:
+        host: redis-master.storage.svc.cluster.local
   valuesFrom:
     - kind: Secret
       name: authentik-secret
       valuesKey: AUTHENTIK_SECRET_KEY
       targetPath: authentik.secret_key
     - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_POSTGRES_PASSWORD
+      name: authentik-db-app
+      valuesKey: password
       targetPath: authentik.postgresql.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_REDIS_PASSWORD
-      targetPath: authentik.redis.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_POSTGRES_PASSWORD
-      targetPath: postgresql.postgresqlPassword
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_REDIS_PASSWORD
-      targetPath: redis.auth.password
     - kind: Secret
       name: authentik-secret
       valuesKey: AUTHENTIK_BOOTSTRAP_TOKEN

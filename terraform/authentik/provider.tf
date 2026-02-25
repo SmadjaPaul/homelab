@@ -21,6 +21,6 @@ data "doppler_secrets" "this" {
 }
 
 provider "authentik" {
-  url   = "https://sso.smadja.dev"
-  token = data.doppler_secrets.this.map.AUTHENTIK_BOOTSTRAP_TOKEN
+  url   = var.authentik_url
+  token = var.authentik_token
 }

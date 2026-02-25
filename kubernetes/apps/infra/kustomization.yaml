@@ -19,4 +19,4 @@ resources:
   - descheduler/base
 
 # Disabled due to CPU constraints:
-# - storage/redis/base
+  - storage/redis/base
