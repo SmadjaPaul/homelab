@@ -50,6 +50,13 @@ spec:
           value: "10.0.0.0/8"
         - name: AUTHENTIK_LOG_LEVEL
           value: "info"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
 
     # Gateway configuration for Traefik integration
     gateway:
@@ -57,16 +64,9 @@ spec:
       hosts:
         - sso.smadja.dev
 
-    # Resources - appropriate for authentik with moderate load
-    resources:
-      server:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-        limits:
-          cpu: 1000m
-          memory: 1Gi
-      worker:
+    # Worker resources
+    worker:
+      resources:
         requests:
           cpu: 250m
           memory: 512Mi
