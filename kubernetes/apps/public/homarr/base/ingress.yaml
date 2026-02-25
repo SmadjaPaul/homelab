@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: homepage
+  name: homarr
   namespace: public
   annotations:
     external-dns.alpha.kubernetes.io/target: "5825ee88-3939-4e16-ab32-856c6ff7df96.cfargotunnel.com"
@@ -15,6 +15,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: homepage
+            name: homarr
             port:
-              number: 80
+              number: 3000

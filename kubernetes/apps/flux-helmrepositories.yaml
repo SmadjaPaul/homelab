@@ -112,3 +112,13 @@ metadata:
 spec:
   url: https://cloudflare.github.io/helm-charts
   interval: 1h
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: homarr
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/homarr-labs/charts
+  interval: 1h
