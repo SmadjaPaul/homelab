@@ -24,7 +24,7 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    # Disable internal DB and Redis - use external
+    # Disable internal DB - use external (cloudnative-pg)
     postgresql:
       enabled: false
     redis:
@@ -34,12 +34,6 @@ spec:
     authentik:
       existingSecret:
         secretName: authentik-secret
-      postgresql:
-        host: authentik-db-rw.security.svc.cluster.local
-        name: authentik
-        user: authentik
-      redis:
-        host: redis-master.storage.svc.cluster.local
 
     # Server configuration
     server:
@@ -50,6 +44,17 @@ spec:
           value: "10.0.0.0/8"
         - name: AUTHENTIK_LOG_LEVEL
           value: "info"
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: "authentik-db-rw.security.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: "authentik"
+        - name: AUTHENTIK_POSTGRESQL__USER
+          value: "authentik"
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-db-app
+              key: password
       resources:
         requests:
           cpu: 250m
@@ -64,8 +69,26 @@ spec:
       hosts:
         - sso.smadja.dev
 
-    # Worker resources
+    # Worker configuration
     worker:
+      env:
+        - name: AUTHENTIK_COOKIE_DOMAIN
+          value: "smadja.dev"
+        - name: AUTHENTIK_TRUSTED_PROXY_CHAIN
+          value: "10.0.0.0/8"
+        - name: AUTHENTIK_LOG_LEVEL
+          value: "info"
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: "authentik-db-rw.security.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: "authentik"
+        - name: AUTHENTIK_POSTGRESQL__USER
+          value: "authentik"
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-db-app
+              key: password
       resources:
         requests:
           cpu: 250m
@@ -77,17 +100,3 @@ spec:
     # GeoIP (optional)
     geoip:
       enabled: false
-
-  valuesFrom:
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_SECRET_KEY
-      targetPath: authentik.secret_key
-    - kind: Secret
-      name: authentik-db-credentials
-      valuesKey: password
-      targetPath: authentik.postgresql.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_BOOTSTRAP_TOKEN
-      targetPath: authentik.bootstrap_token
