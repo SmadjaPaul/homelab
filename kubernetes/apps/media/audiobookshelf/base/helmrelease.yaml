@@ -28,7 +28,11 @@ spec:
               # OIDC Configuration (Authentik)
               OIDC_ISSUER_URL: "https://sso.smadja.dev/application/o/audiobookshelf/"
               OIDC_CLIENT_ID: "audiobookshelf"
-              OIDC_CLIENT_SECRET: "${AUDIOBOOKSHELF_OIDC_CLIENT_SECRET}"
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiobookshelf-secrets
+                    key: AUDIOBOOKSHELF_OIDC_CLIENT_SECRET
               OIDC_SCOPE: "openid profile email"
               OIDC_USER_NAME_CLAIM: "preferred_username"
 

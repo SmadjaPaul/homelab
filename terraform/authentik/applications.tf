@@ -2,11 +2,10 @@
 # Audiobookshelf Integration (OAuth2/OIDC)
 # =============================================================================
 
-/*
 resource "authentik_provider_oauth2" "audiobookshelf" {
   name                = "Audiobookshelf"
   client_id           = "audiobookshelf"
-  client_secret       = data.doppler_secrets.this.map.AUDIOBOOKSHELF_OIDC_CLIENT_SECRET
+  client_secret       = doppler_secret.audiobookshelf_oidc_client_secret.value
   authorization_flow  = data.authentik_flow.default_authorization_flow.id
   authentication_flow = data.authentik_flow.default_authentication_flow.id
   invalidation_flow   = data.authentik_flow.default_invalidation_flow.id
@@ -36,4 +35,3 @@ resource "authentik_application" "audiobookshelf" {
   group             = "Media"
   meta_icon         = "https://raw.githubusercontent.com/advplyr/audiobookshelf/master/public/favicon.ico"
 }
-*/
