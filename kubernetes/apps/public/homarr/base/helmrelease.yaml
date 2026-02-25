@@ -22,15 +22,7 @@ spec:
       main:
         ports:
           http:
-            port: 7575
-
-    containerPorts:
-      http:
-        port: 7575
-        protocol: TCP
-
-    env:
-      PORT: "7575"
+            port: 3000
 
     ingress:
       main:
