@@ -35,12 +35,15 @@ spec:
     # Set cookie domain so Authentik resolves brand via Host header,
     # not the pod IP — fixes "Request failed" on sso.smadja.dev
     # Also set trusted proxies to accept X-Forwarded-* headers from Traefik
+    # Also set the explicit web URL
     server:
       env:
         - name: AUTHENTIK_COOKIE_DOMAIN
           value: "smadja.dev"
         - name: AUTHENTIK_TRUSTED_PROXY_CHAIN
           value: "10.0.0.0/8"
+        - name: AUTHENTIK_WEB
+          value: "https://sso.smadja.dev"
 
   valuesFrom:
     - kind: Secret
