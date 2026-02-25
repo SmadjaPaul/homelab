@@ -39,7 +39,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kong
+              kubernetes.io/metadata.name: traefik
       ports:
         - port: 80
           protocol: TCP

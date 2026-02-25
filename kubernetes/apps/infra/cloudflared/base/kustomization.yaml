@@ -8,4 +8,7 @@ resources:
   - namespace.yaml
   - external-secret.yaml
   - configmap.yaml
-  - helmrelease.yaml
+  - deployment.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+  - resources.yaml

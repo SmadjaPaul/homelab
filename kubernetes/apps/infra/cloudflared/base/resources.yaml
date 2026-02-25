@@ -1,4 +1,2 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cloudflared
+---
+# Resource limits - defined in deployment.yaml
