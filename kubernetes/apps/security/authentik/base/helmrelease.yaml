@@ -31,7 +31,6 @@ spec:
         user: authentik
       redis:
         host: redis-master.storage.svc.cluster.local
-      externalUrl: "https://sso.smadja.dev"
 
     # Set cookie domain so Authentik resolves brand via Host header,
     # not the pod IP — fixes "Request failed" on sso.smadja.dev
