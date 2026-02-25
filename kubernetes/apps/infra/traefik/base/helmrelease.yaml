@@ -34,8 +34,6 @@ spec:
     metrics:
       prometheus:
         enabled: false
-        serviceMonitor:
-          enabled: false
 
     # Enable Gateway API (recommended) + standard Ingress + CRD
     providers:
@@ -49,14 +47,15 @@ spec:
       kubernetesCRD:
         enabled: true
 
-    # HTTP to HTTPS redirect - using ports configuration (Traefik 39.x)
+    # HTTP to HTTPS redirect
     ports:
       web:
-        redirections:
-          entryPoint:
-            to: websecure
-            scheme: https
-            permanent: true
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true
 
     # Disable the traefik dashboard by default for security
     ingressRoute:
@@ -78,15 +77,11 @@ spec:
       runAsUser: 65532
       runAsGroup: 65532
       fsGroup: 65532
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
 
     # Container security context
     securityContext:
       runAsNonRoot: true
       runAsUser: 65532
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
       capabilities:
         drop:
           - ALL
@@ -94,8 +89,3 @@ spec:
     # Deployment configuration
     deployment:
       replicas: 1
-      podManagementPolicy: Parallel
-
-    # Autoscaling (optional - disabled for now)
-    autoscaling:
-      enabled: false
