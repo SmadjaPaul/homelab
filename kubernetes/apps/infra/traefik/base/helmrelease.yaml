@@ -49,12 +49,14 @@ spec:
       kubernetesCRD:
         enabled: true
 
-    # HTTP to HTTPS redirect
-    ports:
+    # HTTP to HTTPS redirect - using entrypoint configuration
+    entryPoints:
       web:
-        redirectTo:
-          port: websecure
-          priority: 10
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
 
     # Disable the traefik dashboard by default for security
     ingressRoute:
@@ -73,23 +75,6 @@ spec:
       limits:
         cpu: 500m
         memory: 256Mi
-
-    # Health checks
-    probes:
-      liveness:
-        enabled: true
-        path: /ping
-        port: 80
-        initialDelaySeconds: 10
-        periodSeconds: 10
-        failureThreshold: 3
-      readiness:
-        enabled: true
-        path: /ping
-        port: 80
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        failureThreshold: 3
 
     # Pod security context
     podSecurityContext:

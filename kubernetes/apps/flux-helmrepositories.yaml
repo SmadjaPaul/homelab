@@ -103,3 +103,12 @@ metadata:
 spec:
   url: https://netbirdio.github.io/helms
   interval: 1h
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cloudflared
+  namespace: flux-system
+spec:
+  url: https://cloudflare.github.io/helm-charts
+  interval: 1h
