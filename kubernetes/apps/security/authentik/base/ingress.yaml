@@ -14,9 +14,6 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     traefik.ingress.kubernetes.io/router.tls: "true"
     traefik.ingress.kubernetes.io/app-root: "/"
-    # Pass X-Forwarded headers to backend
-    traefik.ingress.kubernetes.io/proxy-headers.X-Forwarded-Proto: "https"
-    traefik.ingress.kubernetes.io/proxy-headers.X-Forwarded-Port: "443"
 spec:
   ingressClassName: traefik
   rules:
@@ -30,6 +27,9 @@ spec:
             name: authentik-server
             port:
               number: 80
+        middleware:
+          - name: authentik-headers
+            namespace: security
   tls:
   - hosts:
     - sso.smadja.dev
