@@ -24,6 +24,14 @@ spec:
           http:
             port: 7575
 
+    containerPorts:
+      http:
+        port: 7575
+        protocol: TCP
+
+    env:
+      PORT: "7575"
+
     ingress:
       main:
         enabled: true
