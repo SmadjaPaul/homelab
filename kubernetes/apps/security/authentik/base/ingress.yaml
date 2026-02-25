@@ -13,6 +13,7 @@ metadata:
     gethomepage.dev/icon: "authentik"
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/app-root: "/"
 spec:
   ingressClassName: traefik
   rules:
