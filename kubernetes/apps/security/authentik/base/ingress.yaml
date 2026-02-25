@@ -12,6 +12,7 @@ metadata:
     gethomepage.dev/group: "Security"
     gethomepage.dev/icon: "authentik"
 spec:
+  ingressClassName: traefik
   rules:
   - host: sso.smadja.dev
     http:
@@ -23,3 +24,6 @@ spec:
             name: authentik-server
             port:
               number: 80
+  tls:
+  - hosts:
+    - sso.smadja.dev
