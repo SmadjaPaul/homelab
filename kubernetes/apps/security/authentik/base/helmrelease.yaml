@@ -34,9 +34,10 @@ spec:
 
     # Set cookie domain so Authentik resolves brand via Host header,
     # not the pod IP — fixes "Request failed" on sso.smadja.dev
-    env:
-      - name: AUTHENTIK_COOKIE_DOMAIN
-        value: "smadja.dev"
+    server:
+      env:
+        - name: AUTHENTIK_COOKIE_DOMAIN
+          value: "smadja.dev"
 
   valuesFrom:
     - kind: Secret
