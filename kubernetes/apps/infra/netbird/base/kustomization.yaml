@@ -7,4 +7,4 @@ resources:
   - namespace.yaml
   - external-secret.yaml
   - operator.yaml
-  - config.yaml
+  # - config.yaml  # Temporarily disabled - netbird-operator-config chart has post-install hook issues
