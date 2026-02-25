@@ -31,19 +31,17 @@ spec:
         user: authentik
       redis:
         host: redis-master.storage.svc.cluster.local
+      externalUrl: "https://sso.smadja.dev"
 
     # Set cookie domain so Authentik resolves brand via Host header,
     # not the pod IP — fixes "Request failed" on sso.smadja.dev
-    # Also set trusted proxies to accept X-Forwarded-* headers from Traefik
-    # Also set the explicit web URL
+    # Set trusted proxies to accept X-Forwarded-* headers from Traefik
     server:
       env:
         - name: AUTHENTIK_COOKIE_DOMAIN
           value: "smadja.dev"
         - name: AUTHENTIK_TRUSTED_PROXY_CHAIN
-          value: "10.0.0.0/8"
-        - name: AUTHENTIK_WEB
-          value: "https://sso.smadja.dev"
+          value: "10.0.0.0/8 172.16.0.0/12"
 
   valuesFrom:
     - kind: Secret
