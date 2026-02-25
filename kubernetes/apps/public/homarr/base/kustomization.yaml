@@ -1,4 +1,4 @@
-# Homepage - Kustomize base
+# Homarr - Kustomize base
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -7,6 +7,7 @@ namespace: public
 resources:
   - namespace.yaml
   - rbac.yaml
+  - db-secret.yaml
   - helmrelease.yaml
   - ingress.yaml
   - certificate.yaml
