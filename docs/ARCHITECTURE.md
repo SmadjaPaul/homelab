@@ -8,7 +8,7 @@ Une architecture hybride **Hub-and-Spoke** optimisée pour la performance locale
 │                    OCI (Managed OKE)                        │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  Kubernetes Cluster (Gateway)                          │ │
-│  │  ├── Ingress (Traefik)                                 │ │
+│  │  ├── API GATEWAY                                       │ │
 │  │  ├── Cloudflare Tunnel                                 │ │
 │  │  └── Services Publics (Vaultwarden)                    │ │
 │  └────────────────────────────────────────────────────────┘ │

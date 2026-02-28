@@ -45,7 +45,7 @@ resource "oci_containerengine_cluster" "oke" {
   freeform_tags = var.tags
 }
 
-# Node Pool - ARM workers (Free Tier: 2 OCPU / 12GB each)
+# Node Pool - ARM workers (Free Tier: 2 OCPU / 12GB each, 50GB boot volume)
 resource "oci_containerengine_node_pool" "workers" {
   compartment_id     = var.compartment_id
   cluster_id         = oci_containerengine_cluster.oke.id
@@ -69,8 +69,9 @@ resource "oci_containerengine_node_pool" "workers" {
   }
 
   node_source_details {
-    source_type = "IMAGE"
-    image_id    = local.node_image_id
+    source_type             = "IMAGE"
+    image_id                = local.node_image_id
+    boot_volume_size_in_gbs = var.boot_volume_size_in_gbs
   }
 
   ssh_public_key = var.ssh_public_key

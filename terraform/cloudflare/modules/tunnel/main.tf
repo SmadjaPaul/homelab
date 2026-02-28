@@ -1,5 +1,9 @@
 # =============================================================================
 # Cloudflare Tunnel — resource + ingress config
+#
+# IMPORTANT: When using an existing tunnel (tunnel_id is provided), we still
+# create the Terraform resource but with lifecycle ignore_changes to prevent
+# Terraform from trying to modify or destroy it.
 # =============================================================================
 
 # Generate a new tunnel secret when regenerating
@@ -9,20 +13,25 @@ resource "random_password" "tunnel_secret" {
   special = false
 }
 
-# Tunnel resource - always created when regenerate=true, or when no tunnel_id
-# For existing tunnels, import first: terraform import module.tunnel[0].cloudflare_zero_trust_tunnel_cloudflared.homelab[0] account_id/tunnel_id
+# Tunnel resource - always created to maintain state, but managed externally
+# When tunnel_id is provided, use that tunnel; otherwise create new
 resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
-  count         = var.tunnel_id == "" || var.regenerate ? 1 : 0
+  count         = 1
   account_id    = var.account_id
   name          = "homelab-tunnel"
-  tunnel_secret = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
+  tunnel_secret = var.tunnel_id != "" ? var.tunnel_secret : (var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret)
+
+  # Don't let Terraform destroy or modify existing tunnels
+  lifecycle {
+    ignore_changes = [tunnel_secret, name]
+  }
 }
 
 # Get the tunnel ID and secret to use
 locals {
-  actual_tunnel_id     = var.tunnel_id != "" && !var.regenerate ? var.tunnel_id : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
+  actual_tunnel_id     = var.tunnel_id != "" ? var.tunnel_id : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
   actual_tunnel_name   = "homelab-tunnel"
-  actual_tunnel_secret = var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret
+  actual_tunnel_secret = var.tunnel_secret
 }
 
 output "tunnel_id" {
@@ -51,9 +60,27 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
 
   config = {
     ingress = [
+      # Route through Envoy Gateway Internal (behind Cloudflare Tunnel)
+      # Envoy Gateway internal LB: 141.253.110.118
       {
         hostname = "home.${var.domain}"
-        service  = "http://traefik.traefik.svc.cluster.local:80"
+        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
+        origin_request = {
+          no_tls_verify   = true
+          connect_timeout = 30
+        }
+      },
+      {
+        hostname = "auth.${var.domain}"
+        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
+        origin_request = {
+          no_tls_verify   = true
+          connect_timeout = 30
+        }
+      },
+      {
+        hostname = "login.${var.domain}"
+        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
         origin_request = {
           no_tls_verify   = true
           connect_timeout = 30
@@ -66,9 +93,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
           no_tls_verify = true
         }
       },
-      # All other services go through Traefik
+      # Default catch-all (fallback to internal gateway)
       {
-        service = "http://traefik.traefik.svc.cluster.local:80"
+        service = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
       }
     ]
   }

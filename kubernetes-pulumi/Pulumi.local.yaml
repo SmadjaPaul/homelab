@@ -1,0 +1,13 @@
+config:
+  homelab-kubernetes:clusterName: local
+  homelab-kubernetes:domain: smadja.dev
+  homelab-kubernetes:enableEnvoyGateway: "true"
+  homelab-kubernetes:enableMonitoring: "false"
+  homelab-kubernetes:enableLonghorn: "false"
+  homelab-kubernetes:renderYamlToDirectory: "generated-yaml/local-audit"
+  homelab-kubernetes:apps: []
+  homelab-kubernetes:identities:
+    groups: []
+    users: []
+  homelab-kubernetes:kubeconfigPath: .tmp/fake-kubeconfig
+encryptionsalt: v1:KimWVCOCJrc=:v1:PMXzxd//muZtpLlr:/Pemfo4Z/gQDoBQmDulF5nEG/zJMkw==

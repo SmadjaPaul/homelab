@@ -1,0 +1,6 @@
+name: homelab-kubernetes
+description: Pulumi + cdk8s Kubernetes configuration for homelab multi-cluster setup
+runtime: python
+main: src/__main__.py
+backend:
+  url: file://./.pulumi

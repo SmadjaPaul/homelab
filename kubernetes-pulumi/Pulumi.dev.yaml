@@ -1,0 +1,40 @@
+config:
+  homelab-kubernetes:use_flux: "true"
+  homelab-kubernetes:clusterName: dev
+  homelab-kubernetes:kubeconfigPath: ""
+  homelab-kubernetes:enableVCluster: "true"
+  homelab-kubernetes:domain: smadja.dev
+  homelab-kubernetes:enableEnvoyGateway: "true"
+  homelab-kubernetes:enableMonitoring: "true"
+  homelab-kubernetes:enableLonghorn: "false"
+  homelab-kubernetes:renderYamlToDirectory: "generated-yaml/pulumi-native"
+  homelab-kubernetes:apps:
+    - name: homelab-homarr
+      namespace: homelab
+      port: 7575
+      hostname: home.smadja.dev
+      mode: protected
+      auth: true
+    - name: navidrome
+      namespace: music
+      port: 4533
+      hostname: music.smadja.dev
+      mode: protected
+      storage:
+        - tier: persistent
+          size: 10Gi
+          backup_321: true
+    - name: slskd
+      namespace: music
+      port: 5030
+      hostname: slskd.smadja.dev
+      mode: protected
+  homelab-kubernetes:identities:
+    groups:
+      - name: admins
+      - name: users
+    users:
+      - name: paul
+        display_name: Paul Smadja
+        groups: ["admins", "users"]
+encryptionsalt: v1:lT1e23lIQyw=:v1:VVbn2fzH3uidfsX8:rIP2vclfF1skhbO0wPLaz/kskypWHQ==

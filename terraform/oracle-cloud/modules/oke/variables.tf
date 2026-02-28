@@ -29,7 +29,7 @@ variable "worker_subnet_id" {
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "v1.31.10"
+  default     = "v1.34.2"
 }
 
 variable "region" {
@@ -66,6 +66,12 @@ variable "ssh_public_key" {
   description = "SSH public key for worker nodes"
   type        = string
   default     = ""
+}
+
+variable "boot_volume_size_in_gbs" {
+  description = "Boot volume size in GB (default 100GB for free tier)"
+  type        = number
+  default     = 50
 }
 
 variable "public_endpoint" {

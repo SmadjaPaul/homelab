@@ -1,0 +1,10 @@
+encryptionsalt: v1:gmjvxe9jjlU=:v1:oI4q6Oc0BBEPkoZT:iXyb/8zcv7XCGkSTIoALZvPREi9few==
+config:
+  homelab-kubernetes:clusterName: oci
+  homelab-kubernetes:domain: smadja.dev
+  homelab-kubernetes:enableMonitoring: "true"
+  homelab-kubernetes:enableLonghorn: "false"
+  homelab-kubernetes:enableEnvoyGateway: "true"
+  homelab-kubernetes:kubeconfigPath: /Users/paul/.kube/config.oke-oci
+  homelab-kubernetes:apps: '[]'
+  homelab-kubernetes:identities: '{}'

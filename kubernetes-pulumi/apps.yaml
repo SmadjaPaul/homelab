@@ -1,0 +1,422 @@
+# Homelab Application Configuration
+#
+# This file declares all applications in the homelab.
+# Most apps are automatically deployed using GenericHelmApp.
+# Only apps with complex custom resources need custom Python code.
+#
+# Schema:
+#   version: Config version (v1)
+#   cluster: Default cluster (oci, local)
+#
+#   apps[]:
+#     name: App identifier
+#     category: public | protected | internal | database
+#     tier: critical | standard | ephemeral
+#     namespace: Kubernetes namespace
+#     port: Service port
+#     hostname: Public hostname (if exposed)
+#     mode: public | protected | internal
+#     clusters: [oci, local] - which clusters to deploy to
+#     dependencies: List of namespaces this app can communicate with
+#
+#     helm:
+#       chart: Helm chart name
+#       repo: Helm repository URL
+#       version: Chart version
+#       values: Optional Helm values (merged with defaults)
+#
+#     storage[]:
+#       name: Volume name
+#       size: Size (e.g., 10Gi)
+#       mount_path: Mount path in container
+#       existing_claim: Use existing PVC (optional)
+#
+#     secrets[]:
+#       - name: Secret name
+#         keys: [key1, key2]
+#
+#     test:
+#       routing: Test HTTP endpoints
+#       secrets: Test secret sync
+#       health: Test pod health
+#       network_policy: Test network isolation
+#       expected_endpoints: [urls to test]
+#       network_isolation: [namespaces that should be unreachable]
+
+version: v1
+cluster: oci
+domain: smadja.dev
+hcloud_storage_box_id: 554589
+
+# Global Identities for Authentik
+identities:
+  users:
+    - name: "paul"
+      display_name: "Paul Smadja"
+      email: "paul@smadja.dev"
+      groups: ["admins", "users"]
+  groups:
+    - name: "admins"
+      is_superuser: true
+    - name: "users"
+
+apps:
+  # =============================================================================
+  # PUBLIC APPLICATIONS - Exposed via Envoy Gateway
+  # =============================================================================
+
+  - name: homarr
+    category: public
+    tier: standard
+    namespace: homelab
+    port: 7575
+    hostname: home.smadja.dev
+    mode: public
+    clusters: [oci, local]
+    dependencies: [external-secrets, envoy-gateway, kube-system]
+    helm:
+      chart: homarr
+      repo: https://homarrlabs.github.io/homarr-charts
+      version: 8.12.0
+    storage:
+      - name: data
+        size: 1Gi
+        mount_path: /data
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    test:
+      routing: true
+      expected_endpoints: [https://home.smadja.dev]
+      network_isolation: [authentik]
+
+  - name: navidrome
+    category: protected
+    tier: standard
+    namespace: music
+    port: 4533
+    hostname: music.smadja.dev
+    mode: protected
+    clusters: [oci, local]
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    helm:
+      chart: app-template
+      repo: https://bjw-s-labs.github.io/helm-charts
+      version: 3.2.1
+      values:
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  repository: ghcr.io/navidrome/navidrome
+                  tag: latest
+                env:
+                  ND_TIMEZONE: Europe/Paris
+                  ND_LOG_LEVEL: info
+        persistence:
+          data:
+            type: persistentVolumeClaim
+            size: 2Gi
+            globalMounts:
+              - path: /data
+        service:
+          main:
+            ports:
+              http: 4533
+    storage:
+      - name: music
+        size: 1Ti
+        mount_path: /music
+        storage_class: hetzner-smb
+        access: shared
+      - name: navidrome-data
+        size: 2Gi
+        mount_path: /data
+        storage_class: local-path
+        access: private
+    secrets:
+      - name: hetzner-storage-creds
+        keys: [username, password]
+        remote_key: HETZNER_STORAGE_BOX_1
+    replicas: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+    test:
+      routing: true
+      expected_endpoints: [https://music.smadja.dev]
+      network_isolation: [authentik]
+
+  - name: slskd
+    category: public
+    tier: ephemeral
+    namespace: music
+    port: 5030
+    hostname: soulseek.smadja.dev
+    mode: public
+    clusters: [oci, local]
+    dependencies: [external-secrets, envoy-gateway, kube-system]
+    helm:
+      chart: app-template
+      repo: https://bjw-s-labs.github.io/helm-charts
+      version: 3.2.1
+      values:
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  repository: ghcr.io/slskd/slskd
+                  tag: latest
+        service:
+          main:
+            ports:
+              http: 5030
+    storage:
+      - name: config
+        size: 1Gi
+        mount_path: /app/config
+        storage_class: local-path
+        access: private
+      - name: music
+        size: 1Ti
+        mount_path: /music
+        existing_claim: navidrome-music
+        access: shared
+    secrets:
+      - name: hetzner-storage-creds
+        keys: [username, password]
+        remote_key: HETZNER_STORAGE_BOX_1
+    test:
+      routing: true
+      expected_endpoints: [https://soulseek.smadja.dev]
+      network_isolation: [authentik, cnpg-system]
+
+  # =============================================================================
+  # PROTECTED APPLICATIONS - Exposed via Cloudflare Access
+  # =============================================================================
+
+  - name: vaultwarden
+    category: protected
+    tier: critical
+    namespace: vaultwarden
+    port: 80
+    hostname: vault.smadja.dev
+    mode: protected
+    clusters: [oci]
+    dependencies: [cnpg-system, external-secrets, authentik, kube-system]
+    helm:
+      chart: vaultwarden
+      repo: https://charts.bool79.io
+      version: 4.1.0
+    storage:
+      - name: data
+        size: 1Gi
+        mount_path: /data
+    test:
+      routing: true
+      expected_endpoints: [https://vault.smadja.dev]
+
+  # =============================================================================
+  # INTERNAL APPLICATIONS - No external exposure
+  # =============================================================================
+
+  - name: authentik
+    category: internal
+    tier: critical
+    namespace: authentik
+    port: 80
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [cnpg-system, redis, external-secrets, kube-system]
+    helm:
+      chart: authentik
+      repo: https://charts.goauthentik.io
+      version: 2024.10.1
+    storage:
+      - name: data
+        size: 10Gi
+        mount_path: /data
+    database_backup:
+      enabled: true
+      endpoint_url: "https://<account-id>.r2.cloudflarestorage.com" # Placeholder, update in Doppler
+      bucket: "homelab-db-backups"
+      access_key_id: "s3-backup-creds"
+      secret_access_key: "s3-backup-creds"
+    secrets:
+      - name: authentik-secrets
+        keys: [AUTHENTIK_SECRET_KEY, AUTHENTIK_POSTGRESQL__PASSWORD]
+        remote_key: AUTHENTIK_CORE_SECRETS
+      - name: s3-backup-creds
+        keys: [access_key_id, secret_access_key]
+        remote_key: S3_BACKUP_CREDS
+    test:
+      routing: true
+      expected_endpoints: [https://auth.smadja.dev]
+
+  # =============================================================================
+  # INFRASTRUCTURE COMPONENTS
+  # =============================================================================
+
+  - name: cnpg-system
+    category: database
+    tier: critical
+    namespace: cnpg-system
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: cloudnative-pg
+      repo: https://cloudnative-pg.github.io/charts
+      version: 0.22.1
+
+  - name: redis
+    category: database
+    tier: critical
+    namespace: storage
+    port: 6379
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: redis
+      repo: oci://registry-1.docker.io/bitnamicharts
+      version: 20.2.1
+      values:
+        architecture: standalone
+        auth:
+          enabled: false
+
+  - name: external-secrets
+    category: internal
+    tier: critical
+    namespace: external-secrets
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: external-secrets
+      repo: https://charts.external-secrets.io
+      version: 0.10.4
+      values:
+        installCRDs: true
+
+  - name: cert-manager
+    category: internal
+    tier: critical
+    namespace: cert-manager
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: cert-manager
+      repo: https://charts.jetstack.io
+      version: v1.16.2
+      values:
+        crds:
+          enabled: true
+
+  - name: envoy-gateway
+    category: internal
+    tier: critical
+    namespace: envoy-gateway
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: gateway-helm
+      repo: oci://docker.io/envoyproxy
+      version: v1.2.1
+
+  - name: cloudflared
+    category: internal
+    tier: critical
+    namespace: cloudflared
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system, external-secrets]
+    disable_auto_route: true
+    helm:
+      chart: cloudflared
+      repo: https://cloudflare.github.io/helm-charts
+      version: 0.3.2
+      values:
+        tunnelToken: "" # Placeholder, will be replaced by env or secretRef if chart supports it
+    secrets:
+      - name: cloudflared-token
+        keys: [tunnel_token]
+        remote_key: CLOUDFLARE_TUNNEL_TOKEN
+
+  - name: external-dns
+    category: internal
+    tier: critical
+    namespace: external-dns
+    port: 7979
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system, external-secrets]
+    disable_auto_route: true
+    helm:
+      chart: external-dns
+      repo: https://kubernetes-sigs.github.io/external-dns/
+      version: 1.15.0
+      values:
+        provider: cloudflare
+        cloudflare:
+          apiToken: "" # Placeholder, set by env or secretRef
+          proxied: true
+    secrets:
+      - name: cloudflare-api-token
+        keys: [api_token]
+        remote_key: CLOUDFLARE_API_TOKEN
+      - name: hcloud-token
+        keys: [token]
+        remote_key: HETZNER_CLOUD_API_TOKEN
+
+  - name: local-path-provisioner
+    category: internal
+    tier: critical
+    namespace: kube-system
+    port: 80
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: local-path-provisioner
+      repo: https://cowboysysop.github.io/charts/
+      version: 0.0.30
+
+  - name: csi-driver-smb
+    category: internal
+    tier: critical
+    namespace: kube-system
+    port: 443
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system]
+    disable_auto_route: true
+    helm:
+      chart: csi-driver-smb
+      repo: https://kubernetes-csi.github.io/csi-driver-smb/charts
+      version: v1.16.0
+      values:
+        feature:
+          enableSMBSecurity: true
