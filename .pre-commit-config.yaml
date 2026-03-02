@@ -110,6 +110,18 @@ repos:
             terraform/.*/templates/.*
           )$
 
+  # =============================================================================
+  # Python - Linting & Formatting
+  # =============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        name: 🐍 Ruff linter
+        args: [--fix]
+      - id: ruff-format
+        name: 🎨 Ruff formatter
+
 # Skip certain files globally
 exclude: |
   (?x)^(
