@@ -29,15 +29,17 @@ STACKS = ["k8s-core", "k8s-storage", "k8s-apps"]
 
 def run_pulumi(stack_dir: Path, args: list, env: dict = None):
     """Run a pulumi command in a specific stack directory."""
-    cmd = ["pulumi"] + args
+    # Use uv run to ensure the correct Python environment is used
+    cmd = ["uv", "run", "--no-sync", "pulumi"] + args
     print(f"\n{'='*60}")
     print(f"Running: {' '.join(cmd)} in {stack_dir}")
     print(f"{'='*60}")
-    
-    # Add base directory and shared to PYTHONPATH
+
+    # Add base directory and shared to PYTHONPATH so shared module can be imported
     env = env or os.environ.copy()
-    env["PYTHONPATH"] = str(BASE_DIR)
-    
+    # Also add parent directory for 'shared' module
+    env["PYTHONPATH"] = str(BASE_DIR) + ":" + str(BASE_DIR.parent)
+
     result = subprocess.run(cmd, cwd=stack_dir, env=env)
     return result.returncode
 
@@ -64,36 +66,36 @@ def run_preflight_check(cluster: str):
     print("\n" + "="*60)
     print("Running pre-flight checks...")
     print("="*60)
-    
+
     # Run the preflight script
     preflight_script = BASE_DIR / "scripts" / "preflight.py"
-    
+
     if not preflight_script.exists():
         print(f"Warning: {preflight_script} not found, skipping preflight")
         return True
-    
+
     # Switch to cluster context first
     subprocess.run(
         ["kubectl", "config", "use-context", cluster],
         capture_output=True
     )
-    
+
     result = subprocess.run(
         [sys.executable, str(preflight_script), "--check-pvc", "--cluster", cluster],
         cwd=BASE_DIR,
         capture_output=True,
         text=True
     )
-    
+
     print(result.stdout)
     if result.stderr:
         print(result.stderr, file=sys.stderr)
-    
+
     if result.returncode != 0:
         print("\n⚠ Pre-flight checks failed!")
         print("Run with --skip-preflight to bypass")
         return False
-    
+
     print("✓ Pre-flight checks passed")
     return True
 
@@ -101,14 +103,14 @@ def run_preflight_check(cluster: str):
 def stack_init(stack_dir: Path, stack_name: str):
     """Initialize a stack."""
     print(f"\nInitializing stack: {stack_name}")
-    
+
     # Check if stack exists
     result = subprocess.run(
         ["pulumi", "stack", "show", stack_name],
         cwd=stack_dir,
         capture_output=True
     )
-    
+
     if result.returncode != 0:
         # Create stack
         run_pulumi(stack_dir, ["stack", "init", stack_name])
@@ -119,24 +121,24 @@ def stack_init(stack_dir: Path, stack_name: str):
 def cmd_init(args):
     """Initialize all stacks."""
     print("Initializing all stacks...")
-    
+
     for stack in STACKS:
         stack_dir = BASE_DIR / stack
         stack_name = args.cluster
-        
+
         if not stack_dir.exists():
             print(f"  Warning: {stack_dir} does not exist, skipping")
             continue
-            
+
         stack_init(stack_dir, stack_name)
-    
+
     print("\nAll stacks initialized!")
 
 
 def cmd_up(args):
     """Deploy stacks."""
     stacks_to_deploy = []
-    
+
     if args.stack == "all":
         stacks_to_deploy = STACKS
     elif args.stack == "core":
@@ -149,7 +151,7 @@ def cmd_up(args):
         print(f"Unknown stack: {args.stack}")
         print(f"Valid options: {', '.join(STACKS)}, all")
         return 1
-    
+
     # Run preflight checks unless disabled
     if not args.skip_preflight:
         if not run_preflight_check(args.cluster):
@@ -159,33 +161,33 @@ def cmd_up(args):
                 return 1
             else:
                 print("\n⚠ Continuing with --force despite preflight failures!")
-    
+
     for stack in stacks_to_deploy:
         stack_dir = BASE_DIR / stack
         stack_name = args.cluster
-        
+
         if not stack_dir.exists():
             print(f"Warning: {stack_dir} does not exist, skipping")
             continue
-        
+
         # Select stack
         run_pulumi(stack_dir, ["stack", "select", stack_name])
-        
+
         # Preview first
         if args.preview:
             run_pulumi(stack_dir, ["preview", "--non-interactive"])
-        
+
         # Deploy
         if not args.preview_only:
             run_pulumi(stack_dir, ["up", "--non-interactive", "--yes"])
-    
+
     return 0
 
 
 def cmd_destroy(args):
     """Destroy stacks (in reverse order)."""
     stacks_to_destroy = list(reversed(STACKS))
-    
+
     if args.stack != "all":
         if args.stack == "core":
             stacks_to_destroy = ["k8s-apps", "k8s-storage"]
@@ -193,20 +195,20 @@ def cmd_destroy(args):
             stacks_to_destroy = ["k8s-apps"]
         elif args.stack == "apps":
             stacks_to_destroy = ["k8s-apps"]
-    
+
     for stack in stacks_to_destroy:
         stack_dir = BASE_DIR / stack
         stack_name = args.cluster
-        
+
         if not stack_dir.exists():
             continue
-        
+
         # Select stack
         run_pulumi(stack_dir, ["stack", "select", stack_name])
-        
+
         # Destroy
         run_pulumi(stack_dir, ["destroy", "--non-interactive", "--yes"])
-    
+
     return 0
 
 
@@ -214,22 +216,22 @@ def cmd_status(args):
     """Show status of all stacks."""
     print(f"Stack Status (cluster: {args.cluster})")
     print("=" * 60)
-    
+
     for stack in STACKS:
         stack_dir = BASE_DIR / stack
         stack_name = args.cluster
-        
+
         if not stack_dir.exists():
             print(f"{stack}: DIRECTORY NOT FOUND")
             continue
-        
+
         result = subprocess.run(
             ["pulumi", "stack", "output", "--json"],
             cwd=stack_dir,
             capture_output=True,
             text=True
         )
-        
+
         if result.returncode == 0:
             print(f"{stack}: OK")
             if args.verbose:
@@ -238,7 +240,7 @@ def cmd_status(args):
             print(f"{stack}: NOT INITIALIZED OR ERROR")
             if args.verbose:
                 print(result.stderr)
-    
+
     return 0
 
 
@@ -287,9 +289,9 @@ def main():
         action="store_true",
         help="Force deployment even if preflight checks fail"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "init":
         return cmd_init(args)
     elif args.command == "up":
@@ -298,7 +300,7 @@ def main():
         return cmd_destroy(args)
     elif args.command == "status":
         return cmd_status(args)
-    
+
     return 0
 
 
