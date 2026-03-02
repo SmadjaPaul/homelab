@@ -29,8 +29,14 @@ STACKS = ["k8s-core", "k8s-storage", "k8s-apps"]
 
 def run_pulumi(stack_dir: Path, args: list, env: dict = None):
     """Run a pulumi command in a specific stack directory."""
-    # Use uv run to ensure the correct Python environment is used
-    cmd = ["uv", "run", "--no-sync", "pulumi"] + args
+    # Find pulumi binary - check venv first, then PATH
+    venv_pulumi = stack_dir / ".venv" / "bin" / "pulumi"
+    
+    if not venv_pulumi.exists():
+        # Fallback to system pulumi
+        venv_pulumi = "pulumi"
+    
+    cmd = [str(venv_pulumi)] + args
     print(f"\n{'='*60}")
     print(f"Running: {' '.join(cmd)} in {stack_dir}")
     print(f"{'='*60}")
@@ -179,7 +185,7 @@ def cmd_up(args):
 
         # Deploy
         if not args.preview_only:
-            run_pulumi(stack_dir, ["up", "--non-interactive", "--yes"])
+            run_pulumi(stack_dir, ["up", "--skip-preview", "--non-interactive", "--yes"])
 
     return 0
 

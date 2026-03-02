@@ -17,9 +17,7 @@ dependencies = [
     "pulumi-command>=1.2.0",
 ]
 
-# Add parent directory to path so 'shared' module can be imported
-[tool.uv.pipsis]
-no-build = true
+# Add parent directory to path so 'shared' module can be imported via PYTHONPATH in scripts
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
