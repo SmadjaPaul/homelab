@@ -11,8 +11,8 @@ import sys
 import re
 import pytest
 
-from utils.schemas import ExposureMode
-from apps.loader import load_apps
+from shared.utils.schemas import ExposureMode
+from shared.apps.loader import load_apps
 
 # Hostname pattern for *.smadja.dev
 EXTERNAL_HOSTNAME_PATTERN = re.compile(

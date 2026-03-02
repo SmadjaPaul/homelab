@@ -69,3 +69,4 @@ archive/*
 **/.pulumi/
 .envrc
 **/.envrc
+**/__pycache__**

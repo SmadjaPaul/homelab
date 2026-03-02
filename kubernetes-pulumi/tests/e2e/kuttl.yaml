@@ -1,0 +1,41 @@
+# Kuttl E2E Tests Configuration
+#
+# This file configures Kuttl (Kubernetes Test Tool) for end-to-end testing.
+# Kuttl tests verify that deployed resources match expected state.
+#
+# Install Kuttl:
+#   brew install kuttl
+#   # or
+#   kubectl kuttl install --version 0.4.0
+#
+# Run tests:
+#   kubectl kuttl test --config tests/e2e/kuttl.yaml
+#
+# Test structure:
+#   tests/e2e/
+#   ├── kuttl.yaml           # This configuration file
+#   ├── 01-assert.yaml       # Test 01: Verify basic assertions
+#   ├── 02-pvc-binding/     # Test 02: PVC binding test
+#   │   ├── 00-assert.yaml
+#   │   └── 00-install.yaml
+#   └── 03-routing/         # Test 03: HTTP routing test
+#       ├── 00-assert.yaml
+#       └── 00-install.yaml
+
+# Kuttl configuration
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+name: homelab-e2e
+# Directory containing test cases
+testDir: tests/e2e/test-cases
+# Skip delete step (useful for debugging)
+# skipDelete: true
+# Crashing pods should not fail tests
+# ignoreCrashingPods: true
+# Timeout for tests (in seconds)
+timeout: 300
+# Parallel test execution
+# parallel: 4
+# Report format
+reportFormat: json
+reportName: e2e-report

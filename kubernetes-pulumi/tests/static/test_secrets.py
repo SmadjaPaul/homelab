@@ -4,7 +4,7 @@ Static tests for secret definitions in apps.yaml.
 
 import pytest
 
-from apps.loader import load_apps
+from shared.apps.loader import load_apps
 
 @pytest.fixture(scope="module")
 def apps():

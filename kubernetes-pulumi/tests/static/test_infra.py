@@ -6,12 +6,8 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
-
-from utils.versions import VERSIONS
-from apps.loader import load_apps
+from shared.utils.versions import VERSIONS
+from shared.apps.loader import load_apps
 
 def test_versions_sync():
     """Verify that apps defined in apps.yaml have their chart versions tracked in versions.py (if applicable)."""
@@ -27,7 +23,7 @@ def test_versions_sync():
 
 def test_deployment_order_is_valid():
     """Verify that topological sort can be performed without cycles."""
-    from apps.loader import get_deployment_order
+    from shared.apps.loader import get_deployment_order
     order = get_deployment_order("oci")
     assert len(order) > 0
     assert "authentik" in order or "homarr" in order

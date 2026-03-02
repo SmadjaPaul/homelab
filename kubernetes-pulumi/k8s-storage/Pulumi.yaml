@@ -1,0 +1,3 @@
+name: homelab-k8s-storage
+description: Kubernetes Storage Infrastructure (Hetzner SMB, Local Path, CNPG, Redis)
+runtime: python

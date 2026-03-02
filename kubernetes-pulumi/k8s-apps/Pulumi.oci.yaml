@@ -1,0 +1,9 @@
+encryptionsalt: v1:X1PoNWmZDlU=:v1:uiX1Pj3jf7OFO+JU:kfEr0lKWTMWm4XugWgCJLSFt/1E8MQ==
+config:
+  homelab-k8s-apps:cluster: oci
+  homelab-k8s-apps:domain: smadja.dev
+  homelab-k8s-apps:clusterName: oci
+  homelab:dopplerToken:
+    secure: v1:SMVkKvIoE3OU1nhk:bLXHRFvAgUREQqd7EA3TnA33VRyRvygLuMp8oklGjzrVsf+SG4KZDs+Y2Gg7KUFpi4GqOV0rPewozlII5hF6ga8=
+  hcloud:token:
+    secure: v1:bhDjwTNjbl+veWBr:fEj4MpExZW4TaINrc95548E04vQlIif3jG4d5qNx3Ddq0YPQ0qKsb1nrBSbarxBZT/F7xcjVJOnsOEUU8WZgv6WQGm3swxXSj7k8byTbQE0=

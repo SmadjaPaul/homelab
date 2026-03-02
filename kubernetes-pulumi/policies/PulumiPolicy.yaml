@@ -1,0 +1,4 @@
+name: homelab-kubernetes-policies
+version: 0.0.1
+language: python
+description: Policy pack to enforce security, compliance, and best practices for the Homelab Kubernetes clusters.

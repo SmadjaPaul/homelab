@@ -1,10 +1,4 @@
-encryptionsalt: v1:gmjvxe9jjlU=:v1:oI4q6Oc0BBEPkoZT:iXyb/8zcv7XCGkSTIoALZvPREi9few==
+encryptionsalt: v1:tcYtEU75yjc=:v1:3vbFNH2bd4g3rk3V:R9GJr2z4g9wCSs8O/wjtgRcHwTHzjg==
 config:
-  homelab-kubernetes:clusterName: oci
-  homelab-kubernetes:domain: smadja.dev
-  homelab-kubernetes:enableMonitoring: "true"
-  homelab-kubernetes:enableLonghorn: "false"
-  homelab-kubernetes:enableEnvoyGateway: "true"
-  homelab-kubernetes:kubeconfigPath: /Users/paul/.kube/config.oke-oci
-  homelab-kubernetes:apps: '[]'
-  homelab-kubernetes:identities: '{}'
+  homelab:dopplerToken:
+    secure: v1:wOxc/SFIvDRqN7pg:qZuzDqBkE/EURBmzqLtUG7cdTrTGbRlHhSY5EpwBb/TW92KKccE1JI3VG5SbStq0WAIhC05qeikBRhTYnVIDeE8=

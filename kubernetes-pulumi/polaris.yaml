@@ -1,0 +1,11 @@
+# Polaris Configuration
+# https://polaris.docs.fairwinds.com/customization/
+
+checks:
+  # Security
+  dangerousCapabilities: warn
+  hostNetworkSet: warn
+  
+  # Resources
+  cpuRequestsMissing: warn
+  memoryRequestsMissing: warn

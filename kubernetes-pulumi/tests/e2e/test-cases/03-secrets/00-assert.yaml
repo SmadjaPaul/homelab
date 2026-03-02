@@ -1,0 +1,28 @@
+# Test 03: Verify ExternalSecrets Sync
+#
+# This test verifies that ExternalSecrets have been synced from Doppler
+# to Kubernetes secrets.
+
+# Assert that authentik secrets exist
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authentik-secrets
+  namespace: authentik
+type: Opaque
+---
+# Assert that cloudflared token exists
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-token
+  namespace: cloudflared
+type: Opaque
+---
+# Assert that Hetzner storage credentials exist
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hetzner-storage-creds
+  namespace: kube-system
+type: Opaque

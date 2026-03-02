@@ -2,349 +2,371 @@
 
 ## Overview
 
-This architecture uses a **data-driven approach** where most applications are defined declaratively in `apps.yaml`, with Python code only for complex or custom implementations.
+This architecture uses a **data-driven approach** where all applications and infrastructure are defined declaratively in `apps.yaml`, with Python code only for complex or custom logic.
 
 ## Design Principles
 
-1. **Data-Driven**: Define apps in YAML, not Python
-2. **Single Source of Truth**: One model (`AppModel`) for configuration
+1. **Data-Driven**: Define apps, buckets, and identities in YAML, not Python
+2. **Single Source of Truth**: `apps.yaml` drives all three Pulumi stacks
 3. **Separation of Concerns**: Deployment vs Configuration vs Testing
 4. **Dependency-Aware**: Topological sort ensures correct deployment order
+5. **Fail-Fast**: Validate secrets exist in Doppler *before* any Kubernetes resource is created
+6. **Provider Agnosticism**: Storage backends (S3, NAS) are abstracted via driver patterns
+
+---
+
+## Architecture Diagram
+
+The system is split into three modular Pulumi stacks for clear separation of concerns:
+
+```
+                            ┌─────────────────┐
+                            │    apps.yaml    │
+                            │  apps | buckets │
+                            │  identities     │
+                            └────────┬────────┘
+                                     │   (Read by all stacks)
+                                     ▼
+                      ┌─────────────────────────────┐
+                      │          AppLoader          │
+                      │  • filter by cluster        │
+                      │  • topological sort         │
+                      └──────────────┬──────────────┘
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           ▼                         ▼                         ▼
+  ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+  │    k8s-core     │ ────▶ │   k8s-storage   │ ────▶ │    k8s-apps     │
+  │   (Phase 1)     │       │    (Phase 2)    │       │    (Phase 3)    │
+  ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
+  │ • Namespaces    │       │ • CSI Drivers   │       │ • AppRegistry   │
+  │ • CRDs          │       │ • CloudNativePG │       │   (secrets,     │
+  │ • Operators     │       │ • Redis Cache   │       │    storage,     │
+  │   (ext-secrets, │       │ • S3 Buckets    │       │    routes,      │
+  │    cert-manager │       │   (OCI/CF/etc.) │       │    auth)        │
+  │    envoy-gw)    │       └────────┬────────┘       │ • GenericHelmApp│
+  └─────────────────┘                │ s3_endpoints   │ • Custom Apps   │
+                                     └───────────────▶└─────────────────┘
+```
+
+---
 
 ## Core Components
 
-### 1. AppModel (utils/schemas.py)
+### 1. `AppModel` (`shared/utils/schemas.py`)
 
-Unified configuration model for all applications. Contains:
+Unified configuration model for all applications:
 
-- **Identity**: name, namespace
-- **Network**: port, hostname, mode (public/protected/internal)
-- **Classification**: category, tier
-- **Deployment**: clusters, dependencies
-- **Configuration**: chart, repo, version, values, `values_file`
-- **Exposure Flags**: `disable_auto_route`
-- **Resources**: storage (with `existing_claim`, `shared`), secrets
-- **Testing**: test configuration
+| Field | Description |
+|-------|-------------|
+| `name`, `namespace` | Identity |
+| `port`, `hostname`, `mode` | Network exposure |
+| `category`, `tier` | Classification |
+| `clusters`, `dependencies` | Deployment targeting |
+| `helm` | Chart configuration (`chart`, `repo`, `version`, `values`, `values_file`) |
+| `storage[]` | Persistent volumes (see `StorageConfig`) |
+| `secrets[]` | Doppler → Kubernetes secret mappings (see `SecretRequirement`) |
+| `database_backup` | S3-compatible backup target (see `BackupDestination`) |
+| `test` | Test configuration (`expected_endpoints`, `network_isolation`, etc.) |
 
-### 2. AppLoader (apps/loader.py)
+### 2. `S3BucketConfig` (`shared/utils/schemas.py`)
+
+Defines an S3-compatible bucket managed by Pulumi, provider-agnostic:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Bucket name |
+| `provider` | `oci` \| `cloudflare` \| `generic` |
+| `purpose` | Semantic label (`backup`, `media`, `archive`, …) |
+| `tier` | `Standard` \| `InfrequentAccess` \| `Archive` |
+| `export_as` | Stack output key (consumed by `k8s-apps` via StackReference) |
+| `access_key_secret` | Doppler key name for the S3 access key |
+| `secret_key_secret` | Doppler key name for the S3 secret key |
+| `endpoint_url` | Required for `provider: generic` (e.g., RustFS, MinIO) |
+| `protect` | Prevent accidental deletion (default: `true` for backups) |
+
+### 3. `SecretRequirement` (`shared/utils/schemas.py`)
+
+Maps Kubernetes secret keys to Doppler:
+
+```yaml
+# Flat mapping (preferred): K8s key → Doppler key
+secrets:
+  - name: authentik-secrets
+    keys:
+      AUTHENTIK_SECRET_KEY: AUTHENTIK_SECRET_KEY
+      AUTHENTIK_POSTGRESQL__PASSWORD: AUTHENTIK_POSTGRES_PASSWORD
+
+# JSON parent mapping (legacy): all keys live inside a JSON blob
+secrets:
+  - name: hetzner-storage-creds
+    keys: [username, password]
+    remote_key: HETZNER_STORAGE_BOX_JSON_SECRET
+```
+
+### 4. `AppLoader` (`shared/apps/loader.py`)
 
 Loads and validates `apps.yaml`:
-
-- Parses YAML into AppModel
-- Validates dependencies
-- Detects cyclic dependencies
+- Parses YAML into `AppModel` (and `S3BucketConfig`, `IdentityUserModel`, etc.)
+- Validates dependencies and detects cycles
 - Provides **topological sort** for deployment order
 
-### 3. AppRegistry (apps/common/registry.py)
+### 5. `AppRegistry` (`shared/apps/common/registry.py`)
 
-ComponentResource that orchestrates cross-cutting concerns:
+`ComponentResource` orchestrating cross-cutting concerns:
 
-- **Secrets**: Creates ExternalSecrets from Doppler
-- **Storage**: Orchestrates PVC creation via `StorageProvisionerFactory` (Strategy Pattern)
-- **Hetzner Automation**: Provisions sub-accounts for users via `StorageBoxManager`
-- **Auth & Identity**: Provisions Authentik Users, Groups, and OAuth2 Apps via `pulumi-authentik`
-- **Exposure**: Creates HTTPRoutes or Tunnel ingresses
+| Concern | Implementation |
+|---------|---------------|
+| **Pre-flight secret validation** | `pulumiverse-doppler` fetches the full Doppler secret map at preview time. Every required key is verified before any Kubernetes resource is created. Missing keys raise `ValueError` with a clear message. |
+| **Secrets (ExternalSecret)** | Creates `ExternalSecret` CRDs from `SecretRequirement`. Supports both flat keys and JSON-scoped properties. |
+| **Storage** | Orchestrates PVC creation via `StorageProvisionerFactory` (Strategy Pattern) |
+| **Hetzner Storage** | `StorageBoxManager` provisions sub-accounts per user |
+| **Auth & Identity** | Authentik Users, Groups, OAuth2 Apps via `pulumi-authentik` |
+| **Exposure** | HTTPRoutes and Cloudflare Tunnel ingresses |
 
-### 4. GenericHelmApp (apps/generic.py)
+### 6. `S3Manager` (`shared/storage/s3_manager.py`)
 
-Generic deployment for Helm-based apps:
+Multi-provider S3 bucket provisioning with an **abstract driver pattern**:
 
-- Deploys Helm chart from AppModel
-- No custom Python needed
+| Driver | Provider | Notes |
+|--------|----------|-------|
+| `OciS3Driver` | Oracle Cloud Object Storage | Always-free 20 GB; S3-compatible endpoint |
+| `CloudflareR2Driver` | Cloudflare R2 | Zero egress; good for media |
+| `GenericS3Driver` | Any HTTP S3 endpoint | RustFS, MinIO, Garage — bucket must exist |
 
-### 5. BaseApp (apps/base.py)
+`S3Manager` orchestrates all configured buckets, exports a `s3_endpoints` dict consumed by `k8s-apps`.
+
+### 7. `GenericHelmApp` (`shared/apps/generic.py`)
+
+Generic deployment for Helm-based apps — no custom Python needed.
+
+### 8. `BaseApp` (`shared/apps/base.py`)
 
 Abstract base for custom apps:
-
 - `deploy()`: Creates namespace + network policies
 - `deploy_components()`: App-specific resources
 - `NetworkPolicyBuilder`: Builds network isolation policies
 
-### 6. Custom Apps (apps/impl/)
-
-Apps requiring complex logic:
-
-- Kanidm: Custom resources (Certificate, ConfigMap, Deployment)
-
-## Architecture Diagram
-
-```
-                    ┌─────────────────┐
-                    │    apps.yaml    │
-                    │ (Configuration) │
-                    └────────┬────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        AppLoader                             │
-│  • load() → list[AppModel]                                 │
-│  • validate() → (bool, error)                              │
-│  • get_deployment_order() → topological sort               │
-└─────────────────────────────────────────────────────────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-       ┌──────────┐  ┌──────────┐  ┌──────────┐
-       │ Generic  │  │ AppRegistry │  │ Custom   │
-       │HelmApp   │  │            │  │ Apps     │
-       └──────────┘  └──────────┘  └──────────┘
-              │              │              │
-              ▼              ▼              ▼
-       ┌──────────┐  ┌──────────┐  ┌──────────┐
-       │  Helm    │  │ Secrets  │  │ Custom   │
-       │ Release  │  │ Storage  │  │Resources │
-       └──────────┘  │ Auth    │  └──────────┘
-                     │ Routes  │
-                     └──────────┘
-```
+---
 
 ## Deployment Flow
 
 ```
-1. Load apps.yaml
-2. Validate (schema + dependencies)
-3. Get deployment order (topological sort)
-4. For each app in order:
-   a. AppRegistry handles cross-cutting concerns
-   b. GenericHelmApp OR Custom app deploys
-   c. NetworkPolicyBuilder creates isolation
-5. Export results
+1. Deploy k8s-core
+   - Creates all necessary namespaces dynamically from apps.yaml
+   - Installs critical operators (CertManager, EnvoyGateway, ExternalSecrets)
+   (Wait for ExternalSecrets CRDs to stabilize)
+
+2. Deploy k8s-storage
+   - Imports namespaces from k8s-core
+   - Installs CSI drivers (Local Path, SMB) and Redis
+   - Provisions database clusters (CNPG)
+   - Provisions S3 buckets via S3Manager (OCI, Cloudflare R2, or Generic)
+   - Exports: storage_classes, database_endpoints, redis_endpoints, s3_endpoints
+
+3. Deploy k8s-apps
+   - Imports namespaces, domain, database endpoints, and s3_endpoints
+   - AppRegistry validates all Doppler secrets at preview time (Fail-Fast)
+   - Initializes AppRegistry (Authentik SSO, StorageBoxManager, HTTPRoutes)
+   - Iterates through apps in apps.yaml (topological order)
+   - Deploys User Apps (GenericHelmApp or Custom Apps)
 ```
+
+---
 
 ## Design Patterns
 
 ### 1. Data-Driven Pattern
-
-Most apps need no Python code - just YAML:
-
+Most apps need no Python code — just YAML:
 ```yaml
 - name: homarr
-  category: public
   helm:
     chart: homarr
-    repo: https://homarrlabs.github.io/homarr-charts
-    version: 8.12.0
+    repo: https://homarr-labs.github.io/charts/
+    version: 2.0.0
 ```
 
-### 2. Single Model Pattern
+### 2. Fail-Fast Secret Validation
+At `pulumi preview`, `AppRegistry` fetches the Doppler secret map via `pulumiverse-doppler` and raises a `ValueError` if any required key is missing — before any Kubernetes resource is created:
+```
+ValueError: CRITICAL ERROR: Secret key 'OCI_S3_ACCESS_KEY' required by app 'authentik' is MISSING in Doppler...
+```
 
-`AppModel` is the single source of truth:
-- Used by AppLoader for validation
-- Used by AppRegistry for orchestration
-- Used by GenericHelmApp for deployment
-- Used by tests for discovery
+### 3. Strategy / Factory Pattern (Storage)
+`StorageProvisionerFactory` selects provisioner by `StorageConfig.storage_class`:
+- `DefaultProvisioner`: Standard Kubernetes PVCs
+- `HetznerSMBProvisioner`: Hetzner Storage Box sub-accounts
 
-### 3. Component Resource Pattern
+### 4. Abstract Driver Pattern (S3)
+`S3Driver` is an abstract base; concrete drivers implement `provision(cfg, region) → BucketEndpoint`. `S3Manager` delegates to the right driver per bucket. Adding a new provider = one new driver class.
 
-`AppRegistry` is a Pulumi ComponentResource:
-- Groups related resources
-- Manages dependencies automatically
-- Provides clear ownership
+### 5. Component Resource Pattern
+`AppRegistry` is a Pulumi ComponentResource — groups resources, manages dependencies, provides clear ownership.
 
-### 4. Template Method Pattern
-
-`BaseApp.deploy()` defines the skeleton:
-- Create namespace
-- Call `deploy_components()` (subclass implementation)
-- Create network policies
-
-### 5. Strategy / Factory Pattern (Storage)
-
-`StorageProvisionerFactory` dynamically selects the storage provider:
-- `DefaultProvisioner`: Standard Kubernetes PVCs (OCI, local-path)
-- `HetznerSMBProvisioner`: Specialized SMB mounts for Hetzner Storage Box, supporting isolated user-specific sub-accounts.
-
-### 6. Manager Pattern (Hetzner Storage Box)
-
-`StorageBoxManager` encapsulates multi-tenant storage logic:
-- Automatically creates Hetzner sub-accounts for each user in `apps.yaml`
-- Generates secure random passwords
-- Provisions Kubernetes Secrets for the SMB CSI driver
-
-### 5. Dependency Injection Pattern
-
-Apps receive `AppModel` in constructor:
-- Easy to test
-- No global state
-- Clear dependencies
+---
 
 ## File Structure
 
 ```
-src/
-├── __main__.py
-├── apps/
-              # Entry point│   ├── base.py             # BaseApp, NetworkPolicyBuilder
-│   ├── generic.py          # GenericHelmApp
-│   ├── loader.py           # AppLoader
-│   ├── impl/               # Custom implementations
-│   │   └── kanidm.py
-│   └── common/
-│       ├── registry.py     # AppRegistry (secrets, storage, auth, routes)
-│       ├── shared.py       # ServiceRegistry (Postgres, Redis)
-│       └── builders.py     # K8s helpers (namespace, service, pvc, etc.)
-├── utils/
-│   └── schemas.py          # AppModel
-└── tests/
-    └── dynamic/            # Auto-discovery tests
+.
+├── apps.yaml                   # Single source of truth (apps, buckets, identities)
+├── k8s-core/                   # Phase 1: Foundation (Namespaces, CRDs, Operators)
+│   ├── Pulumi.yaml
+│   ├── Pulumi.oci.yaml
+│   └── __main__.py
+├── k8s-storage/                # Phase 2: Storage & Databases
+│   ├── Pulumi.yaml
+│   ├── Pulumi.oci.yaml         # OCI config: ociNamespace, ociCompartmentId, ociRegion
+│   └── __main__.py            # Calls S3Manager + exports s3_endpoints
+├── k8s-apps/                   # Phase 3: User Applications
+│   ├── Pulumi.yaml
+│   ├── Pulumi.oci.yaml
+│   └── __main__.py
+├── shared/
+│   ├── apps/
+│   │   ├── base.py            # BaseApp, NetworkPolicyBuilder
+│   │   ├── generic.py         # GenericHelmApp
+│   │   ├── loader.py          # AppLoader (YAML → AppModel, topological sort)
+│   │   ├── impl/              # Custom app implementations
+│   │   └── common/
+│   │       ├── registry.py    # AppRegistry (secrets, storage, auth, routes)
+│   │       ├── storagebox.py  # Hetzner StorageBoxManager
+│   │       └── storage_provisioner.py
+│   ├── storage/
+│   │   ├── __init__.py
+│   │   └── s3_manager.py      # S3Manager + OCI/Cloudflare/Generic drivers
+│   └── utils/
+│       └── schemas.py         # AppModel, S3BucketConfig, SecretRequirement, …
+├── tests/
+│   ├── static/                # Pre-deployment validation (schemas, images, secrets)
+│   ├── unit/                  # Pulumi mock unit tests
+│   ├── integration/           # Post-deployment cluster checks
+│   └── dynamic/               # Live cluster tests (routing, secrets, network)
+├── policies/                  # Pulumi Crossguard policy packs
+└── docs/
+    └── ARCHITECTURE.md
 ```
-
-## Categories
-
-| Category | Description | Default Mode |
-|----------|-------------|--------------|
-| `public` | Exposed via Envoy Gateway | External |
-| `protected` | Protected by Cloudflare Access | External |
-| `internal` | No external exposure | ClusterIP |
-| `database` | PostgreSQL/MySQL | ClusterIP |
-
-## Testing
-
-Tests automatically discover apps from `apps.yaml`:
-
-- **Routing Tests**: Verify HTTP endpoints respond
-- **Secrets Tests**: Verify ExternalSecrets sync
-- **Network Tests**: Verify NetworkPolicies exist
-
-No hardcoded lists - tests iterate over `apps_with_routing`, `apps_with_secrets`, etc.
-
-## Benefits
-
-1. **Less Code**: 90% of apps = just YAML
-2. **Consistency**: Single model for all apps
-3. **Correctness**: Topological sort prevents dependency issues
-4. **Testability**: Auto-discovery tests
-5. **Maintainability**: Separation of concerns
 
 ---
 
 ## How to Add a New App
 
-### Option 1: Simple App (Recommended)
-
-For most apps, just add an entry to `apps.yaml`:
+### Option 1: Simple Helm App (Recommended)
 
 ```yaml
+# apps.yaml
 - name: myapp
-  category: public          # public | protected | internal | database
-  tier: standard           # critical | standard | ephemeral
-  namespace: homelab       # Kubernetes namespace
-  port: 8080               # Service port
-  hostname: myapp.smadja.dev  # Optional: public hostname
-  mode: public             # public | protected | internal
-  clusters: [oci, local]   # Which clusters to deploy to
-  dependencies:            # Namespaces this app can communicate with
-    - external-secrets
-    - envoy-gateway
-    - kube-system
+  category: public        # public | protected | internal | database
+  tier: standard          # critical | standard | ephemeral
+  namespace: homelab
+  port: 8080
+  hostname: myapp.smadja.dev
+  mode: public
+  clusters: [oci, local]
+  dependencies: [external-secrets, envoy-gateway, kube-system]
   helm:
     chart: myapp
     repo: https://charts.example.com
     version: 1.0.0
-    # Optional: External values file
-    values_file: ./apps/myapp-values.yaml
-
-  # Optional: Let Helm handle the ingress/route instead of AppRegistry
-  disable_auto_route: false
-
-  storage:                 # Optional: persistent volumes
+  storage:
     - name: data
       size: 10Gi
       mount_path: /data
-      # Optional features:
-      # existing_claim: "my-shared-pvc" # Use an existing PVC instead of creating one
-      # shared: true                    # Create ReadWriteMany PVC for multiple pod access
-
-  secrets:                 # Optional: secrets from Doppler
+  secrets:
     - name: myapp-creds
-      keys: [api_key, api_secret]
-  test:                    # Optional: test configuration
+      keys:
+        api_key: MYAPP_API_KEY         # K8s key: Doppler key
+        api_secret: MYAPP_API_SECRET
+  test:
     routing: true
     expected_endpoints: [https://myapp.smadja.dev]
-
-# Global Identities definition at the root of apps.yaml
-identities:
-  users:
-    - name: "paul"
-      display_name: "Paul Smadja"
-      email: "paul@smadja.dev"
-      groups: ["admins"]
-  groups:
-    - name: "admins"
-      is_superuser: true
 ```
 
-### Option 2: Custom App
+### Option 2: Add an S3 Bucket
 
-For complex apps requiring custom Kubernetes resources, create a Python class:
+```yaml
+# apps.yaml — buckets section
+buckets:
+  - name: my-new-bucket
+    provider: oci           # oci | cloudflare | generic
+    purpose: media
+    tier: Standard
+    export_as: my_bucket    # exported in s3_endpoints stack output
+    access_key_secret: OCI_S3_ACCESS_KEY   # Doppler key name
+    secret_key_secret: OCI_S3_SECRET_KEY
 
-1. **Create the app file** in `src/apps/impl/`:
+  # For local/self-hosted RustFS or MinIO:
+  - name: local-media
+    provider: generic
+    endpoint_url: https://rustfs.local.smadja.dev
+    purpose: media
+    export_as: local_media_bucket
+    access_key_secret: RUSTFS_ACCESS_KEY
+    secret_key_secret: RUSTFS_SECRET_KEY
+```
+
+### Option 3: Custom App
+
+For complex apps requiring custom Kubernetes resources:
 
 ```python
-# src/apps/impl/myapp.py
-from apps.base import BaseApp
-from utils.schemas import AppModel
+# shared/apps/impl/myapp.py
+from shared.apps.base import BaseApp
+from shared.utils.schemas import AppModel
 
 class MyApp(BaseApp):
     def __init__(self, model: AppModel):
         super().__init__(model)
 
-    def deploy_components(self, provider, config):
+    def deploy_components(self, provider, config, opts=None):
         # Custom deployment logic
         return {"release": ...}
 ```
 
-2. **Register in `__main__.py`**:
+---
 
-```python
-if app_name == "myapp":
-    from apps.impl.myapp import MyApp
-    myapp = MyApp(app)
-    myapp.deploy(provider, {})
-```
+## Secret Management
 
-### App Categories
+### Model
 
-| Category | When to Use | Default Dependencies |
-|----------|-------------|---------------------|
-| `public` | Exposed via Envoy Gateway | external-secrets, envoy-gateway, kube-system |
-| `protected` | Behind Cloudflare Access | external-secrets, oauth2-proxy, kube-system |
-| `internal` | Cluster-only access | kube-system |
-| `database` | PostgreSQL/MySQL | kube-system |
-
-### Shared Volumes (Storage)
-
-Si plusieurs applications ont besoin d'accéder au même volume (par exemple un NAS NFS, MinIO S3, ou un PVC centralisé via Longhorn / SFTP) :
-
-1. Déclarez une infrastructure de stockage commune (`nas-claim` par exemple).
-2. Dans `apps.yaml`, référencez ce volume pour *plusieurs apps* en utilisant `existing_claim: nas-claim`.
-3. Alternativement, passez `shared: true` lors de la création d'un volume pour générer un `ReadWriteMany` PVC.
-
-### Dependencies
-
-Always declare dependencies correctly - they are used for:
-- **Deployment order**: Apps deploy after their dependencies
-- **Network policies**: Only declared namespaces can communicate
+Secrets are defined in `apps.yaml` using `SecretRequirement`:
 
 ```yaml
-# Example: navidrome needs database
-dependencies:
-  - cnpg-system      # Database
-  - external-secrets # Secrets
-  - kube-system      # DNS
+secrets:
+  - name: <k8s-secret-name>
+    keys:
+      <k8s-key>: <doppler-key>   # Flat mapping (preferred)
+    # OR for JSON blobs in Doppler:
+    keys: [key1, key2]
+    remote_key: DOPPLER_JSON_SECRET_NAME
 ```
 
-### Testing
+### Validation (Fail-Fast)
 
-Tests auto-discover apps from `apps.yaml`. After adding an app:
+`AppRegistry` uses `pulumiverse-doppler` to fetch the full Doppler key map at `pulumi preview` time. If any referenced Doppler key does not exist, the entire preview fails immediately with a clear error message, before touching the cluster.
+
+### Credential locations
+
+| What | Where |
+|------|-------|
+| Doppler token | Pulumi stack config (`homelab:dopplerToken`) |
+| OCI S3 credentials | Doppler: `OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY` |
+| Cloudflare API token | Doppler: `CLOUDFLARE_API_TOKEN` |
+| Hetzner token | Env var `HETZNER_API_TOKEN` (set before `pulumi up`) |
+
+---
+
+## Testing Strategy
+
+| Layer | Tool | What it checks |
+|-------|------|---------------|
+| Static | `pytest tests/static/` | Schema validation, secret mapping, image tags |
+| Unit | `pytest tests/unit/` | Pulumi mock tests (dependency graph, storage logic) |
+| Policy | `pulumi policy run` | Security contexts, TLS, resource limits |
+| Dynamic | `pytest tests/dynamic/` | Live routing, secret sync, network policies |
+| Pre-flight | `pulumi preview` | Doppler key existence (via `pulumiverse-doppler`) |
 
 ```bash
-# Run routing tests
-pytest tests/dynamic/test_routing_auto.py -v
-
-# Run secrets tests
-pytest tests/dynamic/test_secrets_auto.py -v
-
-# Run network tests
-pytest tests/dynamic/test_network_auto.py -v
+pytest tests/static/ -v        # Pre-deployment checks
+pytest tests/dynamic/ -v       # Post-deployment cluster checks
 ```

@@ -1,29 +1,18 @@
 [project]
-name = "homelab-kubernetes"
+name = "homelab-shared"
 version = "0.1.0"
-description = "Pulumi Kubernetes configuration for homelab"
-requires-python = ">=3.12"
 dependencies = [
-    "pulumi>=3.120.0",
-    "pulumi-kubernetes>=4.18.0",
-    "cdk8s>=2.20.0",
-    "constructs>=10.4.0",
+    "pulumi>=3.0.0",
+    "pulumi-kubernetes>=4.0.0",
     "pyyaml>=6.0",
-    "doppler-sdk>=1.0.0",
-    "pydantic>=2.0",
-    "pulumi-hcloud>=1.20.0",
-    "pulumi-random>=4.16.0",
+    "pydantic>=2.0.0",
+    "pulumiverse-doppler>=0.9.0",
+    "pulumi-oci>=4.1.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
-    "pytest>=8.0.0",
-    "pytest-mock>=3.12.0",
-]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"
+[tool.hatch.build.targets.wheel]
+packages = ["shared"]

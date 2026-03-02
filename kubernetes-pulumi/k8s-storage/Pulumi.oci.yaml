@@ -1,0 +1,10 @@
+encryptionsalt: v1:AFYTODpqevg=:v1:XScmJM5yGlmHyAM9:kdEDjcSOWHbic9K+TQJ4Vz8q9bqvlQ==
+config:
+  homelab-k8s-storage:cluster: oci
+  homelab-k8s-storage:domain: smadja.dev
+  homelab-k8s-storage:clusterName: oci
+  homelab:dopplerToken:
+    secure: v1:uQS5xj3hwEpwYV80:TTJFtUnH+TTwmlsG+2a/pGeo4Fq744huitUo1FGhBAECKrGq6TZLuo6SyeAy2CwGrnwxsAR1QjcCcnKy0gb3h2c=
+  homelab-k8s-storage:ociNamespace: axnvxxurxefp
+  homelab-k8s-storage:ociRegion: eu-paris-1
+  homelab-k8s-storage:ociCompartmentId: ocid1.tenancy.oc1..aaaaaaaamwy5a55i2ljjxildejy42z2zshzs3edjbevyl27q4iv52sqqaqna

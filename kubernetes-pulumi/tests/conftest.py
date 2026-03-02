@@ -10,19 +10,21 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, List
 
-# Add src to sys.path
+# Add PROJECT_ROOT to sys.path so 'shared' can be imported
 PROJECT_ROOT = Path(__file__).parent.parent
-SRC_DIR = PROJECT_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from apps.loader import get_loader, load_apps
-    from utils.schemas import AppModel, ExposureMode
+    from shared.apps.loader import get_loader, load_apps
+    from shared.utils.schemas import AppModel, ExposureMode
     LOADER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     LOADER_AVAILABLE = False
-    print("Warning: Loader or Schemas not available for test discovery.")
+    # Define dummy classes to avoid NameErrors in type hints if imports fail
+    class AppModel: pass
+    class ExposureMode: INTERNAL = "internal"
+    print(f"Warning: Loader or Schemas not available for test discovery: {e}")
 
 # --- Configuration ---
 

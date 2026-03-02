@@ -46,7 +46,46 @@
 version: v1
 cluster: oci
 domain: smadja.dev
-hcloud_storage_box_id: 554589
+hcloud_storage_box_id: 537179
+
+# S3-compatible bucket definitions
+# Provisioned by k8s-storage. Provider: oci | cloudflare | generic
+# export_as: used by k8s-apps to get the endpoint URL via StackReference
+buckets:
+  - name: velero-backups
+    provider: oci
+    purpose: backup
+    tier: InfrequentAccess
+    export_as: velero_backup_bucket
+    access_key_secret: OCI_S3_ACCESS_KEY
+    secret_key_secret: OCI_S3_SECRET_KEY
+    protect: true
+
+  - name: homelab-db-backups
+    provider: oci
+    purpose: backup
+    tier: InfrequentAccess
+    export_as: db_backup_bucket
+    access_key_secret: OCI_S3_ACCESS_KEY
+    secret_key_secret: OCI_S3_SECRET_KEY
+    protect: true
+
+  # Future: local RustFS instance (uncomment when ready)
+  # - name: local-backups
+  #   provider: generic
+  #   endpoint_url: https://rustfs.local.smadja.dev
+  #   purpose: backup
+  #   export_as: local_backup_bucket
+  #   access_key_secret: RUSTFS_ACCESS_KEY
+  #   secret_key_secret: RUSTFS_SECRET_KEY
+
+  # Future: Cloudflare R2 for zero-egress media storage
+  # - name: smadja-media
+  #   provider: cloudflare
+  #   purpose: media
+  #   export_as: media_bucket
+  #   access_key_secret: CF_R2_ACCESS_KEY
+  #   secret_key_secret: CF_R2_SECRET_KEY
 
 # Global Identities for Authentik
 identities:
@@ -76,12 +115,30 @@ apps:
     dependencies: [external-secrets, envoy-gateway, kube-system]
     helm:
       chart: homarr
-      repo: https://homarrlabs.github.io/homarr-charts
-      version: 8.12.0
+      repo: https://homarr-labs.github.io/charts/
+      version: 2.0.0
+      values:
+        image:
+          tag: latest
+        persistence:
+          database:
+            enabled: true
+            volumeClaimName: homarr-database
+        # Fix Permission Denied on volume binds
+        podSecurityContext:
+          fsGroup: 1000
     storage:
-      - name: data
+      - name: data # Pulumi will create 'homarr-data' PVC
         size: 1Gi
         mount_path: /data
+      - name: database # PVC for homarrDatabase
+        size: 1Gi
+        mount_path: /database
+        storage_class: local-path
+    secrets:
+      - name: homarr-vars
+        keys:
+          DATABASE_URL: HOMARR_DB_SECRET
     replicas: 1
     resources:
       requests:
@@ -93,7 +150,7 @@ apps:
     test:
       routing: true
       expected_endpoints: [https://home.smadja.dev]
-      network_isolation: [authentik]
+      network_isolation: []
 
   - name: navidrome
     category: protected
@@ -117,18 +174,24 @@ apps:
                   repository: ghcr.io/navidrome/navidrome
                   tag: latest
                 env:
-                  ND_TIMEZONE: Europe/Paris
-                  ND_LOG_LEVEL: info
-        persistence:
-          data:
-            type: persistentVolumeClaim
-            size: 2Gi
-            globalMounts:
-              - path: /data
+                  - name: ND_DATAFOLDER
+                    value: /data
+                  - name: ND_MUSICFOLDER
+                    value: /music
+                  - name: ND_TIMEZONE
+                    value: Europe/Paris
+                  - name: ND_LOG_LEVEL
+                    value: info
+
+        podSecurityContext:
+          fsGroup: 1000
+
         service:
           main:
+            controller: main
             ports:
-              http: 4533
+              http:
+                port: 4533
     storage:
       - name: music
         size: 1Ti
@@ -142,8 +205,10 @@ apps:
         access: private
     secrets:
       - name: hetzner-storage-creds
-        keys: [username, password]
         remote_key: HETZNER_STORAGE_BOX_1
+        keys:
+          username: username
+          password: password
     replicas: 1
     resources:
       requests:
@@ -152,7 +217,7 @@ apps:
     test:
       routing: true
       expected_endpoints: [https://music.smadja.dev]
-      network_isolation: [authentik]
+      network_isolation: []
 
   - name: slskd
     category: public
@@ -175,10 +240,16 @@ apps:
                 image:
                   repository: ghcr.io/slskd/slskd
                   tag: latest
+
+        podSecurityContext:
+          fsGroup: 1000
+
         service:
           main:
+            controller: main
             ports:
-              http: 5030
+              http:
+                port: 5030
     storage:
       - name: config
         size: 1Gi
@@ -190,14 +261,11 @@ apps:
         mount_path: /music
         existing_claim: navidrome-music
         access: shared
-    secrets:
-      - name: hetzner-storage-creds
-        keys: [username, password]
-        remote_key: HETZNER_STORAGE_BOX_1
+# Shared hetzner-storage-creds from navidrome in the same namespace
     test:
       routing: true
       expected_endpoints: [https://soulseek.smadja.dev]
-      network_isolation: [authentik, cnpg-system]
+      network_isolation: [cnpg-system]
 
   # =============================================================================
   # PROTECTED APPLICATIONS - Exposed via Cloudflare Access
@@ -207,19 +275,40 @@ apps:
     category: protected
     tier: critical
     namespace: vaultwarden
-    port: 80
+    port: 8080
     hostname: vault.smadja.dev
     mode: protected
     clusters: [oci]
     dependencies: [cnpg-system, external-secrets, authentik, kube-system]
     helm:
       chart: vaultwarden
-      repo: https://charts.bool79.io
-      version: 4.1.0
+      repo: https://charts.gabe565.com
+      version: 0.11.1
+      values:
+        image:
+          repository: docker.io/vaultwarden/server
+          tag: 1.33.2
+        # Fix Permission Denied on RSA key and volume binds
+        podSecurityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+        domain: vaultwarden.smadja.dev
     storage:
       - name: data
         size: 1Gi
         mount_path: /data
+    secrets:
+      - name: vaultwarden-vars
+        keys:
+          ADMIN_TOKEN: VAULTWARDEN_ADMIN_TOKEN
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
     test:
       routing: true
       expected_endpoints: [https://vault.smadja.dev]
@@ -240,23 +329,42 @@ apps:
       chart: authentik
       repo: https://charts.goauthentik.io
       version: 2024.10.1
+      values:
+        authentik:
+          existingSecret:
+            secretName: authentik-vars
+        podSecurityContext:
+          fsGroup: 1000
+        redis:
+          image:
+            tag: 7.2
+          master:
+            podSecurityContext:
+              fsGroup: 1000
+          # Add shmSize to fix /dev/shm issues
+          shmSize: 256Mi
     storage:
       - name: data
         size: 10Gi
         mount_path: /data
     database_backup:
       enabled: true
-      endpoint_url: "https://<account-id>.r2.cloudflarestorage.com" # Placeholder, update in Doppler
-      bucket: "homelab-db-backups"
+      endpoint_url: "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
+      bucket: "velero-backups"
       access_key_id: "s3-backup-creds"
       secret_access_key: "s3-backup-creds"
+    database:
+      local: true
+      size: 5Gi
     secrets:
-      - name: authentik-secrets
-        keys: [AUTHENTIK_SECRET_KEY, AUTHENTIK_POSTGRESQL__PASSWORD]
-        remote_key: AUTHENTIK_CORE_SECRETS
+      - name: authentik-vars
+        keys:
+          AUTHENTIK_SECRET_KEY: AUTHENTIK_SECRET_KEY
+          AUTHENTIK_REDIS__PASSWORD: AUTHENTIK_REDIS_PASSWORD
       - name: s3-backup-creds
-        keys: [access_key_id, secret_access_key]
-        remote_key: S3_BACKUP_CREDS
+        keys:
+          access_key_id: OCI_S3_ACCESS_KEY
+          secret_access_key: OCI_S3_SECRET_KEY
     test:
       routing: true
       expected_endpoints: [https://auth.smadja.dev]
@@ -293,9 +401,15 @@ apps:
       repo: oci://registry-1.docker.io/bitnamicharts
       version: 20.2.1
       values:
+        image:
+          tag: 7.4.2-debian-12-r0
         architecture: standalone
         auth:
           enabled: false
+        # Add shmSize for proper operation
+        shmSize: 256Mi
+        imagePullSecrets:
+          - name: dockerhub-secret
 
   - name: external-secrets
     category: internal
@@ -312,6 +426,12 @@ apps:
       version: 0.10.4
       values:
         installCRDs: true
+        serviceAccount:
+          create: true
+    test:
+      expected_resources:
+        - kind: ServiceAccount
+          name: external-secrets
 
   - name: cert-manager
     category: internal
@@ -329,6 +449,12 @@ apps:
       values:
         crds:
           enabled: true
+        serviceAccount:
+          create: true
+    secrets:
+      - name: cloudflare-api-token
+        keys: [api_token]
+        remote_key: CLOUDFLARE_API_TOKEN
 
   - name: envoy-gateway
     category: internal
@@ -341,9 +467,16 @@ apps:
     disable_auto_route: true
     helm:
       chart: gateway-helm
-      repo: oci://docker.io/envoyproxy
+      repo: oci://registry-1.docker.io/envoyproxy
       version: v1.2.1
-
+      values:
+        serviceAccount:
+          create: true
+          name: envoy-gateway
+    test:
+      expected_resources:
+        - kind: ServiceAccount
+          name: envoy-gateway
   - name: cloudflared
     category: internal
     tier: critical
@@ -354,10 +487,12 @@ apps:
     dependencies: [kube-system, external-secrets]
     disable_auto_route: true
     helm:
-      chart: cloudflared
+      chart: cloudflare-tunnel
       repo: https://cloudflare.github.io/helm-charts
       version: 0.3.2
       values:
+        cloudflare:
+          secretName: cloudflared-token
         tunnelToken: "" # Placeholder, will be replaced by env or secretRef if chart supports it
     secrets:
       - name: cloudflared-token
@@ -379,9 +514,17 @@ apps:
       version: 1.15.0
       values:
         provider: cloudflare
+        serviceAccount:
+          create: true
         cloudflare:
           apiToken: "" # Placeholder, set by env or secretRef
           proxied: true
+        env:
+          - name: CF_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: cloudflare-api-token
+                key: api_token
     secrets:
       - name: cloudflare-api-token
         keys: [api_token]
@@ -401,8 +544,12 @@ apps:
     disable_auto_route: true
     helm:
       chart: local-path-provisioner
-      repo: https://cowboysysop.github.io/charts/
+      repo: https://charts.containeroo.ch/
       version: 0.0.30
+      values:
+        image:
+          repository: docker.io/rancher/local-path-provisioner
+          tag: v0.0.34
 
   - name: csi-driver-smb
     category: internal
@@ -415,8 +562,16 @@ apps:
     disable_auto_route: true
     helm:
       chart: csi-driver-smb
-      repo: https://kubernetes-csi.github.io/csi-driver-smb/charts
+      repo: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
       version: v1.16.0
       values:
         feature:
           enableSMBSecurity: true
+        serviceAccount:
+          create: true
+        controller:
+          serviceAccount:
+            create: true
+        node:
+          serviceAccount:
+            create: true

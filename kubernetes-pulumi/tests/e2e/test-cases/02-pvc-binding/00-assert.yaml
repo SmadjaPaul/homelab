@@ -1,0 +1,28 @@
+# Test 02: Verify PVC Binding
+#
+# This test verifies that PVCs are properly bound to PVs.
+# It checks that the storage provisioner correctly allocated storage.
+
+# Assert that the homarr PVC is bound
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: homelab
+spec:
+  accessModes:
+    - ReadWriteOnce
+status:
+  phase: Bound
+---
+# Assert that the navidrome PVC is bound
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: navidrome-data
+  namespace: music
+spec:
+  accessModes:
+    - ReadWriteOnce
+status:
+  phase: Bound
