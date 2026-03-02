@@ -337,12 +337,17 @@ apps:
           fsGroup: 1000
         redis:
           image:
+            registry: ghcr.io
             tag: 7.2
           master:
             podSecurityContext:
               fsGroup: 1000
           # Add shmSize to fix /dev/shm issues
           shmSize: 256Mi
+          # Allow insecure images for ghcr.io
+          global:
+            security:
+              allowInsecureImages: true
     storage:
       - name: data
         size: 10Gi
@@ -410,6 +415,10 @@ apps:
           enabled: false
         # Add shmSize for proper operation
         shmSize: 256Mi
+        # Allow insecure images (ghcr.io is not Bitnami's default registry)
+        global:
+          security:
+            allowInsecureImages: true
         imagePullSecrets:
           - name: dockerhub-secret
 
