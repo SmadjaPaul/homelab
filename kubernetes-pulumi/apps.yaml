@@ -406,7 +406,9 @@ apps:
       repo: https://dandydeveloper.github.io/charts
       version: 4.33.4
       values:
-        image: redis:7.2.7-alpine
+        image:
+          repository: redis
+          tag: 7.2.7-alpine
         auth: false
         replicas: 1
         sentinel:
