@@ -407,7 +407,7 @@ apps:
       version: 4.33.4
       values:
         image:
-          repository: redis
+          repository: ghcr.io/redis/redis
           tag: 7.2.7-alpine
         auth: false
         replicas: 1
