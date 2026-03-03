@@ -107,7 +107,7 @@ def extract_images_from_helm_values(values: dict) -> set:
                     repo = img.get("repository", "")
                     tag = img.get("tag", "latest")
                     if repo:
-                        full_image = f"{repo}:{tag}" if ":" in tag else repo
+                        full_image = f"{repo}:{tag}"
                         images.add(full_image)
             for key, value in obj.items():
                 recursive_find(value, f"{path}.{key}")
