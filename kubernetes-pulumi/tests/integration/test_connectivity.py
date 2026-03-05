@@ -54,13 +54,15 @@ def test_app_connectivity(app):
 
             # If the app is protected, we expect a redirect to Authentik or a 401/302
             if app.mode == ExposureMode.PROTECTED:
-                # Check if we were redirected to authentik
-                if "authentik" in response.url or response.status_code in [302, 401]:
-                    print(f"    [INFO] {app.name} is correctly protected by Authentik")
-                else:
-                    print(
-                        f"    [WARNING] {app.name} is PROTECTED but returned {response.status_code} at {response.url} without obvious Authentik redirect"
-                    )
+                # Enforce: protected apps MUST redirect to authentik
+                assert "authentik" in response.url or response.status_code in [
+                    302,
+                    401,
+                ], (
+                    f"Protected app {app.name} at {url} is accessible WITHOUT auth (status {response.status_code}, redirected to {response.url})"
+                )
+
+                print(f"    [INFO] {app.name} is correctly protected by Authentik")
             else:
                 assert response.status_code < 400, (
                     f"App {app.name} is PUBLIC but returned status {response.status_code}"

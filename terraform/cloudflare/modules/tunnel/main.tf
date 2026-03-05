@@ -53,50 +53,10 @@ output "cname_target" {
   value = "${local.actual_tunnel_id}.cfargotunnel.com"
 }
 
-resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
-  count      = var.enable_tunnel_config ? 1 : 0
-  account_id = var.account_id
-  tunnel_id  = local.actual_tunnel_id
-
-  config = {
-    ingress = [
-      # Route through Envoy Gateway Internal (behind Cloudflare Tunnel)
-      # Envoy Gateway internal LB: 141.253.110.118
-      {
-        hostname = "home.${var.domain}"
-        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
-        origin_request = {
-          no_tls_verify   = true
-          connect_timeout = 30
-        }
-      },
-      {
-        hostname = "auth.${var.domain}"
-        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
-        origin_request = {
-          no_tls_verify   = true
-          connect_timeout = 30
-        }
-      },
-      {
-        hostname = "login.${var.domain}"
-        service  = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
-        origin_request = {
-          no_tls_verify   = true
-          connect_timeout = 30
-        }
-      },
-      {
-        hostname = "proxmox.${var.domain}"
-        service  = "https://${var.proxmox_local_ip}:8006"
-        origin_request = {
-          no_tls_verify = true
-        }
-      },
-      # Default catch-all (fallback to internal gateway)
-      {
-        service = "http://envoy-gateway.envoy-gateway.svc.cluster.local:80"
-      }
-    ]
-  }
-}
+# NOTE: Tunnel ingress config (cloudflare_zero_trust_tunnel_cloudflared_config)
+# has been migrated to Pulumi (k8s-apps stack) where it is generated dynamically
+# from apps.yaml. This keeps apps.yaml as the single source of truth for routing.
+#
+# CRITICAL: Before applying this Terraform change, you MUST run:
+# terraform state rm 'module.tunnel[0].cloudflare_zero_trust_tunnel_cloudflared_config.homelab[0]'
+# to prevent Terraform from destroying the config that Pulumi is taking over.

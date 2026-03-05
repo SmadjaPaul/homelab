@@ -156,6 +156,7 @@ apps:
     port: 4533
     hostname: music.smadja.dev
     mode: protected
+    auth: true
     clusters: [oci, local]
     dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
@@ -329,6 +330,7 @@ apps:
     port: 8080
     hostname: vault.smadja.dev
     mode: protected
+    auth: true
     clusters: [oci]
     dependencies: [cnpg-system, external-secrets, cloudflared, authentik, kube-system]
     helm:

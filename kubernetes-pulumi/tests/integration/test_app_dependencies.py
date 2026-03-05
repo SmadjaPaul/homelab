@@ -47,3 +47,18 @@ def test_database_apps_depend_on_cnpg():
                 assert "cnpg-system" in app.dependencies, (
                     f"App '{app.name}' in cluster '{cluster}' uses local DB but missing 'cnpg-system' dependency"
                 )
+
+
+def test_protected_apps_depend_on_authentik():
+    """Apps with mode=protected must have 'authentik' in dependencies."""
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    loader = AppLoader(os.path.join(project_root, "apps.yaml"))
+    for cluster in ["oci", "local"]:
+        apps = loader.load_for_cluster(cluster)
+        for app in apps:
+            if app.name in ["authentik", "kube-system", "external-secrets"]:
+                continue
+            if app.mode.value == "protected":
+                assert "authentik" in app.dependencies, (
+                    f"App '{app.name}' is protected but missing 'authentik' dependency"
+                )

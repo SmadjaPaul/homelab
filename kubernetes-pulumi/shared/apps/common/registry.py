@@ -34,8 +34,6 @@ class AppRegistry(pulumi.ComponentResource):
         self.provider = provider
         self.config = config or {}
         self.domain = self.config.get("domain", "smadja.dev")
-        self.gateway_name = self.config.get("gateway_name", "external")
-        self.gateway_namespace = self.config.get("gateway_namespace", "envoy-gateway")
         self._hetzner_smb_ready = False
         from shared.apps.common.storagebox import StorageBoxManager
 
@@ -44,6 +42,7 @@ class AppRegistry(pulumi.ComponentResource):
         self.doppler_secrets = doppler.get_secrets_output(
             project="infrastructure", config="prd"
         )
+        self._proxy_provider_ids: list = []  # Collected for outpost binding
 
     def setup_global_infrastructure(self):
         """Setup resources that are cluster-wide or shared."""
@@ -622,7 +621,7 @@ class AppRegistry(pulumi.ComponentResource):
     def _setup_auth_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        """Provision Authentik OAuth2 Providers and Applications for each app."""
+        """Provision Authentik Proxy or OAuth2 Providers and Applications for each app."""
         resources = []
         try:
             import pulumi_authentik as authentik
@@ -632,162 +631,98 @@ class AppRegistry(pulumi.ComponentResource):
         if not app.auth:
             return []
 
-        redirect_urls = [f"https://{app.hostname}/oauth2/callback"]
-        if "freshrss" in app.name:
-            redirect_urls.append(f"https://{app.hostname}/i/oidc/")
-
         if app.mode == ExposureMode.PROTECTED:
-            provider = authentik.provider.proxy.ProxyProvider(
+            # Proxy mode: outpost intercepts traffic and proxies to the backend
+            provider = authentik.ProviderProxy(
                 f"proxy-provider-{app.name}",
                 name=app.name,
                 internal_host=f"http://{app.name}.{app.namespace}.svc.cluster.local:{app.port}",
                 external_host=f"https://{app.hostname}",
-                mode="forward_single",
+                mode="proxy",
                 authorization_flow="default-provider-authorization-explicit-consent",
+                invalidation_flow="default-provider-invalidation-flow",
                 opts=opts,
             )
+            # Collect provider ID for outpost binding (done in finalize_authentik_outpost)
+            self._proxy_provider_ids.append(provider.id)
         else:
-            provider = authentik.provider.oauth2.OAuth2Provider(
+            # Standard OIDC for public apps with auth
+            redirect_urls = [f"https://{app.hostname}/oauth2/callback"]
+            provider = authentik.ProviderOauth2(
                 f"oauth2-provider-{app.name}",
                 name=app.name,
                 client_id=f"{app.name}-client",
                 client_type="confidential",
                 authorization_flow="default-provider-authorization-explicit-consent",
-                redirect_uris="\n".join(redirect_urls),
+                invalidation_flow="default-provider-invalidation-flow",
+                allowed_redirect_uris="\n".join(redirect_urls),
                 opts=opts,
             )
         resources.append(provider)
 
-        appl = authentik.core.Application(
+        appl = authentik.Application(
             f"auth-app-{app.name}",
             name=app.name.capitalize(),
             slug=app.name,
-            provider=provider.id,
+            protocol_provider=provider.id,
             meta_launch_url=f"https://{app.hostname}",
             opts=opts,
         )
         resources.append(appl)
         return resources
 
+    def finalize_authentik_outpost(self):
+        """Create the Authentik Outpost after all apps have been registered.
+
+        Must be called AFTER all register_app() calls so that all proxy
+        provider IDs have been collected.
+        """
+        if not self._proxy_provider_ids:
+            print("  [Registry] No proxy providers found, skipping outpost creation.")
+            return
+
+        try:
+            import pulumi_authentik as authentik
+        except ImportError:
+            print("  [Registry] pulumi_authentik not installed, skipping outpost.")
+            return
+
+        print(
+            f"  [Registry] Creating Authentik Outpost with {len(self._proxy_provider_ids)} providers..."
+        )
+
+        # Kubernetes service connection — uses the Authentik pod's own service account
+        svc_conn = authentik.ServiceConnectionKubernetes(
+            "authentik-k8s-connection",
+            name="Local Kubernetes",
+            local=True,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        import json
+
+        authentik.Outpost(
+            "authentik-embedded-outpost",
+            name="authentik-embedded-outpost",
+            type="proxy",
+            service_connection=svc_conn.id,
+            protocol_providers=self._proxy_provider_ids,
+            config=json.dumps(
+                {
+                    "authentik_host": f"https://auth.{self.domain}",
+                    "kubernetes_namespace": "authentik",
+                }
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+        print("  [Registry] Authentik Outpost created.")
+
     def _setup_exposure_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        """Create Ingress or Gateway routes based on app mode."""
-        if getattr(app, "disable_auto_route", False):
-            return []
+        """Exposure is managed centrally via ZeroTrustTunnelCloudflaredConfig in k8s-apps.
 
-        if app.mode == ExposureMode.PUBLIC:
-            return self._create_gateway_route(app, opts)
-        elif app.mode == ExposureMode.PROTECTED:
-            return self._create_tunnel_ingress(app, opts)
+        All apps with a hostname are automatically routed through the Cloudflare Tunnel.
+        No per-app HTTPRoute or Ingress resources are needed.
+        """
         return []
-
-    def _create_gateway_route(
-        self, app: AppModel, opts: pulumi.ResourceOptions
-    ) -> List[pulumi.Resource]:
-        """Creates an HTTPRoute via Envoy Gateway."""
-        resources = []
-        route = k8s.apiextensions.CustomResource(
-            f"route-{app.name}",
-            api_version="gateway.networking.k8s.io/v1",
-            kind="HTTPRoute",
-            metadata={
-                "name": app.name,
-                "namespace": app.namespace,
-            },
-            spec={
-                "parentRefs": [
-                    {"name": self.gateway_name, "namespace": self.gateway_namespace}
-                ],
-                "hostnames": [app.hostname],
-                "rules": [
-                    {
-                        "backendRefs": [{"name": app.name, "port": app.port}],
-                    }
-                ],
-            },
-            opts=opts,
-        )
-        resources.append(route)
-
-        if app.auth:
-            sp = k8s.apiextensions.CustomResource(
-                f"security-policy-{app.name}",
-                api_version="gateway.envoyproxy.io/v1alpha1",
-                kind="SecurityPolicy",
-                metadata={
-                    "name": app.name,
-                    "namespace": app.namespace,
-                },
-                spec={
-                    "targetRefs": [
-                        {
-                            "group": "gateway.networking.k8s.io",
-                            "kind": "HTTPRoute",
-                            "name": app.name,
-                        }
-                    ],
-                    "extAuth": {
-                        "http": {
-                            "backendRefs": [
-                                {
-                                    "group": "",  # Core group
-                                    "kind": "Service",
-                                    "name": "authentik-server",
-                                    "namespace": "authentik",
-                                    "port": 80,
-                                }
-                            ]
-                        }
-                    },
-                },
-                opts=opts,
-            )
-            resources.append(sp)
-        return resources
-
-    def _create_tunnel_ingress(
-        self, app: AppModel, opts: pulumi.ResourceOptions
-    ) -> List[pulumi.Resource]:
-        """Creates a Cloudflare Tunnel Ingress."""
-        ing = k8s.networking.v1.Ingress(
-            f"tunnel-{app.name}",
-            metadata={
-                "name": app.name,
-                "namespace": app.namespace,
-                "annotations": {
-                    "cloudflared.alpha.kubernetes.io/hostname": app.hostname,
-                    "nginx.ingress.kubernetes.io/auth-url": "http://authentik-server.authentik.svc.cluster.local/outpost.goauthentik.io/auth/nginx",
-                    "nginx.ingress.kubernetes.io/auth-signin": f"https://auth.{self.domain}/outpost.goauthentik.io/start?rd=$escaped_request_uri",
-                    "nginx.ingress.kubernetes.io/auth-response-headers": "X-authentik-username,X-authentik-groups,X-authentik-email",
-                }
-                if app.auth
-                else {
-                    "cloudflared.alpha.kubernetes.io/hostname": app.hostname,
-                },
-            },
-            spec={
-                "ingressClassName": "cloudflared-tunnel",
-                "rules": [
-                    {
-                        "host": app.hostname,
-                        "http": {
-                            "paths": [
-                                {
-                                    "path": "/",
-                                    "pathType": "Prefix",
-                                    "backend": {
-                                        "service": {
-                                            "name": app.name,
-                                            "port": {"number": app.port},
-                                        }
-                                    },
-                                }
-                            ]
-                        },
-                    }
-                ],
-            },
-            opts=opts,
-        )
-        return [ing]

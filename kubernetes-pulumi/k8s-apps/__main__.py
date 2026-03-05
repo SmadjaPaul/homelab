@@ -156,6 +156,98 @@ for app_name in deployment_order:
         errors.append(error_msg)
 
 # =============================================================================
+# PHASE 3 — Finalize Authentik Outpost
+# =============================================================================
+print("\nPhase 3: Finalizing Authentik Outpost...")
+registry.finalize_authentik_outpost()
+
+# =============================================================================
+# PHASE 4 — Configure Cloudflare Tunnel ingress rules (from apps.yaml)
+# =============================================================================
+if "cloudflared" in apps_by_name:
+    print("\nPhase 4: Configuring Cloudflare Tunnel routes...")
+    import pulumi_cloudflare as cloudflare
+    import pulumiverse_doppler as doppler
+
+    doppler_secrets = doppler.get_secrets_output(project="infrastructure", config="prd")
+    cf_account_id = doppler_secrets.map.apply(
+        lambda m: m.get("CLOUDFLARE_ACCOUNT_ID", "")
+    )
+    cf_tunnel_id = doppler_secrets.map.apply(
+        lambda m: m.get("CLOUDFLARE_TUNNEL_ID", "")
+    )
+    cf_api_token = doppler_secrets.map.apply(
+        lambda m: m.get("CLOUDFLARE_API_TOKEN", "")
+    )
+
+    cf_provider = cloudflare.Provider("cloudflare-provider", api_token=cf_api_token)
+
+    # Build ingress rules dynamically from exposed apps
+    exposed_apps = [
+        a for a in apps if a.hostname and a.mode.value in ("public", "protected")
+    ]
+
+    ingress_rules = []
+
+    # Static routes for infrastructure services
+    static_routes = [
+        ("auth", "http://authentik-server.authentik.svc.cluster.local:80"),
+        ("login", "http://authentik-server.authentik.svc.cluster.local:80"),
+    ]
+    for subdomain, service in static_routes:
+        ingress_rules.append(
+            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
+                hostname=f"{subdomain}.{full_config.get('domain', 'smadja.dev')}",
+                service=service,
+                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleOriginRequestArgs(
+                    no_tls_verify=True,
+                    connect_timeout="30s",
+                ),
+            )
+        )
+
+    # Dynamic routes from apps.yaml
+    for app in exposed_apps:
+        if app.mode.value == "protected":
+            # Route through Authentik Outpost Proxy (handles auth + proxies to backend)
+            svc_url = "http://ak-outpost-authentik-embedded-outpost.authentik.svc.cluster.local:9000"
+        else:
+            # Route directly to the app service
+            svc_name = "authentik-server" if app.name == "authentik" else app.name
+            svc_url = f"http://{svc_name}.{app.namespace}.svc.cluster.local:{app.port}"
+
+        ingress_rules.append(
+            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
+                hostname=app.hostname,
+                service=svc_url,
+                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleOriginRequestArgs(
+                    no_tls_verify=True,
+                    connect_timeout="30s",
+                ),
+            )
+        )
+        print(f"  Route: {app.hostname} → {svc_url}")
+
+    # Catch-all fallback (required by Cloudflare)
+    ingress_rules.append(
+        cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
+            service="http_status:404",
+        )
+    )
+
+    # Apply the tunnel configuration
+    cloudflare.ZeroTrustTunnelCloudflaredConfig(
+        "homelab-tunnel-config",
+        account_id=cf_account_id,
+        tunnel_id=cf_tunnel_id,
+        config=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigArgs(
+            ingress_rules=ingress_rules,
+        ),
+        opts=pulumi.ResourceOptions(provider=cf_provider),
+    )
+    print(f"  Total routes: {len(ingress_rules)} (including catch-all)")
+
+# =============================================================================
 # EXPORTS
 # =============================================================================
 pulumi.export("cluster_name", cluster_filter)

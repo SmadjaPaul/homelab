@@ -185,6 +185,13 @@ class AppModel(BaseModel):
     database_backup: BackupDestination = Field(default_factory=BackupDestination)
 
     @model_validator(mode="after")
+    def auto_enable_auth_for_protected(self) -> "AppModel":
+        """Automatically enable auth proxy when mode is protected."""
+        if self.mode == ExposureMode.PROTECTED and not self.auth:
+            self.auth = True
+        return self
+
+    @model_validator(mode="after")
     def validate_image_registries(self) -> "AppModel":
         """Ensure all image repositories are fully qualified (contain a registry)."""
         helm = self.helm
