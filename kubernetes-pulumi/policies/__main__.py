@@ -1,4 +1,3 @@
-import pulumi
 from pulumi_policy import (
     EnforcementLevel,
     PolicyPack,
@@ -7,16 +6,24 @@ from pulumi_policy import (
     ResourceValidationPolicy,
 )
 
-def require_ingress_tls(args: ResourceValidationArgs, report_violation: ReportViolation):
+
+def require_ingress_tls(
+    args: ResourceValidationArgs, report_violation: ReportViolation
+):
     """
     Ensure that all Ingress resources configure TLS.
     """
     if args.resource_type == "kubernetes:networking.k8s.io/v1:Ingress":
         tls = args.props.get("spec", {}).get("tls")
         if not tls:
-            report_violation("All Ingress resources must configure TLS to ensure encrypted external traffic.")
+            report_violation(
+                "All Ingress resources must configure TLS to ensure encrypted external traffic."
+            )
 
-def require_managed_by_pulumi_label(args: ResourceValidationArgs, report_violation: ReportViolation):
+
+def require_managed_by_pulumi_label(
+    args: ResourceValidationArgs, report_violation: ReportViolation
+):
     """
     Ensure all resources have `app.kubernetes.io/managed-by: pulumi` label unless they are explicitly Helm or Component resources.
     """
@@ -27,12 +34,13 @@ def require_managed_by_pulumi_label(args: ResourceValidationArgs, report_violati
 
     metadata = args.props.get("metadata", {})
     labels = metadata.get("labels", {})
-    
+
     # Check if the label exists and is correct
     if labels.get("app.kubernetes.io/managed-by") != "pulumi":
         report_violation(
             "All locally managed Kubernetes resources must include the 'app.kubernetes.io/managed-by: pulumi' label for clean auditing."
         )
+
 
 # Combine into a policy pack
 PolicyPack(

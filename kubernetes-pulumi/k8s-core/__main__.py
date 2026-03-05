@@ -11,6 +11,7 @@ Stack Outputs (exported for other stacks via StackReference):
 - cluster_name: the target cluster
 - operator_status: status of deployed operators
 """
+
 import os
 import pulumi
 from shared.apps.loader import AppLoader
@@ -41,7 +42,9 @@ apps_by_name = {app.name: app for app in apps}
 # 1. Namespaces creation
 print("Phase 1: Creating namespaces...")
 all_apps = loader.load()
-unique_namespaces = {app.namespace for app in all_apps if app.namespace not in ["kube-system", "default"]}
+unique_namespaces = {
+    app.namespace for app in all_apps if app.namespace not in ["kube-system", "default"]
+}
 namespaces = {}
 namespace_list = []
 
@@ -58,33 +61,35 @@ print(f"  Created namespaces: {namespace_list}")
 
 # 2. Core Operators Deployment
 print("Phase 2: Deploying Core Operators...")
-core_apps = ['external-secrets', 'cert-manager', 'envoy-gateway', 'external-dns']
+core_apps = ["external-secrets", "cert-manager", "envoy-gateway", "external-dns"]
 deployed_apps = {}
 operator_status = {}
 
 full_config = loader.get_full_config()
-full_config.update({
-    "domain": domain,
-})
+full_config.update(
+    {
+        "domain": domain,
+    }
+)
 
 for app_name in core_apps:
     app = apps_by_name.get(app_name)
     if not app:
         operator_status[app_name] = "not_configured"
         continue
-        
+
     print(f"Deploying {app_name}...")
-    
+
     # Deploy operators
     opts = pulumi.ResourceOptions(provider=provider)
-    
+
     # Deploy Helm Chart
     if app.helm and app.helm.chart:
         try:
             # Use Factory to get specialized implementation (e.g. ExternalSecretsApp)
             generic_app = AppFactory.create(app)
             result = generic_app.deploy(provider, config=full_config, opts=opts)
-            
+
             if "release" in result:
                 deployed_apps[app_name] = result["release"]
                 operator_status[app_name] = "deployed"

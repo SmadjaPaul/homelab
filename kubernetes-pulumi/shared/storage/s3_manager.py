@@ -47,6 +47,7 @@ from shared.utils.schemas import S3BucketConfig, S3Provider
 # Data class: A resolved bucket endpoint (returned by drivers after creation)
 # ---------------------------------------------------------------------------
 
+
 class BucketEndpoint:
     """
     Holds all information needed by consuming stacks to interact with a bucket.
@@ -75,20 +76,27 @@ class BucketEndpoint:
             endpoint_url=self.endpoint_url,
             bucket_name=self.bucket_name,
             region=self.region,
-            access_key_secret_name=pulumi.Output.from_input(self.access_key_secret_name),
-            secret_key_secret_name=pulumi.Output.from_input(self.secret_key_secret_name),
-        ).apply(lambda args: {
-            "endpoint_url": args["endpoint_url"],
-            "bucket_name": args["bucket_name"],
-            "region": args["region"],
-            "access_key_secret_name": args["access_key_secret_name"],
-            "secret_key_secret_name": args["secret_key_secret_name"],
-        })
+            access_key_secret_name=pulumi.Output.from_input(
+                self.access_key_secret_name
+            ),
+            secret_key_secret_name=pulumi.Output.from_input(
+                self.secret_key_secret_name
+            ),
+        ).apply(
+            lambda args: {
+                "endpoint_url": args["endpoint_url"],
+                "bucket_name": args["bucket_name"],
+                "region": args["region"],
+                "access_key_secret_name": args["access_key_secret_name"],
+                "secret_key_secret_name": args["secret_key_secret_name"],
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
 # Abstract base driver
 # ---------------------------------------------------------------------------
+
 
 class S3Driver(abc.ABC):
     """Base class for all S3 provider drivers."""
@@ -105,6 +113,7 @@ class S3Driver(abc.ABC):
 # ---------------------------------------------------------------------------
 # OCI Object Storage driver
 # ---------------------------------------------------------------------------
+
 
 class OciS3Driver(S3Driver):
     """
@@ -174,6 +183,7 @@ class OciS3Driver(S3Driver):
 # Cloudflare R2 driver
 # ---------------------------------------------------------------------------
 
+
 class CloudflareR2Driver(S3Driver):
     """
     Driver for Cloudflare R2 Object Storage.
@@ -225,6 +235,7 @@ class CloudflareR2Driver(S3Driver):
 # Generic HTTP driver (RustFS, MinIO, Garage, etc.)
 # ---------------------------------------------------------------------------
 
+
 class GenericS3Driver(S3Driver):
     """
     Driver for any generic S3-compatible endpoint.
@@ -263,6 +274,7 @@ class GenericS3Driver(S3Driver):
 # ---------------------------------------------------------------------------
 # Central S3Manager — orchestrates all drivers
 # ---------------------------------------------------------------------------
+
 
 class S3Manager:
     """
@@ -320,7 +332,9 @@ class S3Manager:
         endpoints: Dict[str, pulumi.Output] = {}
 
         for cfg in self._buckets:
-            print(f"  [S3Manager] Provisioning bucket '{cfg.name}' via provider={cfg.provider}...")
+            print(
+                f"  [S3Manager] Provisioning bucket '{cfg.name}' via provider={cfg.provider}..."
+            )
 
             driver = self._drivers.get(cfg.provider)
             if driver is None:

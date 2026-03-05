@@ -5,7 +5,6 @@ Tests that network isolation is properly enforced for all apps.
 """
 
 import subprocess
-import json
 
 import pytest
 
@@ -20,8 +19,19 @@ def test_deny_all_policy_exists(apps_with_network_policy, k8s_client):
         policy_name = f"{app.name}-deny-all"
 
         result = subprocess.run(
-            ["kubectl", "get", "networkpolicy", policy_name, "-n", app.namespace, "-o", "json"],
-            capture_output=True, text=True, timeout=10,
+            [
+                "kubectl",
+                "get",
+                "networkpolicy",
+                policy_name,
+                "-n",
+                app.namespace,
+                "-o",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
         assert result.returncode == 0, (
@@ -39,8 +49,19 @@ def test_dns_policy_exists(apps_with_network_policy, k8s_client):
         policy_name = f"{app.name}-allow-dns"
 
         result = subprocess.run(
-            ["kubectl", "get", "networkpolicy", policy_name, "-n", app.namespace, "-o", "json"],
-            capture_output=True, text=True, timeout=10,
+            [
+                "kubectl",
+                "get",
+                "networkpolicy",
+                policy_name,
+                "-n",
+                app.namespace,
+                "-o",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
         assert result.returncode == 0, (
@@ -59,8 +80,19 @@ def test_dependency_policies_exist(apps_with_network_policy, k8s_client):
             policy_name = f"{app.name}-allow-{dep}"
 
             result = subprocess.run(
-                ["kubectl", "get", "networkpolicy", policy_name, "-n", app.namespace, "-o", "json"],
-                capture_output=True, text=True, timeout=10,
+                [
+                    "kubectl",
+                    "get",
+                    "networkpolicy",
+                    policy_name,
+                    "-n",
+                    app.namespace,
+                    "-o",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
 
             assert result.returncode == 0, (

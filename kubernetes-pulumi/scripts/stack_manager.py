@@ -16,6 +16,7 @@ Usage:
     python scripts/stack_manager.py destroy       # Destroy all stacks
     python scripts/stack_manager.py status        # Show status of all stacks
 """
+
 import argparse
 import os
 import subprocess
@@ -31,15 +32,15 @@ def run_pulumi(stack_dir: Path, args: list, env: dict = None):
     """Run a pulumi command in a specific stack directory."""
     # Find pulumi binary - check venv first, then PATH
     venv_pulumi = stack_dir / ".venv" / "bin" / "pulumi"
-    
+
     if not venv_pulumi.exists():
         # Fallback to system pulumi
         venv_pulumi = "pulumi"
-    
+
     cmd = [str(venv_pulumi)] + args
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running: {' '.join(cmd)} in {stack_dir}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Add base directory and shared to PYTHONPATH so shared module can be imported
     env = env or os.environ.copy()
@@ -69,9 +70,9 @@ def run_pulumi(stack_dir: Path, args: list, env: dict = None):
 
 def run_preflight_check(cluster: str):
     """Run pre-flight checks before deployment."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Running pre-flight checks...")
-    print("="*60)
+    print("=" * 60)
 
     # Run the preflight script
     preflight_script = BASE_DIR / "scripts" / "preflight.py"
@@ -81,16 +82,13 @@ def run_preflight_check(cluster: str):
         return True
 
     # Switch to cluster context first
-    subprocess.run(
-        ["kubectl", "config", "use-context", cluster],
-        capture_output=True
-    )
+    subprocess.run(["kubectl", "config", "use-context", cluster], capture_output=True)
 
     result = subprocess.run(
         [sys.executable, str(preflight_script), "--check-pvc", "--cluster", cluster],
         cwd=BASE_DIR,
         capture_output=True,
-        text=True
+        text=True,
     )
 
     print(result.stdout)
@@ -112,9 +110,7 @@ def stack_init(stack_dir: Path, stack_name: str):
 
     # Check if stack exists
     result = subprocess.run(
-        ["pulumi", "stack", "show", stack_name],
-        cwd=stack_dir,
-        capture_output=True
+        ["pulumi", "stack", "show", stack_name], cwd=stack_dir, capture_output=True
     )
 
     if result.returncode != 0:
@@ -163,7 +159,9 @@ def cmd_up(args):
         if not run_preflight_check(args.cluster):
             if not args.force:
                 print("\nAborting deployment due to preflight failures.")
-                print("Use --force to deploy anyway or --skip-preflight to skip checks.")
+                print(
+                    "Use --force to deploy anyway or --skip-preflight to skip checks."
+                )
                 return 1
             else:
                 print("\n⚠ Continuing with --force despite preflight failures!")
@@ -185,7 +183,9 @@ def cmd_up(args):
 
         # Deploy
         if not args.preview_only:
-            run_pulumi(stack_dir, ["up", "--skip-preview", "--non-interactive", "--yes"])
+            run_pulumi(
+                stack_dir, ["up", "--skip-preview", "--non-interactive", "--yes"]
+            )
 
     return 0
 
@@ -225,7 +225,6 @@ def cmd_status(args):
 
     for stack in STACKS:
         stack_dir = BASE_DIR / stack
-        stack_name = args.cluster
 
         if not stack_dir.exists():
             print(f"{stack}: DIRECTORY NOT FOUND")
@@ -235,7 +234,7 @@ def cmd_status(args):
             ["pulumi", "stack", "output", "--json"],
             cwd=stack_dir,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode == 0:
@@ -257,43 +256,28 @@ def main():
     parser.add_argument(
         "command",
         choices=["init", "up", "destroy", "status"],
-        help="Command to execute"
+        help="Command to execute",
     )
     parser.add_argument(
-        "--stack",
-        default="all",
-        help="Stack to operate on: all, core, storage, apps"
+        "--stack", default="all", help="Stack to operate on: all, core, storage, apps"
+    )
+    parser.add_argument("--cluster", default="oci", help="Cluster name: oci, local")
+    parser.add_argument(
+        "--preview", action="store_true", help="Run preview before up/destroy"
     )
     parser.add_argument(
-        "--cluster",
-        default="oci",
-        help="Cluster name: oci, local"
+        "--preview-only", action="store_true", help="Only run preview, don't apply"
     )
-    parser.add_argument(
-        "--preview",
-        action="store_true",
-        help="Run preview before up/destroy"
-    )
-    parser.add_argument(
-        "--preview-only",
-        action="store_true",
-        help="Only run preview, don't apply"
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument(
         "--skip-preflight",
         action="store_true",
-        help="Skip pre-flight checks before deployment"
+        help="Skip pre-flight checks before deployment",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force deployment even if preflight checks fail"
+        help="Force deployment even if preflight checks fail",
     )
 
     args = parser.parse_args()

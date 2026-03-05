@@ -11,17 +11,17 @@ Stack Dependencies:
 - k8s-core: Namespaces, operators
 - k8s-storage: Storage classes, databases, cache
 """
-import os
 
-# Get project root
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-apps_yaml_path = os.path.join(project_root, "apps.yaml")
+import os
 
 import pulumi
 from shared.apps.loader import AppLoader
 from shared.apps.common.registry import AppRegistry
-import pulumi_kubernetes as k8s
 from shared.utils.cluster import get_kubeconfig, create_provider
+
+# Get project root
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+apps_yaml_path = os.path.join(project_root, "apps.yaml")
 
 # =============================================================================
 # STACK REFERENCES - Import from k8s-core and k8s-storage
@@ -59,10 +59,12 @@ print(f"Stack: k8s-apps (cluster: {cluster_filter})")
 
 # Full config with all merged values
 full_config = loader.get_full_config()
-full_config.update({
-    "domain": domain,
-    "cluster": cluster_filter,
-})
+full_config.update(
+    {
+        "domain": domain,
+        "cluster": cluster_filter,
+    }
+)
 
 # =============================================================================
 # APP REGISTRY - Setup cross-cutting concerns
@@ -85,9 +87,17 @@ print(f"  Deployment order: {deployment_order}")
 
 # Apps that should be deployed by this stack (not infrastructure)
 # Exclude core operators (deployed in k8s-core) and storage (deployed in k8s-storage)
-infrastructure_apps = {'external-secrets', 'cert-manager', 'envoy-gateway', 'external-dns',
-                       'cnpg-system', 'redis', 'local-path-provisioner', 'csi-driver-smb',
-                       'cloudflared'}
+infrastructure_apps = {
+    "external-secrets",
+    "cert-manager",
+    "envoy-gateway",
+    "external-dns",
+    "cnpg-system",
+    "redis",
+    "local-path-provisioner",
+    "csi-driver-smb",
+    "cloudflared",
+}
 
 deployed_apps = {}
 errors = []
@@ -97,46 +107,49 @@ for app_name in deployment_order:
     if app_name in infrastructure_apps:
         print(f"  Skipping {app_name} (deployed in other stack)")
         continue
-    
+
     app = apps_by_name.get(app_name)
     if not app:
         continue
-    
+
     print(f"  Deploying {app_name}...")
-    
+
     try:
         # If the app has secrets, ensure external-secrets status is at least imported
         # to avoid the crashes we saw earlier with Output.apply on None
         if app.secrets:
-             _ = core_operator_status.apply(lambda s: s and s.get("external-secrets") == "deployed")
-        
+            _ = core_operator_status.apply(
+                lambda s: s and s.get("external-secrets") == "deployed"
+            )
+
         opts = pulumi.ResourceOptions(provider=provider)
-        
+
         # 1. Register app in registry FIRST (to create secrets, PVCs, etc.)
         registry_resources = registry.register_app(app, deployed_apps, opts)
-        
-        # 2. Deploy via GenericHelmApp
+
+        # 2. Deploy via AppFactory (supports specialized subclasses)
         if app.helm and app.helm.chart:
-            from shared.apps.generic import create_generic_app
-            generic_app = create_generic_app(app)
-            
+            from shared.apps.factory import AppFactory
+
+            generic_app = AppFactory.create(app)
+
             # Ensure deployment depends on registry resources
             if registry_resources:
-                opts = pulumi.ResourceOptions.merge(opts, pulumi.ResourceOptions(depends_on=registry_resources))
-            
-            result = generic_app.deploy(
-                provider,
-                config=full_config,
-                opts=opts
-            )
-            
+                opts = pulumi.ResourceOptions.merge(
+                    opts, pulumi.ResourceOptions(depends_on=registry_resources)
+                )
+
+            result = generic_app.deploy(provider, config=full_config, opts=opts)
+
             if result and "release" in result:
-                deployed_apps[app_name] = result["release"]
-            
+                # Store a simple boolean to indicate deployment success in this run
+                # Avoid storing the full Output[Release] object to prevent serialization issues
+                deployed_apps[app_name] = True
+
             print(f"    {app_name}: deployed successfully")
         else:
             print(f"    {app_name}: no helm chart, skipping")
-            
+
     except Exception as e:
         error_msg = f"  ERROR deploying {app_name}: {str(e)}"
         print(error_msg)

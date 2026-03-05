@@ -22,7 +22,9 @@ class TestClusterSecretStore:
         """The doppler ClusterSecretStore must exist."""
         result = subprocess.run(
             ["kubectl", "get", "clustersecretstore", "doppler", "-o", "json"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         assert result.returncode == 0, "ClusterSecretStore 'doppler' not found"
 
@@ -30,7 +32,9 @@ class TestClusterSecretStore:
         """The doppler ClusterSecretStore must be Ready."""
         result = subprocess.run(
             ["kubectl", "get", "clustersecretstore", "doppler", "-o", "json"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if result.returncode != 0:
             pytest.skip("ClusterSecretStore not found")
@@ -39,8 +43,7 @@ class TestClusterSecretStore:
         conditions = store.get("status", {}).get("conditions", [])
 
         ready = any(
-            c.get("type") == "Ready" and c.get("status") == "True"
-            for c in conditions
+            c.get("type") == "Ready" and c.get("status") == "True" for c in conditions
         )
         assert ready, "ClusterSecretStore not Ready"
 
@@ -57,13 +60,29 @@ def test_external_secrets_synced(apps_with_secrets, k8s_client):
 
         for secret in app.secrets:
             result = subprocess.run(
-                ["kubectl", "get", "externalsecret", secret.name, "-n", app.namespace, "-o", "json"],
-                capture_output=True, text=True, timeout=10,
+                [
+                    "kubectl",
+                    "get",
+                    "externalsecret",
+                    secret.name,
+                    "-n",
+                    app.namespace,
+                    "-o",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode != 0:
-                pytest.fail(f"ExternalSecret '{secret.name}' not found in {app.namespace}")
+                pytest.fail(
+                    f"ExternalSecret '{secret.name}' not found in {app.namespace}"
+                )
 
             es = json.loads(result.stdout)
             status = es.get("status", {}).get("conditions", [])
-            synced = any(c.get("type") == "SecretSynced" and c.get("status") == "True" for c in status)
+            synced = any(
+                c.get("type") == "SecretSynced" and c.get("status") == "True"
+                for c in status
+            )
             assert synced, f"Secret {secret.name} not synced in {app.namespace}"

@@ -1,3 +1,6 @@
 name: homelab-k8s-apps
 description: Kubernetes User Applications (Authentik, Navidrome, Slskd, Vaultwarden)
-runtime: python
+runtime:
+  name: python
+  options:
+    virtualenv: ../.venv

@@ -49,8 +49,6 @@ domain: smadja.dev
 hcloud_storage_box_id: 537179
 
 # S3-compatible bucket definitions
-# Provisioned by k8s-storage. Provider: oci | cloudflare | generic
-# export_as: used by k8s-apps to get the endpoint URL via StackReference
 buckets:
   - name: velero-backups
     provider: oci
@@ -70,24 +68,6 @@ buckets:
     secret_key_secret: OCI_S3_SECRET_KEY
     protect: true
 
-  # Future: local RustFS instance (uncomment when ready)
-  # - name: local-backups
-  #   provider: generic
-  #   endpoint_url: https://rustfs.local.smadja.dev
-  #   purpose: backup
-  #   export_as: local_backup_bucket
-  #   access_key_secret: RUSTFS_ACCESS_KEY
-  #   secret_key_secret: RUSTFS_SECRET_KEY
-
-  # Future: Cloudflare R2 for zero-egress media storage
-  # - name: smadja-media
-  #   provider: cloudflare
-  #   purpose: media
-  #   export_as: media_bucket
-  #   access_key_secret: CF_R2_ACCESS_KEY
-  #   secret_key_secret: CF_R2_SECRET_KEY
-
-# Global Identities for Authentik
 identities:
   users:
     - name: "paul"
@@ -98,47 +78,64 @@ identities:
     - name: "admins"
       is_superuser: true
     - name: "users"
+101:
 
 apps:
   # =============================================================================
-  # PUBLIC APPLICATIONS - Exposed via Envoy Gateway
+  # PUBLIC APPLICATIONS - Exposed via Cloudflare Tunnel
   # =============================================================================
 
   - name: homarr
     category: public
     tier: standard
     namespace: homelab
-    port: 7575
+    port: 3000
     hostname: home.smadja.dev
     mode: public
     clusters: [oci, local]
-    dependencies: [external-secrets, envoy-gateway, kube-system]
+    dependencies: [external-secrets, cloudflared, kube-system]
     helm:
       chart: homarr
-      repo: https://homarr-labs.github.io/charts/
+      repo: oci://ghcr.io/homarr-labs/charts
       version: 2.0.0
       values:
         image:
-          tag: latest
+          tag: v1.0.0
+        service:
+          ports:
+            app:
+              port: 3000
+        livenessProbe:
+          httpGet:
+            port: 3000
+        readinessProbe:
+          httpGet:
+            port: 3000
         persistence:
-          database:
+          config:
             enabled: true
-            volumeClaimName: homarr-database
-        # Fix Permission Denied on volume binds
+            name: homarr-data
+            mountPath: /data
+        envSecrets:
+          db-secret:
+            SECRET_ENCRYPTION_KEY: db-encryption-key
+        env:
+          AUTH_LOGOUT_REDIRECT_URL: "https://home.smadja.dev"
         podSecurityContext:
           fsGroup: 1000
     storage:
-      - name: data # Pulumi will create 'homarr-data' PVC
+      - name: data
         size: 1Gi
         mount_path: /data
-      - name: database # PVC for homarrDatabase
+      - name: database
         size: 1Gi
         mount_path: /database
         storage_class: local-path
-    secrets:
-      - name: homarr-vars
-        keys:
-          DATABASE_URL: HOMARR_DB_SECRET
+    auto_secrets:
+      db-secret:
+        db-encryption-key: 64
+    extra_env:
+      DB_URL: /database/db.sqlite
     replicas: 1
     resources:
       requests:
@@ -182,10 +179,8 @@ apps:
                     value: Europe/Paris
                   - name: ND_LOG_LEVEL
                     value: info
-
         podSecurityContext:
           fsGroup: 1000
-
         service:
           main:
             controller: main
@@ -205,10 +200,9 @@ apps:
         access: private
     secrets:
       - name: hetzner-storage-creds
-        remote_key: HETZNER_STORAGE_BOX_1
         keys:
-          username: username
-          password: password
+          username: HETZNER_STORAGE_BOX_1_USER
+          password: HETZNER_STORAGE_BOX_1_PASS
     replicas: 1
     resources:
       requests:
@@ -227,7 +221,7 @@ apps:
     hostname: soulseek.smadja.dev
     mode: public
     clusters: [oci, local]
-    dependencies: [external-secrets, envoy-gateway, kube-system]
+    dependencies: [external-secrets, cloudflared, kube-system]
     helm:
       chart: app-template
       repo: https://bjw-s-labs.github.io/helm-charts
@@ -240,10 +234,8 @@ apps:
                 image:
                   repository: ghcr.io/slskd/slskd
                   tag: latest
-
         podSecurityContext:
           fsGroup: 1000
-
         service:
           main:
             controller: main
@@ -261,14 +253,73 @@ apps:
         mount_path: /music
         existing_claim: navidrome-music
         access: shared
-# Shared hetzner-storage-creds from navidrome in the same namespace
     test:
       routing: true
       expected_endpoints: [https://soulseek.smadja.dev]
       network_isolation: [cnpg-system]
 
+  - name: authentik
+    category: public
+    tier: critical
+    namespace: authentik
+    port: 80
+    hostname: auth.smadja.dev
+    mode: public
+    clusters: [oci, local]
+    dependencies: [cnpg-system, redis, external-secrets, cloudflared, kube-system]
+    helm:
+      chart: authentik
+      name: authentik-release
+      repo: https://charts.goauthentik.io
+      version: 2026.2.1
+      values:
+        authentik:
+          existingSecret:
+            secretName: authentik-vars
+        podSecurityContext:
+          fsGroup: 1000
+        redis:
+          image:
+            registry: docker.io
+            repository: library/redis
+            tag: 7.2
+          master:
+            persistence:
+              storageClass: oci-bv
+            podSecurityContext:
+              fsGroup: 1000
+          shmSize: 256Mi
+          global:
+            security:
+              allowInsecureImages: true
+    storage:
+      - name: data
+        size: 10Gi
+        mount_path: /data
+    database_backup:
+      enabled: true
+      endpoint_url: "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
+      bucket: "velero-backups"
+      access_key_id: "s3-backup-creds"
+      secret_access_key: "s3-backup-creds"
+    database:
+      local: true
+      size: 5Gi
+    secrets:
+      - name: authentik-vars
+        keys:
+          AUTHENTIK_SECRET_KEY: AUTHENTIK_SECRET_KEY
+          AUTHENTIK_REDIS_PASSWORD: AUTHENTIK_REDIS_PASSWORD
+      - name: s3-backup-creds
+        keys:
+          access_key_id: OCI_S3_ACCESS_KEY
+          secret_access_key: OCI_S3_SECRET_KEY
+    test:
+      routing: true
+      expected_endpoints: [https://auth.smadja.dev]
+
   # =============================================================================
-  # PROTECTED APPLICATIONS - Exposed via Cloudflare Access
+  # PROTECTED APPLICATIONS - Exposed via Cloudflare Tunnel + Authentik
   # =============================================================================
 
   - name: vaultwarden
@@ -279,7 +330,7 @@ apps:
     hostname: vault.smadja.dev
     mode: protected
     clusters: [oci]
-    dependencies: [cnpg-system, external-secrets, authentik, kube-system]
+    dependencies: [cnpg-system, external-secrets, cloudflared, authentik, kube-system]
     helm:
       chart: vaultwarden
       repo: https://charts.gabe565.com
@@ -288,7 +339,6 @@ apps:
         image:
           repository: docker.io/vaultwarden/server
           tag: 1.33.2
-        # Fix Permission Denied on RSA key and volume binds
         podSecurityContext:
           runAsUser: 1000
           runAsGroup: 1000
@@ -317,62 +367,7 @@ apps:
   # INTERNAL APPLICATIONS - No external exposure
   # =============================================================================
 
-  - name: authentik
-    category: internal
-    tier: critical
-    namespace: authentik
-    port: 80
-    mode: internal
-    clusters: [oci, local]
-    dependencies: [cnpg-system, redis, external-secrets, kube-system]
-    helm:
-      chart: authentik
-      repo: https://charts.goauthentik.io
-      version: 2024.10.1
-      values:
-        authentik:
-          existingSecret:
-            secretName: authentik-vars
-        podSecurityContext:
-          fsGroup: 1000
-        redis:
-          image:
-            registry: ghcr.io
-            tag: 7.2
-          master:
-            podSecurityContext:
-              fsGroup: 1000
-          # Add shmSize to fix /dev/shm issues
-          shmSize: 256Mi
-          # Allow insecure images for ghcr.io
-          global:
-            security:
-              allowInsecureImages: true
-    storage:
-      - name: data
-        size: 10Gi
-        mount_path: /data
-    database_backup:
-      enabled: true
-      endpoint_url: "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
-      bucket: "velero-backups"
-      access_key_id: "s3-backup-creds"
-      secret_access_key: "s3-backup-creds"
-    database:
-      local: true
-      size: 5Gi
-    secrets:
-      - name: authentik-vars
-        keys:
-          AUTHENTIK_SECRET_KEY: AUTHENTIK_SECRET_KEY
-          AUTHENTIK_REDIS__PASSWORD: AUTHENTIK_REDIS_PASSWORD
-      - name: s3-backup-creds
-        keys:
-          access_key_id: OCI_S3_ACCESS_KEY
-          secret_access_key: OCI_S3_SECRET_KEY
-    test:
-      routing: true
-      expected_endpoints: [https://auth.smadja.dev]
+  # (None current)
 
   # =============================================================================
   # INFRASTRUCTURE COMPONENTS
@@ -407,7 +402,7 @@ apps:
       version: 4.33.4
       values:
         image:
-          repository: redis
+          repository: docker.io/library/redis
           tag: 7.2.7-alpine
         auth: false
         replicas: 1
@@ -423,12 +418,13 @@ apps:
     clusters: [oci, local]
     dependencies: [kube-system]
     disable_auto_route: true
+    skip_crds: true
     helm:
       chart: external-secrets
       repo: https://charts.external-secrets.io
-      version: 0.10.4
+      version: 0.14.3
       values:
-        installCRDs: true
+        installCRDs: false
         serviceAccount:
           create: true
     test:
@@ -445,19 +441,21 @@ apps:
     clusters: [oci, local]
     dependencies: [kube-system]
     disable_auto_route: true
+    skip_crds: true
+    inject_secrets: false
     helm:
       chart: cert-manager
       repo: https://charts.jetstack.io
       version: v1.16.2
       values:
         crds:
-          enabled: true
+          enabled: false
         serviceAccount:
           create: true
     secrets:
       - name: cloudflare-api-token
-        keys: [api_token]
-        remote_key: CLOUDFLARE_API_TOKEN
+        keys:
+          api_token: CLOUDFLARE_API_TOKEN
 
   - name: envoy-gateway
     category: internal
@@ -468,9 +466,10 @@ apps:
     clusters: [oci, local]
     dependencies: [kube-system]
     disable_auto_route: true
+    inject_secrets: false
     helm:
       chart: gateway-helm
-      repo: oci://registry-1.docker.io/envoyproxy
+      repo: oci://docker.io/envoyproxy
       version: v1.2.1
       values:
         serviceAccount:
@@ -480,6 +479,7 @@ apps:
       expected_resources:
         - kind: ServiceAccount
           name: envoy-gateway
+
   - name: cloudflared
     category: internal
     tier: critical
@@ -489,18 +489,23 @@ apps:
     clusters: [oci, local]
     dependencies: [kube-system, external-secrets]
     disable_auto_route: true
+    inject_secrets: true
+    allow_external: true
     helm:
-      chart: cloudflare-tunnel
+      chart: cloudflare-tunnel-remote
       repo: https://cloudflare.github.io/helm-charts
-      version: 0.3.2
+      version: 0.1.2
       values:
+        fullnameOverride: cloudflared-tunnel
+        image:
+          repository: docker.io/cloudflare/cloudflared
+          tag: 2024.8.3
         cloudflare:
-          secretName: cloudflared-token
-        tunnelToken: "" # Placeholder, will be replaced by env or secretRef if chart supports it
+          tunnel_token: ""
     secrets:
-      - name: cloudflared-token
-        keys: [tunnel_token]
-        remote_key: CLOUDFLARE_TUNNEL_TOKEN
+      - name: cloudflared-tunnel-doppler
+        keys:
+          tunnelToken: CLOUDFLARE_TUNNEL_TOKEN
 
   - name: external-dns
     category: internal
@@ -511,6 +516,7 @@ apps:
     clusters: [oci, local]
     dependencies: [kube-system, external-secrets]
     disable_auto_route: true
+    allow_external: true
     helm:
       chart: external-dns
       repo: https://kubernetes-sigs.github.io/external-dns/
@@ -519,8 +525,12 @@ apps:
         provider: cloudflare
         serviceAccount:
           create: true
+        sources:
+          - service
+          - ingress
+          - gateway-httproute
         cloudflare:
-          apiToken: "" # Placeholder, set by env or secretRef
+          apiToken: ""
           proxied: true
         env:
           - name: CF_API_TOKEN
@@ -530,11 +540,11 @@ apps:
                 key: api_token
     secrets:
       - name: cloudflare-api-token
-        keys: [api_token]
-        remote_key: CLOUDFLARE_API_TOKEN
-      - name: hcloud-token
-        keys: [token]
-        remote_key: HETZNER_CLOUD_API_TOKEN
+        keys:
+          api_token: CLOUDFLARE_API_TOKEN
+      - name: hetzner-cloud-api-token
+        keys:
+          token: HETZNER_CLOUD_API_TOKEN
 
   - name: local-path-provisioner
     category: internal

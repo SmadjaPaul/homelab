@@ -7,7 +7,6 @@ Validates that apps configured in apps.yaml follow routing conventions:
 - No two apps share the same hostname
 """
 
-import sys
 import re
 import pytest
 
@@ -18,14 +17,14 @@ from shared.apps.loader import load_apps
 EXTERNAL_HOSTNAME_PATTERN = re.compile(
     r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.smadja\.dev$"
 )
-INTERNAL_HOSTNAME_PATTERN = re.compile(
-    r"^[a-z0-9-]+\.[a-z0-9-]+\.svc\.cluster\.local$"
-)
+INTERNAL_HOSTNAME_PATTERN = re.compile(r"^[a-z0-9-]+\.[a-z0-9-]+\.svc\.cluster\.local$")
+
 
 @pytest.fixture(scope="module")
 def apps():
     """Load apps for testing."""
     return load_apps("oci")
+
 
 class TestHostnameConventions:
     """All hostnames must follow the project naming convention."""
@@ -33,7 +32,10 @@ class TestHostnameConventions:
     def test_public_apps_have_external_hostname(self, apps):
         """Public/Protected apps must use the *.smadja.dev domain."""
         for app in apps:
-            if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED) and app.hostname:
+            if (
+                app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED)
+                and app.hostname
+            ):
                 assert EXTERNAL_HOSTNAME_PATTERN.match(app.hostname), (
                     f"App '{app.name}' has mode={app.mode.value} but hostname "
                     f"'{app.hostname}' doesn't match *.smadja.dev."
@@ -64,8 +66,13 @@ class TestHostnameConventions:
         """Hostnames should not include a trailing slash, path, or protocol."""
         for app in apps:
             if app.hostname:
-                assert "/" not in app.hostname, f"App '{app.name}' hostname '{app.hostname}' contains a '/'."
-                assert not app.hostname.startswith("http"), f"App '{app.name}' hostname '{app.hostname}' starts with 'http'."
+                assert "/" not in app.hostname, (
+                    f"App '{app.name}' hostname '{app.hostname}' contains a '/'."
+                )
+                assert not app.hostname.startswith("http"), (
+                    f"App '{app.name}' hostname '{app.hostname}' starts with 'http'."
+                )
+
 
 class TestExposureModes:
     """Validate app exposure mode assignments."""
@@ -90,7 +97,15 @@ class TestExposureModes:
 
     def test_sensitive_apps_not_in_default(self, apps):
         """Sensitive services should not be in 'default' namespace."""
-        sensitive_names = {"authentik", "grafana", "prometheus", "vaultwarden", "redis", "postgresql", "cnpg-system"}
+        sensitive_names = {
+            "authentik",
+            "grafana",
+            "prometheus",
+            "vaultwarden",
+            "redis",
+            "postgresql",
+            "cnpg-system",
+        }
         for app in apps:
             if app.name in sensitive_names:
                 assert app.namespace != "default", (

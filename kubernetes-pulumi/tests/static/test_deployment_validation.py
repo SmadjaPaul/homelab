@@ -7,6 +7,7 @@ Tests to validate apps.yaml configuration before deployment:
 - Chart versions are pinned (not 'latest')
 - Required security contexts are present
 """
+
 import pytest
 import yaml
 from pathlib import Path
@@ -26,16 +27,16 @@ def test_no_duplicate_ingress_routes():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     hostname_to_apps = defaultdict(list)
-    
+
     for app in apps:
         hostname = app.get("hostname")
         if hostname:
             hostname_to_apps[hostname].append(app["name"])
-    
+
     duplicates = {h: names for h, names in hostname_to_apps.items() if len(names) > 1}
-    
+
     if duplicates:
         error_msg = "Duplicate hostnames detected:\n"
         for hostname, app_names in duplicates.items():
@@ -49,25 +50,31 @@ def test_dependencies_are_valid():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     # Known valid dependencies (system namespaces + other apps)
     valid_deps = {
-        "kube-system", "external-secrets", "cert-manager",
-        "external-dns", "cloudflared", "envoy-gateway",
-        "cnpg-system", "authentik", "redis",
+        "kube-system",
+        "external-secrets",
+        "cert-manager",
+        "external-dns",
+        "cloudflared",
+        "envoy-gateway",
+        "cnpg-system",
+        "authentik",
+        "redis",
     }
     valid_deps.update(app["name"] for app in apps)
-    
+
     errors = []
-    
+
     for app in apps:
         app_name = app.get("name")
         deps = app.get("dependencies", [])
-        
+
         for dep in deps:
             if dep not in valid_deps:
                 errors.append(f"App '{app_name}' depends on unknown: '{dep}'")
-    
+
     if errors:
         pytest.fail("Invalid dependencies:\n" + "\n".join(f"  - {e}" for e in errors))
 
@@ -79,20 +86,22 @@ def test_chart_versions_pinned():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     errors = []
-    
+
     for app in apps:
         app_name = app.get("name")
         if "helm" not in app:
             continue
-            
+
         version = app.get("helm", {}).get("version")
         if not version:
             errors.append(f"App '{app_name}': chart version is empty")
         elif version == "latest":
-            errors.append(f"App '{app_name}': chart version is 'latest' (should be pinned)")
-    
+            errors.append(
+                f"App '{app_name}': chart version is 'latest' (should be pinned)"
+            )
+
     if errors:
         pytest.fail("Chart version issues:\n" + "\n".join(f"  - {e}" for e in errors))
 
@@ -104,27 +113,31 @@ def test_required_security_contexts():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     errors = []
-    
+
     for app in apps:
         app_name = app.get("name")
         storage = app.get("storage", [])
-        
+
         if not storage:
             continue
-            
+
         helm_values = app.get("helm", {}).get("values", {})
-        security_context = helm_values.get("podSecurityContext") or helm_values.get("securityContext")
-        
+        security_context = helm_values.get("podSecurityContext") or helm_values.get(
+            "securityContext"
+        )
+
         if not security_context:
             errors.append(
                 f"App '{app_name}': has storage but no podSecurityContext defined. "
                 f"Add 'podSecurityContext: {{fsGroup: 1000}}' to prevent permission errors."
             )
-    
+
     if errors:
-        pytest.fail("Security context issues:\n" + "\n".join(f"  - {e}" for e in errors))
+        pytest.fail(
+            "Security context issues:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
 
 
 def test_app_replicas_match_tier():
@@ -133,20 +146,20 @@ def test_app_replicas_match_tier():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     warnings = []
-    
+
     for app in apps:
         app_name = app.get("name")
         tier = app.get("tier", "")
         replicas = app.get("replicas", 1)
-        
+
         if tier == "critical" and replicas < 2:
             warnings.append(
                 f"App '{app_name}': critical tier but only {replicas} replica(s). "
                 f"Consider 2+ replicas for high availability."
             )
-    
+
     if warnings:
         # Just warn, don't fail
         print("\nWarning: Consider increasing replicas for critical apps:")
@@ -160,13 +173,13 @@ def test_storage_size_reasonable():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     errors = []
-    
+
     for app in apps:
         app_name = app.get("name")
         storage = app.get("storage", [])
-        
+
         for s in storage:
             size = s.get("size", "")
             # Parse size (e.g., "1Gi", "10Gi")
@@ -174,12 +187,16 @@ def test_storage_size_reasonable():
                 try:
                     num = int(size.rstrip("GiG"))
                     if num < 1:
-                        errors.append(f"App '{app_name}': storage size '{size}' is too small (min 1Gi)")
+                        errors.append(
+                            f"App '{app_name}': storage size '{size}' is too small (min 1Gi)"
+                        )
                     elif num > 100:
-                        errors.append(f"App '{app_name}': storage size '{size}' is excessive (max 100Gi)")
+                        errors.append(
+                            f"App '{app_name}': storage size '{size}' is excessive (max 100Gi)"
+                        )
                 except ValueError:
                     pass  # Skip parsing errors
-    
+
     if errors:
         pytest.fail("Storage size issues:\n" + "\n".join(f"  - {e}" for e in errors))
 

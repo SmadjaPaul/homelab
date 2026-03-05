@@ -1,13 +1,14 @@
-import sys
 import yaml
 import subprocess
 import os
 import pytest
 import requests
 
+
 def get_apps_config():
     with open("apps.yaml", "r") as f:
         return yaml.safe_load(f)
+
 
 def registry_check_image_exists(image_str):
     # e.g. "nginx:latest", "bitnami/redis:7.4.2", "ghcr.io/navidrome/navidrome:latest"
@@ -25,7 +26,9 @@ def registry_check_image_exists(image_str):
     if len(slash_parts) == 1:
         domain = "docker.io"
         repo = f"library/{slash_parts[0]}"
-    elif len(slash_parts) == 2 and not ("." in slash_parts[0] or ":" in slash_parts[0] or "localhost" in slash_parts[0]):
+    elif len(slash_parts) == 2 and not (
+        "." in slash_parts[0] or ":" in slash_parts[0] or "localhost" in slash_parts[0]
+    ):
         # e.g. bitnami/redis
         domain = "docker.io"
         repo = f"{slash_parts[0]}/{slash_parts[1]}"
@@ -80,6 +83,7 @@ def registry_check_image_exists(image_str):
     except Exception as e:
         return False, f"Request failed: {e}"
 
+
 def extract_images_from_manifests(yaml_text):
     images = set()
     for doc in yaml.safe_load_all(yaml_text):
@@ -89,17 +93,17 @@ def extract_images_from_manifests(yaml_text):
         if kind in ["Deployment", "StatefulSet", "DaemonSet", "Job"]:
             try:
                 template = doc["spec"]["template"]["spec"]
-                for container in (template.get("containers") or []):
+                for container in template.get("containers") or []:
                     if isinstance(container, dict) and "image" in container:
                         images.add(container["image"])
-                for container in (template.get("initContainers") or []):
+                for container in template.get("initContainers") or []:
                     if isinstance(container, dict) and "image" in container:
                         images.add(container["image"])
             except KeyError:
                 pass
         elif kind == "Pod":
             try:
-                for container in (doc["spec"].get("containers") or []):
+                for container in doc["spec"].get("containers") or []:
                     if isinstance(container, dict) and "image" in container:
                         images.add(container["image"])
             except KeyError:
@@ -107,12 +111,13 @@ def extract_images_from_manifests(yaml_text):
         elif kind == "CronJob":
             try:
                 template = doc["spec"]["jobTemplate"]["spec"]["template"]["spec"]
-                for container in (template.get("containers") or []):
+                for container in template.get("containers") or []:
                     if isinstance(container, dict) and "image" in container:
                         images.add(container["image"])
             except KeyError:
                 pass
     return images
+
 
 def test_image_tags_exist():
     """
@@ -121,48 +126,51 @@ def test_image_tags_exist():
     """
     config = get_apps_config()
     apps = config.get("apps", [])
-    
+
     errors = []
-    
+
     for app_config in apps:
         app_name = app_config.get("name")
         if "helm" not in app_config:
             continue
-            
+
         helm_conf = app_config["helm"]
         repo = helm_conf.get("repo", "")
         chart = helm_conf.get("chart", "")
         version = helm_conf.get("version", "")
         values = helm_conf.get("values", {})
-        
+
         # Determine Chart Name and Repo processing
         if not repo:
             if app_name == "redis":
                 repo = "https://charts.bitnami.com/bitnami"
             else:
                 continue
-                
+
         if repo.startswith("oci://"):
             chart_ref = f"{repo.rstrip('/')}/{chart}"
             repo_name = ""
         else:
             repo_name = f"repo-{app_name}"
-            subprocess.run(["helm", "repo", "add", repo_name, repo, "--force-update"], capture_output=True)
+            subprocess.run(
+                ["helm", "repo", "add", repo_name, repo, "--force-update"],
+                capture_output=True,
+            )
             subprocess.run(["helm", "repo", "update", repo_name], capture_output=True)
             chart_ref = f"{repo_name}/{chart}"
-        
+
         values_file = f"/tmp/values-{app_name}.yaml"
         with open(values_file, "w") as f:
             yaml.dump(values, f)
-            
+
         print(f"Generating manifests for {app_name} to extract images...")
-        
+
         cmd = ["helm", "template", app_name, chart_ref, "-f", values_file]
         if version:
-             cmd.extend(["--version", str(version)])
+            cmd.extend(["--version", str(version)])
 
         res = subprocess.run(cmd, capture_output=True, text=True)
-        
+
         try:
             os.remove(values_file)
         except OSError:
@@ -174,25 +182,30 @@ def test_image_tags_exist():
 
         # Extract images from the raw manifests
         images = extract_images_from_manifests(res.stdout)
-        
+
         for image in images:
             # Bitnami / docker.io explicit registries can be tricky if they have sha256
             if "@sha256" in image:
-                continue # Skip digest checking for now to keep it simpler
-                
+                continue  # Skip digest checking for now to keep it simpler
+
             if "bitnami" in image or "external-secrets" in image:
-                print(f"Skipping registry check for known tricky image structure: {image}")
+                print(
+                    f"Skipping registry check for known tricky image structure: {image}"
+                )
                 continue
-                
+
             exists, reason = registry_check_image_exists(image)
             if not exists:
-                errors.append(f"Image '{image}' used in '{app_name}' could not be resolved: {reason}")
+                errors.append(
+                    f"Image '{image}' used in '{app_name}' could not be resolved: {reason}"
+                )
             else:
                 print(f"Verified image: {image}")
-                
+
     if errors:
         error_msg = "\\n".join(errors)
         pytest.fail(f"Image validation failed for the following images:\\n{error_msg}")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

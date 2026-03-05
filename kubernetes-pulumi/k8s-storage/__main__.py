@@ -13,21 +13,26 @@ Stack Outputs (exported for other stacks):
 - database_endpoints: CNPG cluster endpoints
 - redis_endpoints: Redis endpoints
 """
+
+import os
+
 import pulumi
 import pulumi_kubernetes as k8s
-import os
+from shared.apps.loader import AppLoader
+from shared.storage.s3_manager import S3Manager
+from shared.utils.cluster import get_kubeconfig, create_provider
+from shared.utils.schemas import HomelabStackConfig
 
 # Get project root
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 apps_yaml_path = os.path.join(project_root, "apps.yaml")
 
-from shared.apps.loader import AppLoader
-from shared.utils.cluster import get_kubeconfig, create_provider
-
 # =============================================================================
 # STACK REFERENCES - Import from k8s-core
 # =============================================================================
-core_stack = pulumi.StackReference(f"organization/homelab-k8s-core/{pulumi.get_stack()}")
+core_stack = pulumi.StackReference(
+    f"organization/homelab-k8s-core/{pulumi.get_stack()}"
+)
 core_namespaces = core_stack.get_output("namespaces")
 core_namespace_list = core_stack.get_output("namespace_list")
 core_domain = core_stack.get_output("domain")
@@ -45,7 +50,9 @@ apps = loader.load_for_cluster(cluster_filter)
 apps_by_name = {app.name: app for app in apps}
 
 print(f"Stack: k8s-storage (cluster: {cluster_filter})")
-core_namespace_list.apply(lambda ns: print(f"  Importing from k8s-core: namespaces = {ns}"))
+core_namespace_list.apply(
+    lambda ns: print(f"  Importing from k8s-core: namespaces = {ns}")
+)
 
 # =============================================================================
 # STORAGE CLASSES
@@ -71,7 +78,7 @@ k8s.storage.v1.StorageClass(
         "noperm",
         "mfsymlinks",
         "cache=none",
-        "vers=3.0", # Explicit version to avoid 'Invalid argument' errors
+        "vers=3.0",  # Explicit version to avoid 'Invalid argument' errors
     ],
     parameters={
         "source": "//u554589.your-storagebox.de/backup",
@@ -83,22 +90,40 @@ k8s.storage.v1.StorageClass(
     opts=pulumi.ResourceOptions(provider=provider),
 )
 
+# Explicitly define oci-bv StorageClass for OKE Block Volumes
+# This resolves the 'Pending' status for PVCs using oci-bv
+k8s.storage.v1.StorageClass(
+    "oci-bv-sc",
+    metadata={
+        "name": "oci-bv",
+        "annotations": {"storageclass.kubernetes.io/is-default-class": "false"},
+    },
+    provisioner="blockvolume.csi.oraclecloud.com",
+    reclaim_policy="Delete",
+    volume_binding_mode="WaitForFirstConsumer",
+    allow_volume_expansion=True,
+    opts=pulumi.ResourceOptions(provider=provider),
+)
+
 # Get domain for config
 domain = core_domain
 
 # CSI Driver SMB (requires external-secrets to be ready)
-csi_driver_ready = core_operator_status.apply(lambda s: s.get("external-secrets") == "deployed")
+csi_driver_ready = core_operator_status.apply(
+    lambda s: s.get("external-secrets") == "deployed"
+)
 
 # Local Path Provisioner (always available)
 local_path_apps = apps_by_name.get("local-path-provisioner")
 if local_path_apps:
     print("  Deploying local-path-provisioner...")
     from shared.apps.generic import create_generic_app
+
     generic_app = create_generic_app(local_path_apps)
     result = generic_app.deploy(
-        provider, 
+        provider,
         config={"domain": domain},
-        opts=pulumi.ResourceOptions(provider=provider)
+        opts=pulumi.ResourceOptions(provider=provider),
     )
 
 # CSI Driver SMB
@@ -106,11 +131,12 @@ csi_smb_apps = apps_by_name.get("csi-driver-smb")
 if csi_smb_apps:
     print("  Deploying csi-driver-smb...")
     from shared.apps.generic import create_generic_app
+
     generic_app = create_generic_app(csi_smb_apps)
     result = generic_app.deploy(
         provider,
         config={"domain": domain},
-        opts=pulumi.ResourceOptions(provider=provider)
+        opts=pulumi.ResourceOptions(provider=provider),
     )
 
 # =============================================================================
@@ -122,11 +148,12 @@ cnpg_apps = apps_by_name.get("cnpg-system")
 if cnpg_apps:
     print("  Deploying CloudNativePG...")
     from shared.apps.generic import create_generic_app
+
     generic_app = create_generic_app(cnpg_apps)
     result = generic_app.deploy(
         provider,
         config={"domain": domain},
-        opts=pulumi.ResourceOptions(provider=provider)
+        opts=pulumi.ResourceOptions(provider=provider),
     )
 
 # =============================================================================
@@ -138,20 +165,18 @@ redis_apps = apps_by_name.get("redis")
 if redis_apps:
     print("  Deploying Redis...")
     from shared.apps.generic import create_generic_app
+
     generic_app = create_generic_app(redis_apps)
     result = generic_app.deploy(
         provider,
         config={"domain": domain},
-        opts=pulumi.ResourceOptions(provider=provider)
+        opts=pulumi.ResourceOptions(provider=provider),
     )
 
 # =============================================================================
 # S3 / OBJECT STORAGE BUCKETS
 # =============================================================================
 print("\nPhase 4: Provisioning S3 Buckets...")
-
-from shared.storage.s3_manager import S3Manager
-from shared.utils.schemas import HomelabStackConfig
 
 full_config = loader.get_full_config()
 homelab_config = HomelabStackConfig(**full_config)
@@ -175,10 +200,13 @@ s3_endpoints = s3_manager.provision_all()
 # =============================================================================
 # EXPORTS
 # =============================================================================
-pulumi.export("storage_classes", {
-    "local-path": "local-path-provisioner",
-    "hetzner-smb": "csi-driver-smb",
-})
+pulumi.export(
+    "storage_classes",
+    {
+        "local-path": "local-path-provisioner",
+        "hetzner-smb": "csi-driver-smb",
+    },
+)
 
 database_endpoints = {
     "cnpg-system": "cnpg-system.cnpg-system.svc.cluster.local:5432",
@@ -196,7 +224,6 @@ pulumi.export("storage_provisioners", ["local-path", "hetzner-smb"])
 pulumi.export("s3_endpoints", s3_endpoints)
 
 print("\nStorage stack exports:")
-print(f"  storage_classes: local-path, hetzner-smb")
+print("  storage_classes: local-path, hetzner-smb")
 print(f"  database_endpoints: {database_endpoints}")
 print(f"  s3_buckets: {[b.name for b in homelab_config.buckets]}")
-

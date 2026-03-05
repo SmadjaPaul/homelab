@@ -15,6 +15,7 @@ Usage:
 Requirements:
     pip install requests
 """
+
 import os
 import sys
 import json
@@ -83,18 +84,28 @@ def test_webdav(username: str, password: str, server: str) -> bool:
 def test_ftp(username: str, password: str, server: str) -> bool:
     """Test FTP connectivity to the sub-account using curl."""
     result = subprocess.run(
-        ["curl", "-sf", "--ftp-ssl",
-         f"ftp://{server}/",
-         "--user", f"{username}:{password}",
-         "--list-only",
-         "--connect-timeout", "10"],
-        capture_output=True, text=True, timeout=15
+        [
+            "curl",
+            "-sf",
+            "--ftp-ssl",
+            f"ftp://{server}/",
+            "--user",
+            f"{username}:{password}",
+            "--list-only",
+            "--connect-timeout",
+            "10",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     if result.returncode == 0:
         print(f"    FTP FTPS LIST → ✅ (files: {result.stdout.strip() or 'empty dir'})")
         return True
     else:
-        print(f"    FTP FTPS LIST → ❌ (exit {result.returncode}: {result.stderr.strip()[:80]})")
+        print(
+            f"    FTP FTPS LIST → ❌ (exit {result.returncode}: {result.stderr.strip()[:80]})"
+        )
         return False
 
 
@@ -106,11 +117,11 @@ def run():
         print("❌ HCLOUD_TOKEN environment variable is required.")
         sys.exit(1)
 
-    print(f"\n{'='*60}")
-    print(f"Hetzner StorageBox Sub-account Integration Test")
+    print(f"\n{'=' * 60}")
+    print("Hetzner StorageBox Sub-account Integration Test")
     print(f"Box ID : {box_id}")
     print(f"Token  : {token[:8]}...")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
     sub_id = None
 
     # ── Step 1: Verify Storage Box exists ─────────────────────────────────
@@ -118,7 +129,9 @@ def run():
     try:
         box = hcloud_request("GET", f"/storage_boxes/{box_id}", token)
         box_data = box.get("storage_box", {})
-        print(f"  ✅ Found: {box_data.get('name', 'N/A')} — Server: {box_data.get('server', 'N/A')}")
+        print(
+            f"  ✅ Found: {box_data.get('name', 'N/A')} — Server: {box_data.get('server', 'N/A')}"
+        )
     except Exception as e:
         print(f"  ❌ Cannot access Storage Box {box_id}: {e}")
         print()
@@ -199,18 +212,20 @@ def run():
         print(f"  ✅ Deleted sub-account {sub_id}")
     except Exception as e:
         print(f"  ❌ Delete failed: {e}")
-        print(f"  ⚠️  Manual cleanup needed: DELETE /v1/storage_boxes/{box_id}/subaccounts/{sub_id}")
+        print(
+            f"  ⚠️  Manual cleanup needed: DELETE /v1/storage_boxes/{box_id}/subaccounts/{sub_id}"
+        )
 
     # ── Summary ───────────────────────────────────────────────────────────
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"  Box accessible via Cloud API : ✅")
+    print("  Box accessible via Cloud API : ✅")
     print(f"  Sub-account created          : ✅ ({username})")
-    print(f"  Sub-account verified (GET)   : ✅")
+    print("  Sub-account verified (GET)   : ✅")
     print(f"  WebDAV connectivity          : {'✅' if webdav_ok else '❌'}")
     print(f"  FTP connectivity             : {'✅' if ftp_ok else '❌'}")
-    print(f"  Sub-account deleted          : ✅")
-    print(f"{'='*60}\n")
+    print("  Sub-account deleted          : ✅")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

@@ -6,10 +6,12 @@ import pytest
 
 from shared.apps.loader import load_apps
 
+
 @pytest.fixture(scope="module")
 def apps():
     """Load apps for testing."""
     return load_apps("oci")
+
 
 class TestSecretRequirements:
     """Validate secrets requirements from apps.yaml."""
@@ -40,10 +42,10 @@ class TestSecretRequirements:
 
             for secret in app.secrets:
                 # If keys are defined explicitly as mapping
-                if hasattr(secret, 'keys_mapping') and secret.keys_mapping:
-                     # This depends on how keys are implemented in AppModel.
-                     # Let's assume list of strings for now (1:1 mapping).
-                     pass
+                if hasattr(secret, "keys_mapping") and secret.keys_mapping:
+                    # This depends on how keys are implemented in AppModel.
+                    # Let's assume list of strings for now (1:1 mapping).
+                    pass
 
                 # In V2, secrets.keys is typically a list of strings
                 if isinstance(secret.keys, list):

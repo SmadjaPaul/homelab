@@ -58,6 +58,7 @@ Multi-cluster Kubernetes homelab managed through GitOps using Flux, with Doppler
 - Secrets synced via External Secrets Operator (managed by Flux)
 - External Secrets Operator pulls secrets from Doppler and creates K8s secrets
 - Flux manages the ExternalSecret resources in Kubernetes
+- **Doppler config**: Project `infrastructure`, Config `prd` (not `prod`!)
 
 ## Networking Architecture
 ```

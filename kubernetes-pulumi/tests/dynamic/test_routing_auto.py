@@ -17,7 +17,9 @@ def test_endpoints_respond(apps_with_routing):
         url = f"https://{app.hostname}"
 
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "homelab-test/1.0"})
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "homelab-test/1.0"}
+            )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 status = resp.status
         except urllib.error.HTTPError as e:

@@ -121,8 +121,9 @@ Loads and validates `apps.yaml`:
 | **Secrets (ExternalSecret)** | Creates `ExternalSecret` CRDs from `SecretRequirement`. Supports both flat keys and JSON-scoped properties. |
 | **Storage** | Orchestrates PVC creation via `StorageProvisionerFactory` (Strategy Pattern) |
 | **Hetzner Storage** | `StorageBoxManager` provisions sub-accounts per user |
-| **Auth & Identity** | Authentik Users, Groups, OAuth2 Apps via `pulumi-authentik` |
-| **Exposure** | HTTPRoutes and Cloudflare Tunnel ingresses |
+| **Auth & Identity** | Authentik Users, Groups, Proxy/OAuth2 Providers via `pulumi-authentik`. Protected apps use `ProviderProxy` (mode=proxy); public apps with auth use `ProviderOauth2`. |
+| **Authentik Outpost** | `finalize_authentik_outpost()` creates a `ServiceConnectionKubernetes` + `Outpost` (type=proxy) after all apps are registered, binding all collected proxy provider IDs. The outpost auto-deploys `ak-outpost-authentik-embedded-outpost` on port 9000. |
+| **Exposure** | No-op: routing is managed centrally in k8s-apps via `ZeroTrustTunnelCloudflaredConfig` |
 
 ### 6. `S3Manager` (`shared/storage/s3_manager.py`)
 
@@ -165,11 +166,51 @@ Abstract base for custom apps:
    - Exports: storage_classes, database_endpoints, redis_endpoints, s3_endpoints
 
 3. Deploy k8s-apps
+   Phase 1: Initialization
    - Imports namespaces, domain, database endpoints, and s3_endpoints
    - AppRegistry validates all Doppler secrets at preview time (Fail-Fast)
-   - Initializes AppRegistry (Authentik SSO, StorageBoxManager, HTTPRoutes)
+   - Initializes AppRegistry (Authentik SSO, StorageBoxManager)
+
+   Phase 2: App Deployment
    - Iterates through apps in apps.yaml (topological order)
    - Deploys User Apps (GenericHelmApp or Custom Apps)
+   - For each protected app: creates ProviderProxy + Application in Authentik
+   - Collects proxy provider IDs for outpost binding
+
+   Phase 3: Authentik Outpost Finalization
+   - Creates ServiceConnectionKubernetes + Outpost (proxy type)
+   - Binds all collected proxy provider IDs to the outpost
+   - Outpost auto-deploys ak-outpost-* pod (port 9000)
+
+   Phase 4: Cloudflare Tunnel Config
+   - Reads CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ACCOUNT_ID from Doppler
+   - Builds ingress rules dynamically from apps.yaml:
+     * Protected apps → Authentik Outpost (:9000)
+     * Public apps → direct service
+   - Applies ZeroTrustTunnelCloudflaredConfig
+```
+
+### Authentication Flow (Protected Apps)
+
+```
+User → CF Tunnel → Authentik Outpost (:9000)
+                         │
+                    ┌────┴────┐
+                    │ Has     │
+                    │ Session?│
+                    └────┬────┘
+                    No   │   Yes
+                    ↓    │    ↓
+             Redirect    │   Proxy to
+             to Authentik│   backend app
+             login page  │
+                    ↓    │
+               User logs │
+               in via    │
+               auth.smadja.dev
+                    ↓    │
+               Set session cookie
+               Redirect back
 ```
 
 ---

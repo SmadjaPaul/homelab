@@ -57,7 +57,9 @@ def get_kubeconfig() -> str:
         kubeconfig = load_kubeconfig_file(str(default_path))
         return json.dumps(kubeconfig)
 
-    raise Exception("No kubeconfig found. Set kubeconfigPath config or KUBECONFIG env var.")
+    raise Exception(
+        "No kubeconfig found. Set kubeconfigPath config or KUBECONFIG env var."
+    )
 
 
 def is_local_cluster() -> bool:
@@ -67,7 +69,9 @@ def is_local_cluster() -> bool:
     return name in ("local", "dev") or "home" in name or "talos" in name
 
 
-def create_provider(name: str = None, kubeconfig: str = None, render_yaml_to_directory: str = None) -> k8s.Provider:
+def create_provider(
+    name: str = None, kubeconfig: str = None, render_yaml_to_directory: str = None
+) -> k8s.Provider:
     """
     Create Kubernetes provider for the current stack.
     """
@@ -79,8 +83,8 @@ def create_provider(name: str = None, kubeconfig: str = None, render_yaml_to_dir
         kubeconfig = get_kubeconfig()
 
     return k8s.Provider(
-        name, 
-        kubeconfig=kubeconfig, 
+        name,
+        kubeconfig=kubeconfig,
         render_yaml_to_directory=render_yaml_to_directory,
         enable_server_side_apply=True,
     )
@@ -92,7 +96,7 @@ def create_provider_from_kubeconfig(name: str, kubeconfig: dict) -> k8s.Provider
     """
     kubeconfig_str = json.dumps(kubeconfig)
     return k8s.Provider(
-        name, 
+        name,
         kubeconfig=kubeconfig_str,
         enable_server_side_apply=True,
     )
@@ -105,4 +109,5 @@ def is_audit_mode() -> bool:
     Enable via PULUMI_AUDIT_MODE=true environment variable.
     """
     import os
+
     return os.environ.get("PULUMI_AUDIT_MODE", "").lower() == "true"

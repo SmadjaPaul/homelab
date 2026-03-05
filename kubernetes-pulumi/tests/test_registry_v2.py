@@ -25,16 +25,21 @@ from apps.common.registry import AppRegistry
 
 # --- Mocks ---
 
+
 class PulumiMocks(pulumi.runtime.Mocks):
     def new_resource(self, args: pulumi.runtime.MockResourceArgs):
-        return [args.name + '_id', args.inputs]
+        return [args.name + "_id", args.inputs]
+
     def call(self, args: pulumi.runtime.MockCallArgs):
         return {}
+
 
 def setup_module():
     pulumi.runtime.set_mocks(PulumiMocks(), preview=True)
 
+
 # --- Tests ---
+
 
 class TestAppRegistryV2:
     """Test suite for the V2 registry features."""
@@ -52,7 +57,7 @@ class TestAppRegistryV2:
                     display_name="Paul Smadja",
                     email="paul@smadja.dev",
                     groups=["admins"],
-                    attributes={"shell": "/bin/zsh"}
+                    attributes={"shell": "/bin/zsh"},
                 ),
             ],
         )
@@ -61,14 +66,19 @@ class TestAppRegistryV2:
         provider = k8s.Provider("test-provider")
 
         # We need to mock pulumi_authentik since it might not be installed
-        with patch.dict(sys.modules, {'pulumi_authentik': Mock(), 'pulumi_authentik.core': Mock(), 'pulumi_authentik.provider': Mock()}):
-            import pulumi_authentik as authentik
-
+        with patch.dict(
+            sys.modules,
+            {
+                "pulumi_authentik": Mock(),
+                "pulumi_authentik.core": Mock(),
+                "pulumi_authentik.provider": Mock(),
+            },
+        ):
             registry = AppRegistry(
                 "test-authentik",
                 provider=provider,
                 apps=[app],
-                config={"identities": identities}
+                config={"identities": identities},
             )
 
             # Check if groups were created
@@ -86,12 +96,21 @@ class TestAppRegistryV2:
             port=8080,
             hostname="private.example.com",
             mode=ExposureMode.PROTECTED,
-            auth=True
+            auth=True,
         )
 
         provider = k8s.Provider("test-provider")
 
-        with patch.dict(sys.modules, {'pulumi_authentik': Mock(), 'pulumi_authentik.core': Mock(), 'pulumi_authentik.provider': Mock(), 'pulumi_authentik.provider.proxy': Mock(), 'pulumi_authentik.provider.oauth2': Mock()}):
+        with patch.dict(
+            sys.modules,
+            {
+                "pulumi_authentik": Mock(),
+                "pulumi_authentik.core": Mock(),
+                "pulumi_authentik.provider": Mock(),
+                "pulumi_authentik.provider.proxy": Mock(),
+                "pulumi_authentik.provider.oauth2": Mock(),
+            },
+        ):
             registry = AppRegistry(
                 "test-proxy",
                 provider=provider,
@@ -107,18 +126,25 @@ class TestAppRegistryV2:
             port=80,
             hostname="auth-app.example.com",
             mode=ExposureMode.PUBLIC,
-            auth=True
+            auth=True,
         )
 
         provider = k8s.Provider("test-provider")
 
         # We want to capture the SecurityPolicy creation inputs
-        with patch.dict(sys.modules, {'pulumi_authentik': Mock(), 'pulumi_authentik.core': Mock(), 'pulumi_authentik.provider': Mock()}):
+        with patch.dict(
+            sys.modules,
+            {
+                "pulumi_authentik": Mock(),
+                "pulumi_authentik.core": Mock(),
+                "pulumi_authentik.provider": Mock(),
+            },
+        ):
             registry = AppRegistry(
                 "test-gateway",
                 provider=provider,
                 apps=[app],
-                config={"domain": "smadja.dev"}
+                config={"domain": "smadja.dev"},
             )
 
             # The test here is mostly ensuring registry runs the _create_gateway_route logic
@@ -134,11 +160,12 @@ class TestAppRegistryV2:
             port=80,
             resources={
                 "requests": {"cpu": "100m", "memory": "256Mi"},
-                "limits": {"cpu": "200m", "memory": "512Mi"}
-            }
+                "limits": {"cpu": "200m", "memory": "512Mi"},
+            },
         )
         assert app.resources["requests"]["cpu"] == "100m"
         assert app.resources["limits"]["memory"] == "512Mi"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

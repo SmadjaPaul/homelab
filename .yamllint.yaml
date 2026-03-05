@@ -20,3 +20,5 @@ ignore: |
   secrets/*.enc.yaml
   _bmad*/
   kubernetes/
+  kubernetes-pulumi/
+  redis/

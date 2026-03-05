@@ -5,7 +5,7 @@ checks:
   # Security
   dangerousCapabilities: warn
   hostNetworkSet: warn
-  
+
   # Resources
   cpuRequestsMissing: warn
   memoryRequestsMissing: warn

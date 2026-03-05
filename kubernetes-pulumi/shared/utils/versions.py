@@ -26,7 +26,7 @@ VERSIONS: dict[str, Any] = {
     "cloudnative_pg": {"chart": "0.27.1", "app": "1.27.1"},
     "redis": {"chart": "20.6.0", "app": "7.4.1"},
     "longhorn": {"chart": "1.8.0", "app": "v1.8.0"},
-    "monitoring": {"chart": "3.8.0", "app": "0.12.0"}, # grafana/k8s-monitoring
+    "monitoring": {"chart": "3.8.0", "app": "0.12.0"},  # grafana/k8s-monitoring
     "velero": {"chart": "8.3.0", "app": "v1.15.2"},
     # Security
     "authentik": {"chart": "2026.2.0", "app": "2026.2.0"},
@@ -38,7 +38,6 @@ VERSIONS: dict[str, Any] = {
     # Media
     "audiobookshelf": {"chart": "3.2.1", "app": "2.12.1"},
     "immich": {"chart": "0.10.3", "app": "2.0.0"},
-    "navidrome": {"chart": "0.14.1", "app": "0.53.1"},
     "lidarr": {"chart": "5.6.1", "app": "2.5.1"},
     # Automation
     "n8n": {"chart": "0.28.1", "app": "1.92.2"},

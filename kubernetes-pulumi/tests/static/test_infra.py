@@ -1,13 +1,10 @@
 """
 Static infrastructure tests.
 """
-import pytest
-import sys
-import os
-from pathlib import Path
 
 from shared.utils.versions import VERSIONS
 from shared.apps.loader import load_apps
+
 
 def test_versions_sync():
     """Verify that apps defined in apps.yaml have their chart versions tracked in versions.py (if applicable)."""
@@ -21,9 +18,11 @@ def test_versions_sync():
             # Optionally check if versions match if that's a policy
             pass
 
+
 def test_deployment_order_is_valid():
     """Verify that topological sort can be performed without cycles."""
     from shared.apps.loader import get_deployment_order
+
     order = get_deployment_order("oci")
     assert len(order) > 0
     assert "authentik" in order or "homarr" in order

@@ -58,6 +58,7 @@ repos:
       - id: yamllint
         name: 📋 YAML lint
         args: [-c=.yamllint.yaml]
+        exclude: (realm-homelab|_bmad|templates/.*\.yaml$|.*/charts/.*|kubernetes-pulumi/.*|redis/.*)
 
   # =============================================================================
   # General Code Quality
@@ -72,10 +73,10 @@ repos:
       - id: check-yaml
         name: ✅ Check YAML syntax
         args: [--allow-multiple-documents]
-        exclude: (realm-homelab|_bmad)
+        exclude: (realm-homelab|_bmad|templates/.*\.yaml$|.*/charts/.*|kubernetes-pulumi/.*|redis/.*)
       - id: check-json
         name: ✅ Check JSON syntax
-        exclude: docs-site/tsconfig\.json$  # TSconfig with comments
+        exclude: (docs-site/tsconfig\.json$|kubernetes-pulumi/doppler\.json$)
       - id: check-merge-conflict
         name: 🔀 Check merge conflicts
       - id: check-added-large-files

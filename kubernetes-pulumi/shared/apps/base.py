@@ -35,7 +35,7 @@ class BaseApp(ABC):
         self,
         provider: k8s.Provider,
         config: dict[str, Any],
-        opts: Optional[pulumi.ResourceOptions] = None
+        opts: Optional[pulumi.ResourceOptions] = None,
     ) -> dict[str, Any]:
         """
         Deploy the application.
@@ -51,18 +51,29 @@ class BaseApp(ABC):
         if self._model.test.test_network_policy:
             builder = NetworkPolicyBuilder(provider)
             policies = builder.build(self)
+
+            # Allow external internet access if explicitly configured in apps.yaml
+            if self._model.allow_external:
+                include_internal = self._model.name == "cloudflared"
+                policies.append(
+                    builder.allow_external(
+                        self._model.name,
+                        self._model.namespace,
+                        include_internal=include_internal,
+                    )
+                )
+
             result["network_policies"] = policies
 
         result["model"] = self._model
         return result
-
 
     @abstractmethod
     def deploy_components(
         self,
         provider: k8s.Provider,
         config: dict[str, Any],
-        opts: Optional[pulumi.ResourceOptions] = None
+        opts: Optional[pulumi.ResourceOptions] = None,
     ) -> dict[str, Any]:
         """
         Deploy app-specific resources (helm releases, services, routes, etc.).
@@ -226,4 +237,83 @@ class NetworkPolicyBuilder:
             )
             policies.append(allow_dep)
 
+        # 4. Allow ingress from cloudflared for apps exposed via Cloudflare Tunnel
+        if getattr(app._model, "hostname", None) and app._model.mode.value in (
+            "public",
+            "protected",
+        ):
+            allow_tunnel_ingress = k8s.networking.v1.NetworkPolicy(
+                f"{app_name}-allow-tunnel-ingress",
+                metadata=k8s.meta.v1.ObjectMetaArgs(
+                    name=f"{app_name}-allow-tunnel-ingress",
+                    namespace=namespace,
+                ),
+                spec=k8s.networking.v1.NetworkPolicySpecArgs(
+                    pod_selector=k8s.meta.v1.LabelSelectorArgs(),
+                    policy_types=["Ingress"],
+                    ingress=[
+                        k8s.networking.v1.NetworkPolicyIngressRuleArgs(
+                            from_=[
+                                k8s.networking.v1.NetworkPolicyPeerArgs(
+                                    namespace_selector=k8s.meta.v1.LabelSelectorArgs(
+                                        match_labels={
+                                            "kubernetes.io/metadata.name": "cloudflared",
+                                        },
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                opts=pulumi.ResourceOptions(provider=self.provider),
+            )
+            policies.append(allow_tunnel_ingress)
+
         return policies
+
+    def allow_external(
+        self, app_name: str, namespace: str, include_internal: bool = False
+    ) -> k8s.networking.v1.NetworkPolicy:
+        """
+        Create a NetworkPolicy that allows egress to the internet (0.0.0.0/0).
+        Required for apps like cloudflared that need to reach external services.
+        """
+        egress_rules = [
+            k8s.networking.v1.NetworkPolicyEgressRuleArgs(
+                to=[
+                    k8s.networking.v1.NetworkPolicyPeerArgs(
+                        ip_block=k8s.networking.v1.IPBlockArgs(
+                            cidr="0.0.0.0/0",
+                            except_=["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+                        ),
+                    ),
+                ],
+            )
+        ]
+
+        if include_internal:
+            # Add rule to allow all internal traffic between namespaces
+            egress_rules.append(
+                k8s.networking.v1.NetworkPolicyEgressRuleArgs(
+                    to=[
+                        k8s.networking.v1.NetworkPolicyPeerArgs(
+                            namespace_selector=k8s.meta.v1.LabelSelectorArgs(),
+                        ),
+                    ],
+                )
+            )
+
+        allow_external = k8s.networking.v1.NetworkPolicy(
+            f"{app_name}-allow-external",
+            metadata=k8s.meta.v1.ObjectMetaArgs(
+                name=f"{app_name}-allow-external",
+                namespace=namespace,
+            ),
+            spec=k8s.networking.v1.NetworkPolicySpecArgs(
+                pod_selector=k8s.meta.v1.LabelSelectorArgs(),
+                policy_types=["Egress"],
+                egress=egress_rules,
+            ),
+            opts=pulumi.ResourceOptions(provider=self.provider),
+        )
+        return allow_external

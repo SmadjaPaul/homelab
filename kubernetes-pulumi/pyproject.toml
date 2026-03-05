@@ -8,6 +8,11 @@ dependencies = [
     "pydantic>=2.0.0",
     "pulumiverse-doppler>=0.9.0",
     "pulumi-oci>=4.1.0",
+    "pulumi-hcloud>=1.32.1",
+    "pulumi-command>=1.2.0",
+    "pulumi-random>=4.16.0",
+    "pulumi-cloudflare>=5.12.0",
+    "pulumi-authentik>=2024.10.0",
 ]
 
 [build-system]

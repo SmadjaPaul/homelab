@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import yaml
 from pydantic import ValidationError
@@ -98,10 +98,20 @@ class DependencyGraph:
 
 
 KNOWN_NAMESPACES = {
-    "kube-system", "default", "external-secrets", "cert-manager",
-    "external-dns", "cloudflared", "homelab",
-    "music", "vaultwarden", "cnpg-system", "kyverno",
-    "envoy-gateway", "o11y", "authentik",
+    "kube-system",
+    "default",
+    "external-secrets",
+    "cert-manager",
+    "external-dns",
+    "cloudflared",
+    "homelab",
+    "music",
+    "vaultwarden",
+    "cnpg-system",
+    "kyverno",
+    "envoy-gateway",
+    "o11y",
+    "authentik",
 }
 
 
@@ -192,9 +202,7 @@ class AppLoader:
             for app in apps:
                 for dep in app.dependencies:
                     if dep not in known:
-                        errors.append(
-                            f"App '{app.name}' depends on unknown: '{dep}'"
-                        )
+                        errors.append(f"App '{app.name}' depends on unknown: '{dep}'")
 
             # Check for cycles
             graph = self.build_dependency_graph(apps)

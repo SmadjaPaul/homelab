@@ -1,3 +1,6 @@
 name: homelab-k8s-core
 description: Core Kubernetes Infrastructure (Namespaces, CRDs, Cert-Manager, External-Secrets)
-runtime: python
+runtime:
+  name: python
+  options:
+    virtualenv: ../.venv

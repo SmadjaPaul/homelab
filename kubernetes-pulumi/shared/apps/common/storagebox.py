@@ -12,6 +12,7 @@ import pulumi_random as random
 from typing import List, Dict, Optional
 from shared.utils.schemas import IdentityUserModel
 
+
 class StorageBoxManager(pulumi.ComponentResource):
     """
     Manages Hetzner Storage Box sub-accounts via the Pulumi HCloud provider.
@@ -35,7 +36,7 @@ class StorageBoxManager(pulumi.ComponentResource):
 
     def _provision_sub_accounts(self, users: List[IdentityUserModel]):
         """
-        For each user, create a StorageBoxSubaccount resource and store 
+        For each user, create a StorageBoxSubaccount resource and store
         credentials in a Kubernetes secret.
         """
         for user in users:
@@ -49,7 +50,7 @@ class StorageBoxManager(pulumi.ComponentResource):
                 f"storagebox-sub-pass-{user_name}",
                 length=16,
                 special=True,
-                override_special="!@#$%^&*()-_=+", # Safe specials for SMB
+                override_special="!@#$%^&*()-_=+",  # Safe specials for SMB
                 min_upper=1,
                 min_lower=1,
                 min_numeric=1,
@@ -80,7 +81,7 @@ class StorageBoxManager(pulumi.ComponentResource):
                 f"secret-storage-{user_name}",
                 metadata={
                     "name": f"hetzner-storage-{user_name}",
-                    "namespace": "kube-system", # CSI driver looks here
+                    "namespace": "kube-system",  # CSI driver looks here
                 },
                 string_data={
                     "username": sub_account.username,
@@ -95,19 +96,22 @@ class StorageBoxManager(pulumi.ComponentResource):
             return None
         return f"hetzner-storage-{user_name}"
 
+
 def setup_storagebox_automation(
     provider: k8s.Provider,
     storage_box_id: Optional[int],
-    users: List[IdentityUserModel]
+    users: List[IdentityUserModel],
 ) -> Optional[StorageBoxManager]:
     """Helper to initialize StorageBoxManager."""
     if not storage_box_id:
-        print("  [StorageBox] Warning: No storage_box_id provided. Skipping sub-account automation.")
+        print(
+            "  [StorageBox] Warning: No storage_box_id provided. Skipping sub-account automation."
+        )
         return None
 
     return StorageBoxManager(
         "storagebox-automation",
         provider=provider,
         storage_box_id=storage_box_id,
-        users=users
+        users=users,
     )
