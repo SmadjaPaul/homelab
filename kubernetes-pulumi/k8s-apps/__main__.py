@@ -15,6 +15,8 @@ Stack Dependencies:
 import os
 
 import pulumi
+import pulumi_cloudflare as cloudflare
+import pulumiverse_doppler as doppler
 from shared.apps.loader import AppLoader
 from shared.apps.common.registry import AppRegistry
 from shared.utils.cluster import get_kubeconfig, create_provider
@@ -24,18 +26,16 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 apps_yaml_path = os.path.join(project_root, "apps.yaml")
 
 # =============================================================================
-# STACK REFERENCES - Import from k8s-core and k8s-storage
+# STACK REFERENCES & PROVIDERS
 # =============================================================================
 stack_name = pulumi.get_stack()
 
-# Import from k8s-core
 core_stack = pulumi.StackReference(f"organization/homelab-k8s-core/{stack_name}")
 core_namespaces = core_stack.get_output("namespaces")
 core_namespace_list = core_stack.get_output("namespace_list")
 core_domain = core_stack.get_output("domain")
 core_operator_status = core_stack.get_output("operator_status")
 
-# Import from k8s-storage
 storage_stack = pulumi.StackReference(f"organization/homelab-k8s-storage/{stack_name}")
 storage_classes = storage_stack.get_output("storage_classes")
 database_endpoints = storage_stack.get_output("database_endpoints")
@@ -43,6 +43,7 @@ redis_endpoints = storage_stack.get_output("redis_endpoints")
 
 config = pulumi.Config()
 cluster_filter = config.get("cluster") or "oci"
+domain = core_domain
 
 kubeconfig = get_kubeconfig()
 provider = create_provider(cluster_filter, kubeconfig)
@@ -52,24 +53,30 @@ loader = AppLoader(apps_yaml_path)
 apps = loader.load_for_cluster(cluster_filter)
 apps_by_name = {app.name: app for app in apps}
 
-# Get domain from core stack
-domain = core_domain
-
+deployment_order = loader.get_deployment_order(cluster_filter)
 print(f"Stack: k8s-apps (cluster: {cluster_filter})")
 
-# Full config with all merged values
 full_config = loader.get_full_config()
-full_config.update(
-    {
-        "domain": domain,
-        "cluster": cluster_filter,
-    }
+full_config.update({"domain": domain, "cluster": cluster_filter})
+
+# Doppler Configuration
+doppler_config = pulumi.Config("homelab")
+doppler_token = doppler_config.get_secret("dopplerToken") or config.get_secret(
+    "dopplerToken"
+)
+doppler_provider = doppler.Provider("doppler-provider", doppler_token=doppler_token)
+
+doppler_secrets = doppler.get_secrets_output(
+    project="infrastructure",
+    config="prd",
+    opts=pulumi.InvokeOptions(provider=doppler_provider),
 )
 
 # =============================================================================
-# APP REGISTRY - Setup cross-cutting concerns
+# PHASE 1: KUBERNETES DEPLOYMENT
 # =============================================================================
-print("\nPhase 1: Setting up AppRegistry...")
+print("\nPhase 1: Deploying Kubernetes Resources...")
+
 registry = AppRegistry(
     name="homelab-registry",
     provider=provider,
@@ -77,16 +84,7 @@ registry = AppRegistry(
 )
 registry.setup_global_infrastructure()
 
-# =============================================================================
-# DEPLOY APPLICATIONS
-# =============================================================================
-# Get deployment order from loader
-deployment_order = loader.get_deployment_order(cluster_filter)
-print(f"\nPhase 2: Deploying {len(deployment_order)} applications...")
-print(f"  Deployment order: {deployment_order}")
-
-# Apps that should be deployed by this stack (not infrastructure)
-# Exclude core operators (deployed in k8s-core) and storage (deployed in k8s-storage)
+# Apps that should NOT be deployed by this stack loop
 infrastructure_apps = {
     "external-secrets",
     "cert-manager",
@@ -100,12 +98,11 @@ infrastructure_apps = {
 }
 
 deployed_apps = {}
+helm_releases = {}
 errors = []
 
 for app_name in deployment_order:
-    # Skip infrastructure apps - they're deployed in other stacks
     if app_name in infrastructure_apps:
-        print(f"  Skipping {app_name} (deployed in other stack)")
         continue
 
     app = apps_by_name.get(app_name)
@@ -113,42 +110,28 @@ for app_name in deployment_order:
         continue
 
     print(f"  Deploying {app_name}...")
-
     try:
-        # If the app has secrets, ensure external-secrets status is at least imported
-        # to avoid the crashes we saw earlier with Output.apply on None
-        if app.secrets:
-            _ = core_operator_status.apply(
-                lambda s: s and s.get("external-secrets") == "deployed"
-            )
-
         opts = pulumi.ResourceOptions(provider=provider)
 
-        # 1. Register app in registry FIRST (to create secrets, PVCs, etc.)
+        # 1. Register app in registry (Secrets, PVCs, etc. - NO AUTHENTIK API CALLS YET)
         registry_resources = registry.register_app(app, deployed_apps, opts)
 
-        # 2. Deploy via AppFactory (supports specialized subclasses)
+        # 2. Deploy via AppFactory
         if app.helm and app.helm.chart:
             from shared.apps.factory import AppFactory
 
             generic_app = AppFactory.create(app)
 
-            # Ensure deployment depends on registry resources
             if registry_resources:
                 opts = pulumi.ResourceOptions.merge(
                     opts, pulumi.ResourceOptions(depends_on=registry_resources)
                 )
 
             result = generic_app.deploy(provider, config=full_config, opts=opts)
-
             if result and "release" in result:
-                # Store a simple boolean to indicate deployment success in this run
-                # Avoid storing the full Output[Release] object to prevent serialization issues
                 deployed_apps[app_name] = True
-
+                helm_releases[app_name] = result["release"]
             print(f"    {app_name}: deployed successfully")
-        else:
-            print(f"    {app_name}: no helm chart, skipping")
 
     except Exception as e:
         error_msg = f"  ERROR deploying {app_name}: {str(e)}"
@@ -156,94 +139,273 @@ for app_name in deployment_order:
         errors.append(error_msg)
 
 # =============================================================================
-# PHASE 3 — Finalize Authentik Outpost
+# PHASE 2: AUTHENTIK API CONFIGURATION
 # =============================================================================
-print("\nPhase 3: Finalizing Authentik Outpost...")
-registry.finalize_authentik_outpost()
+authentik_release = helm_releases.get("authentik")
+if "authentik" in apps_by_name and authentik_release:
+    print("\nPhase 2: Configuring Authentik API Layer...")
+    try:
+        import pulumi_authentik as authentik
+
+        # 2.1 Initialize Authentik Provider ONLY IF the helm release exists
+        ak_token = doppler_secrets.map.apply(
+            lambda m: m.get("AUTHENTIK_BOOTSTRAP_TOKEN", "")
+        )
+        # We explicitly assemble the URL using the domain string to avoid race conditions
+        ak_url = domain.apply(lambda d: f"https://auth.{d}")
+
+        # IMPORTANT: Provider depends on the helm release being completely finished
+        authentik_provider = authentik.Provider(
+            "authentik-provider",
+            token=ak_token,
+            url=ak_url,
+            opts=pulumi.ResourceOptions(depends_on=[authentik_release]),
+        )
+
+        # 2.2 Configure Proxies & Applications
+        # Using depends_on to ensure provider connects only after cluster deployment
+        ak_opts = pulumi.ResourceOptions(depends_on=[authentik_release])
+        ak_resources = registry.configure_authentik_layer(
+            apps, authentik_provider, ak_opts
+        )
+
+        # 2.3 Create the Outpost
+        # Outpost depends on all proxy/app configurations being done
+        op_opts = pulumi.ResourceOptions.merge(
+            ak_opts, pulumi.ResourceOptions(depends_on=ak_resources)
+        )
+        outpost_resources = registry.finalize_authentik_outpost(
+            authentik_provider, opts=op_opts
+        )
+
+    except ImportError:
+        print("  pulumi_authentik not found! Skipping API config.")
+        outpost_resources = []
+else:
+    print("\nPhase 2: Authentik not deployed or enabled, skipping API config.")
+    outpost_resources = []
 
 # =============================================================================
-# PHASE 4 — Configure Cloudflare Tunnel ingress rules (from apps.yaml)
+# PHASE 3: CLOUDFLARE TUNNEL & DNS ROUTING
 # =============================================================================
 if "cloudflared" in apps_by_name:
-    print("\nPhase 4: Configuring Cloudflare Tunnel routes...")
-    import pulumi_cloudflare as cloudflare
-    import pulumiverse_doppler as doppler
-
-    doppler_secrets = doppler.get_secrets_output(project="infrastructure", config="prd")
+    print("\nPhase 3: Configuring Cloudflare Routing...")
     cf_account_id = doppler_secrets.map.apply(
         lambda m: m.get("CLOUDFLARE_ACCOUNT_ID", "")
     )
     cf_tunnel_id = doppler_secrets.map.apply(
         lambda m: m.get("CLOUDFLARE_TUNNEL_ID", "")
     )
+    cf_zone_id = doppler_secrets.map.apply(lambda m: m.get("CLOUDFLARE_ZONE_ID", ""))
     cf_api_token = doppler_secrets.map.apply(
         lambda m: m.get("CLOUDFLARE_API_TOKEN", "")
     )
 
     cf_provider = cloudflare.Provider("cloudflare-provider", api_token=cf_api_token)
+    tunnel_cname_target = cf_tunnel_id.apply(lambda tid: f"{tid}.cfargotunnel.com")
 
-    # Build ingress rules dynamically from exposed apps
+    # IMPORTANT: Tunnel routes should only be considered ready IF the outpost has been configured!
+    cf_opts = pulumi.ResourceOptions(provider=cf_provider, depends_on=outpost_resources)
+
     exposed_apps = [
         a for a in apps if a.hostname and a.mode.value in ("public", "protected")
     ]
-
     ingress_rules = []
+    all_dns_records = []
 
-    # Static routes for infrastructure services
     static_routes = [
-        ("auth", "http://authentik-server.authentik.svc.cluster.local:80"),
-        ("login", "http://authentik-server.authentik.svc.cluster.local:80"),
+        ("login", "http://authentik-server.authentik.svc.cluster.local:80")
     ]
+
     for subdomain, service in static_routes:
+        hostname = domain.apply(lambda d: f"{subdomain}.{d}")
         ingress_rules.append(
-            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
-                hostname=f"{subdomain}.{full_config.get('domain', 'smadja.dev')}",
+            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressArgs(
+                hostname=hostname,
                 service=service,
-                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleOriginRequestArgs(
+                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressOriginRequestArgs(
                     no_tls_verify=True,
-                    connect_timeout="30s",
+                    connect_timeout=30,
                 ),
             )
         )
+        all_dns_records.append(
+            cloudflare.DnsRecord(
+                f"dns-record-{subdomain}",
+                name=subdomain,
+                zone_id=cf_zone_id,
+                type="CNAME",
+                content=tunnel_cname_target,
+                proxied=True,
+                ttl=1,
+                opts=cf_opts,
+            )
+        )
 
-    # Dynamic routes from apps.yaml
     for app in exposed_apps:
         if app.mode.value == "protected":
-            # Route through Authentik Outpost Proxy (handles auth + proxies to backend)
             svc_url = "http://ak-outpost-authentik-embedded-outpost.authentik.svc.cluster.local:9000"
         else:
-            # Route directly to the app service
             svc_name = "authentik-server" if app.name == "authentik" else app.name
             svc_url = f"http://{svc_name}.{app.namespace}.svc.cluster.local:{app.port}"
 
         ingress_rules.append(
-            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
+            cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressArgs(
                 hostname=app.hostname,
                 service=svc_url,
-                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleOriginRequestArgs(
+                origin_request=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressOriginRequestArgs(
                     no_tls_verify=True,
-                    connect_timeout="30s",
+                    connect_timeout=30,
                 ),
             )
         )
-        print(f"  Route: {app.hostname} → {svc_url}")
+        all_dns_records.append(
+            cloudflare.DnsRecord(
+                f"dns-record-{app.name}",
+                name=app.hostname,
+                zone_id=cf_zone_id,
+                type="CNAME",
+                content=tunnel_cname_target,
+                proxied=True,
+                ttl=1,
+                opts=cf_opts,
+            )
+        )
 
-    # Catch-all fallback (required by Cloudflare)
     ingress_rules.append(
-        cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressRuleArgs(
-            service="http_status:404",
+        cloudflare.ZeroTrustTunnelCloudflaredConfigConfigIngressArgs(
+            service="http_status:404"
         )
     )
 
-    # Apply the tunnel configuration
-    cloudflare.ZeroTrustTunnelCloudflaredConfig(
+    # === Mail DNS Migration ===
+    print("  [DNS] Implementing Migadu Mail DNS records...")
+
+    # Root A Record (Placeholder for Tunnel mapping stability)
+    cloudflare.DnsRecord(
+        "root-a",
+        zone_id=cf_zone_id,
+        name="smadja.dev",
+        type="A",
+        content="192.0.2.1",
+        proxied=True,
+        ttl=1,
+        opts=cf_opts,
+    )
+
+    # MX Records
+    cloudflare.DnsRecord(
+        "migadu-mx1",
+        zone_id=cf_zone_id,
+        name="@",
+        type="MX",
+        content="aspmx1.migadu.com",
+        priority=10,
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+    cloudflare.DnsRecord(
+        "migadu-mx2",
+        zone_id=cf_zone_id,
+        name="@",
+        type="MX",
+        content="aspmx2.migadu.com",
+        priority=20,
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+
+    # SPF, DMARC, Domain Verify
+    cloudflare.DnsRecord(
+        "migadu-spf",
+        zone_id=cf_zone_id,
+        name="@",
+        type="TXT",
+        content="v=spf1 include:spf.migadu.com -all",
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+    cloudflare.DnsRecord(
+        "migadu-dmarc",
+        zone_id=cf_zone_id,
+        name="_dmarc",
+        type="TXT",
+        content="v=DMARC1; p=quarantine;",
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+    cloudflare.DnsRecord(
+        "migadu-verify",
+        zone_id=cf_zone_id,
+        name="@",
+        type="TXT",
+        content="hosted-email-verify=sd1bfbhe",
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+
+    # DKIM
+    for i in range(1, 4):
+        cloudflare.DnsRecord(
+            f"migadu-dkim{i}",
+            zone_id=cf_zone_id,
+            name=f"key{i}._domainkey",
+            type="CNAME",
+            # Use idx=i to capture loop index in closure correctly
+            content=domain.apply(
+                lambda d, idx=i: f"key{idx}.{d}._domainkey.migadu.com"
+            ),
+            ttl=3600,
+            proxied=False,
+            opts=cf_opts,
+        )
+
+    # Autoconfig
+    cloudflare.DnsRecord(
+        "migadu-autoconfig",
+        zone_id=cf_zone_id,
+        name="autoconfig",
+        type="CNAME",
+        content="autoconfig.migadu.com",
+        ttl=3600,
+        proxied=False,
+        opts=cf_opts,
+    )
+
+    # SRV Records
+    mail_srvs = [
+        ("_submissions._tcp", 465, "smtp.migadu.com", "SMTP submission"),
+        ("_imaps._tcp", 993, "imap.migadu.com", "IMAPS"),
+        ("_pop3s._tcp", 995, "pop.migadu.com", "POP3S"),
+        ("_autodiscover._tcp", 443, "autodiscover.migadu.com", "Outlook autodiscovery"),
+    ]
+    for name, port, target, comment in mail_srvs:
+        cloudflare.DnsRecord(
+            f"migadu-srv-{name.replace('_', '').replace('.', '-')}",
+            zone_id=cf_zone_id,
+            name=name,
+            type="SRV",
+            ttl=3600,
+            proxied=False,
+            data=cloudflare.DnsRecordDataArgs(
+                priority=0, weight=1, port=port, target=target
+            ),
+            opts=cf_opts,
+        )
+
+    tunnel_config = cloudflare.ZeroTrustTunnelCloudflaredConfig(
         "homelab-tunnel-config",
         account_id=cf_account_id,
         tunnel_id=cf_tunnel_id,
         config=cloudflare.ZeroTrustTunnelCloudflaredConfigConfigArgs(
-            ingress_rules=ingress_rules,
+            ingresses=ingress_rules
         ),
-        opts=pulumi.ResourceOptions(provider=cf_provider),
+        opts=cf_opts,
     )
     print(f"  Total routes: {len(ingress_rules)} (including catch-all)")
 

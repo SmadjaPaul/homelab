@@ -155,42 +155,54 @@ class GenericHelmApp(BaseApp):
 
         # Inject extra environment variables
         if self._model.extra_env:
+            extra_env_items = [
+                {"name": k, "value": v} for k, v in self._model.extra_env.items()
+            ]
+
+            def merge_env(existing_env: Any, new_items: list) -> Any:
+                if isinstance(existing_env, list):
+                    # Deduplicate by 'name'
+                    env_map = {
+                        item["name"]: item for item in existing_env if "name" in item
+                    }
+                    for item in new_items:
+                        env_map[item["name"]] = item
+                    return list(env_map.values())
+                elif isinstance(existing_env, dict):
+                    # Flat map update
+                    existing_env.update(self._model.extra_env)
+                    return existing_env
+                return new_items
+
             if app_name == "authentik":
-                # Authentik prefers env in server/worker sub-keys
-                extra_env_items = [
-                    {"name": k, "value": v} for k, v in self._model.extra_env.items()
-                ]
                 for comp in ["server", "worker"]:
                     if comp not in final_values:
                         final_values[comp] = {}
-                    if "env" not in final_values[comp]:
-                        final_values[comp]["env"] = []
-                    final_values[comp]["env"].extend(extra_env_items)
+                    final_values[comp]["env"] = merge_env(
+                        final_values[comp].get("env", []), extra_env_items
+                    )
             elif app_name == "homarr" or chart_name == "homarr":
-                # Homarr uses a MAP for env
+                # Homarr v2+ uses a list for env, but some templates might expect a map
                 if "env" not in final_values:
-                    final_values["env"] = {}
-                final_values["env"].update(self._model.extra_env)
+                    # Let's check the existing type if present
+                    final_values["env"] = []
+
+                final_values["env"] = merge_env(final_values["env"], extra_env_items)
             else:
-                extra_env_items = [
-                    {"name": k, "value": v} for k, v in self._model.extra_env.items()
-                ]
                 # Common pattern 1: bjw-s app-template v2/v3
                 if "controllers" in final_values:
                     for ctrl in final_values["controllers"].values():
                         if "containers" in ctrl:
                             for cont in ctrl["containers"].values():
-                                if "env" not in cont:
-                                    cont["env"] = []
-                                cont["env"].extend(extra_env_items)
+                                cont["env"] = merge_env(
+                                    cont.get("env", []), extra_env_items
+                                )
 
                 # Common pattern 2: standard Helm 'env' key
-                if "env" not in final_values:
-                    final_values["env"] = []
-                if isinstance(final_values["env"], list):
-                    final_values["env"].extend(extra_env_items)
-                elif isinstance(final_values["env"], dict):
-                    final_values["env"].update(self._model.extra_env)
+                if "env" in final_values or not final_values.get("controllers"):
+                    final_values["env"] = merge_env(
+                        final_values.get("env", []), extra_env_items
+                    )
 
         return final_values
 

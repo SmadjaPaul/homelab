@@ -237,37 +237,64 @@ class NetworkPolicyBuilder:
             )
             policies.append(allow_dep)
 
-        # 4. Allow ingress from cloudflared for apps exposed via Cloudflare Tunnel
-        if getattr(app._model, "hostname", None) and app._model.mode.value in (
-            "public",
-            "protected",
-        ):
-            allow_tunnel_ingress = k8s.networking.v1.NetworkPolicy(
-                f"{app_name}-allow-tunnel-ingress",
-                metadata=k8s.meta.v1.ObjectMetaArgs(
-                    name=f"{app_name}-allow-tunnel-ingress",
-                    namespace=namespace,
-                ),
-                spec=k8s.networking.v1.NetworkPolicySpecArgs(
-                    pod_selector=k8s.meta.v1.LabelSelectorArgs(),
-                    policy_types=["Ingress"],
-                    ingress=[
-                        k8s.networking.v1.NetworkPolicyIngressRuleArgs(
-                            from_=[
-                                k8s.networking.v1.NetworkPolicyPeerArgs(
-                                    namespace_selector=k8s.meta.v1.LabelSelectorArgs(
-                                        match_labels={
-                                            "kubernetes.io/metadata.name": "cloudflared",
-                                        },
-                                    ),
-                                ),
-                            ],
-                        ),
-                    ],
-                ),
-                opts=pulumi.ResourceOptions(provider=self.provider),
-            )
-            policies.append(allow_tunnel_ingress)
+        # 4. Allow ingress from Cloudflare Tunnel or Authentik Outpost
+        # For public apps, traffic comes directly from cloudflared
+        # For protected apps, traffic comes from the authentik outpost
+        if getattr(app._model, "hostname", None):
+            mode = app._model.mode.value
+            if mode in ("public", "protected"):
+                ingress_sources = []
+
+                if mode == "public":
+                    # Public apps: traffic from cloudflared
+                    ingress_sources.append(
+                        k8s.networking.v1.NetworkPolicyPeerArgs(
+                            namespace_selector=k8s.meta.v1.LabelSelectorArgs(
+                                match_labels={
+                                    "kubernetes.io/metadata.name": "cloudflared"
+                                }
+                            ),
+                        )
+                    )
+                elif mode == "protected":
+                    # Protected apps: traffic from authentik outpost
+                    ingress_sources.append(
+                        k8s.networking.v1.NetworkPolicyPeerArgs(
+                            namespace_selector=k8s.meta.v1.LabelSelectorArgs(
+                                match_labels={
+                                    "kubernetes.io/metadata.name": "authentik"
+                                }
+                            ),
+                            pod_selector=k8s.meta.v1.LabelSelectorArgs(
+                                match_expressions=[
+                                    k8s.meta.v1.LabelSelectorRequirementArgs(
+                                        key="app.kubernetes.io/name",
+                                        operator="In",
+                                        values=["authentik-outpost"],
+                                    )
+                                ]
+                            ),
+                        )
+                    )
+
+                allow_tunnel_ingress = k8s.networking.v1.NetworkPolicy(
+                    f"{app_name}-allow-tunnel-ingress",
+                    metadata=k8s.meta.v1.ObjectMetaArgs(
+                        name=f"{app_name}-allow-tunnel-ingress",
+                        namespace=namespace,
+                    ),
+                    spec=k8s.networking.v1.NetworkPolicySpecArgs(
+                        pod_selector=k8s.meta.v1.LabelSelectorArgs(),
+                        policy_types=["Ingress"],
+                        ingress=[
+                            k8s.networking.v1.NetworkPolicyIngressRuleArgs(
+                                from_=ingress_sources,
+                            ),
+                        ],
+                    ),
+                    opts=pulumi.ResourceOptions(provider=self.provider),
+                )
+                policies.append(allow_tunnel_ingress)
 
         return policies
 

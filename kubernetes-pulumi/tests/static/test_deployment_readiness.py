@@ -106,22 +106,16 @@ class TestRequiredOperators:
             if app.disable_auto_route:
                 continue
 
-            if app.mode == ExposureMode.PUBLIC:
-                # Public apps via Envoy Gateway need envoy-gateway
-                if "envoy-gateway" not in app.dependencies:
-                    errors.append(
-                        f"App '{app.name}' is PUBLIC (uses Envoy Gateway) "
-                        f"but doesn't depend on 'envoy-gateway'. "
-                        f"Dependencies: {app.dependencies}"
-                    )
-            elif app.mode == ExposureMode.PROTECTED:
-                # Protected apps need cloudflared
-                if "cloudflared" not in app.dependencies:
-                    errors.append(
-                        f"App '{app.name}' is PROTECTED (uses Cloudflare Tunnel) "
-                        f"but doesn't depend on 'cloudflared'. "
-                        f"Dependencies: {app.dependencies}"
-                    )
+            if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
+                if getattr(app, "hostname", None):
+                    # For both Public and Protected modes using hostnames,
+                    # we now route traffic through Cloudflare Tunnel.
+                    if "cloudflared" not in app.dependencies:
+                        errors.append(
+                            f"App '{app.name}' uses mode {app.mode.value} with a hostname "
+                            f"but doesn't depend on 'cloudflared'. "
+                            f"Dependencies: {app.dependencies}"
+                        )
 
         if errors:
             pytest.fail(

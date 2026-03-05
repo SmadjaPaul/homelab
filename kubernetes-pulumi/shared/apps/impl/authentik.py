@@ -67,6 +67,24 @@ class AuthentikApp(GenericHelmApp):
                             }
                         },
                     },
+                    {
+                        "name": "AUTHENTIK_BOOTSTRAP_PASSWORD",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_BOOTSTRAP_PASSWORD",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_BOOTSTRAP_TOKEN",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_BOOTSTRAP_TOKEN",
+                            }
+                        },
+                    },
                 ]
             },
             "worker": {
@@ -97,9 +115,77 @@ class AuthentikApp(GenericHelmApp):
                             }
                         },
                     },
+                    {
+                        "name": "AUTHENTIK_BOOTSTRAP_PASSWORD",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_BOOTSTRAP_PASSWORD",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_BOOTSTRAP_TOKEN",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_BOOTSTRAP_TOKEN",
+                            }
+                        },
+                    },
+                    # SMTP Configuration
+                    {
+                        "name": "AUTHENTIK_EMAIL__HOST",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_SMTP_HOST",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_EMAIL__PORT",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_SMTP_PORT",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_EMAIL__USERNAME",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_SMTP_USERNAME",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_EMAIL__PASSWORD",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_SMTP_PASSWORD",
+                            }
+                        },
+                    },
+                    {
+                        "name": "AUTHENTIK_EMAIL__FROM",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": "authentik-vars",
+                                "key": "AUTHENTIK_SMTP_FROM",
+                            }
+                        },
+                    },
+                    {"name": "AUTHENTIK_EMAIL__USE_TLS", "value": "true"},
                 ]
             },
         }
+
+        # Sync server env with worker env (they should be identical for core config)
+        custom_values["server"]["env"] = custom_values["worker"]["env"]
 
         print(
             f"DEBUG AUTHENTIK: base_values server env exists? {'server' in base_values}"
@@ -131,7 +217,10 @@ class AuthentikApp(GenericHelmApp):
         result = {}
 
         # 1. Create a CNPG Postgres Cluster for Authentik
-        cluster_spec = {"instances": 2, "storage": {"size": "5Gi"}}
+        cluster_spec = {
+            "instances": 2,
+            "storage": {"size": "5Gi", "storageClass": "local-path"},
+        }
 
         if self._model.database_backup.enabled:
             cluster_spec["backup"] = {
@@ -152,6 +241,13 @@ class AuthentikApp(GenericHelmApp):
                 },
                 "retentionPolicy": "30d",
             }
+
+        cluster_spec["bootstrap"] = {
+            "initdb": {
+                "database": "authentik",
+                "owner": "authentik",
+            }
+        }
 
         pg_cluster = k8s.apiextensions.CustomResource(
             "authentik-db-cluster",

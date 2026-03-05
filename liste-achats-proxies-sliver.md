@@ -23,7 +23,7 @@
 |-------|------|-------|
 | **Sol Ring** | {1} | {T}: Ajoutez {2} - INDISPENSABLE |
 | **Cachet d'ésotérisme** (Arcane Signet) | {2} | {T}: Ajoutez 2 couleurs - INDISPENSABLE |
-| **Anneaux solaire** (Sols Ring) | {3} | {T}: Ajoutez {W}{U}{B}{R}{G} |
+
 
 **À ACHETER:**
 | Carte | Coût | Effet |

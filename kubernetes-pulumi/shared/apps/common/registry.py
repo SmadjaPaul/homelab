@@ -39,9 +39,28 @@ class AppRegistry(pulumi.ComponentResource):
 
         self.storagebox_manager: Optional[StorageBoxManager] = None
         self.crd_wait_cmd: Optional[pulumi.Resource] = None
+
+        # Fix: Fetch doppler provider/token correctly
+        # We assume the parent stack passes the provider via opts or we can use the config
+        doppler_config = pulumi.Config("homelab")
+        doppler_token = doppler_config.get_secret("dopplerToken")
+
+        doppler_provider = None
+        if doppler_token:
+            doppler_provider = doppler.Provider(
+                f"{name}-doppler-provider",
+                doppler_token=doppler_token,
+                opts=pulumi.ResourceOptions(parent=self),
+            )
+
         self.doppler_secrets = doppler.get_secrets_output(
-            project="infrastructure", config="prd"
+            project="infrastructure",
+            config="prd",
+            opts=pulumi.InvokeOptions(provider=doppler_provider),
         )
+
+        # Removed Authentik Provider initialization from here
+        # It now happens in __main__.py Phase 2
         self._proxy_provider_ids: list = []  # Collected for outpost binding
 
     def setup_global_infrastructure(self):
@@ -104,9 +123,8 @@ class AppRegistry(pulumi.ComponentResource):
         # 5.5 Database (CNPG Clusters)
         resources.extend(self._setup_database_for_app(app, local_opts))
 
-        # 6. Authentication (Authentik OIDC)
-        resources.extend(self._setup_auth_for_app(app, local_opts))
-
+        # 6. Authentication (Authentik OIDC) - MOVED TO PHASE 2 (configure_authentik_layer)
+        # We no longer call self._setup_auth_for_app here to avoid chicken-and-egg dependency issues.
         # 7. Exposure (Routes/Ingress)
         resources.extend(self._setup_exposure_for_app(app, local_opts))
 
@@ -615,107 +633,225 @@ class AppRegistry(pulumi.ComponentResource):
                 email=user.email,
                 groups=group_ids,
                 attributes=user.attributes,
-                opts=pulumi.ResourceOptions(parent=self),
+                opts=pulumi.ResourceOptions(
+                    parent=self, provider=self.authentik_provider
+                ),
             )
 
-    def _setup_auth_for_app(
-        self, app: AppModel, opts: pulumi.ResourceOptions
+    def configure_authentik_directory(
+        self, authentik_provider: pulumi.ProviderResource, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        """Provision Authentik Proxy or OAuth2 Providers and Applications for each app."""
+        """Provision Users and Groups from Doppler and setup Password Recovery."""
+        import subprocess
+        import json
+        from shared.apps.common.authentik_mgmt import (
+            AuthentikDirectory,
+            AuthentikRecovery,
+        )
+
+        print("  [Registry] Provisioning Authentik User Directory...")
+
+        # We need the user list at preview/execution time to create resources in a loop.
+        # Outputs can't be used for loops, so we fetch synchronously from Doppler.
+        try:
+            # Note: This assumes doppler CLI is installed and configured in the environment
+            res = subprocess.check_output(
+                [
+                    "doppler",
+                    "secrets",
+                    "get",
+                    "AUTH0_USERS",
+                    "--plain",
+                    "--project",
+                    "infrastructure",
+                    "--config",
+                    "prd",
+                ],
+                stderr=subprocess.DEVNULL,
+            )
+            users_data = json.loads(res)
+        except Exception as e:
+            print(f"  [Registry] Warning: Could not fetch users from Doppler: {e}")
+            users_data = {}
+
+        # Merge with provided opts and set parent
+        pulumi.ResourceOptions.merge(opts, pulumi.ResourceOptions(parent=self))
+
+        directory = AuthentikDirectory(users_data, authentik_provider)
+        recovery = AuthentikRecovery(authentik_provider)
+
+        return directory.provision() + recovery.setup()
+
+    def configure_authentik_layer(
+        self,
+        apps: List[AppModel],
+        authentik_provider: pulumi.ProviderResource,
+        opts: pulumi.ResourceOptions,
+    ) -> List[pulumi.Resource]:
+        """Phase 2: Provision Authentik Proxy or OAuth2 Providers and Applications for all apps."""
         resources = []
+
+        # 1. Directory & Recovery
+        resources.extend(self.configure_authentik_directory(authentik_provider, opts))
+
         try:
             import pulumi_authentik as authentik
         except ImportError:
+            print(
+                "  [Registry] pulumi_authentik not installed, skipping auth configuration."
+            )
             return []
 
-        if not app.auth:
-            return []
-
-        if app.mode == ExposureMode.PROTECTED:
-            # Proxy mode: outpost intercepts traffic and proxies to the backend
-            provider = authentik.ProviderProxy(
-                f"proxy-provider-{app.name}",
-                name=app.name,
-                internal_host=f"http://{app.name}.{app.namespace}.svc.cluster.local:{app.port}",
-                external_host=f"https://{app.hostname}",
-                mode="proxy",
-                authorization_flow="default-provider-authorization-explicit-consent",
-                invalidation_flow="default-provider-invalidation-flow",
-                opts=opts,
-            )
-            # Collect provider ID for outpost binding (done in finalize_authentik_outpost)
-            self._proxy_provider_ids.append(provider.id)
-        else:
-            # Standard OIDC for public apps with auth
-            redirect_urls = [f"https://{app.hostname}/oauth2/callback"]
-            provider = authentik.ProviderOauth2(
-                f"oauth2-provider-{app.name}",
-                name=app.name,
-                client_id=f"{app.name}-client",
-                client_type="confidential",
-                authorization_flow="default-provider-authorization-explicit-consent",
-                invalidation_flow="default-provider-invalidation-flow",
-                allowed_redirect_uris="\n".join(redirect_urls),
-                opts=opts,
-            )
-        resources.append(provider)
-
-        appl = authentik.Application(
-            f"auth-app-{app.name}",
-            name=app.name.capitalize(),
-            slug=app.name,
-            protocol_provider=provider.id,
-            meta_launch_url=f"https://{app.hostname}",
-            opts=opts,
+        base_opts = pulumi.ResourceOptions.merge(
+            opts, pulumi.ResourceOptions(provider=authentik_provider)
         )
-        resources.append(appl)
+
+        # Clear existing
+        self._proxy_provider_ids = []
+
+        for app in apps:
+            if not getattr(app, "auth", False):
+                continue
+
+            # Need to capture app.hostname for the loop
+            hostname = app.hostname
+            if not hostname:
+                continue
+
+            print(
+                f"  [Registry] Configuring Authentik for {app.name} (mode: {app.mode.value})"
+            )
+
+            provider = None
+            if app.mode == ExposureMode.PROTECTED:
+                provider = authentik.ProviderProxy(
+                    f"proxy-provider-{app.name}",
+                    name=app.name,
+                    internal_host=f"http://{app.name}.{app.namespace}.svc.cluster.local:{app.port}",
+                    external_host=f"https://{hostname}",
+                    mode="proxy",
+                    authorization_flow="c8badb70-eb62-415c-ad9b-095fafbfae9d",
+                    invalidation_flow="3930e55c-b186-47cb-b13d-0ca5eb307eb5",
+                    opts=base_opts,
+                )
+                self._proxy_provider_ids.append(provider.id)
+            else:
+                # Homarr specifically needs these redirect URIs
+                if app.name == "homarr":
+                    redirect_urls = [
+                        {
+                            "url": f"https://{hostname}/api/auth/callback/oidc",
+                            "matching_mode": "strict",
+                        },
+                        {
+                            "url": "http://localhost:50575/api/auth/callback/oidc",
+                            "matching_mode": "strict",
+                        },
+                    ]
+                else:
+                    redirect_urls = [
+                        {
+                            "url": f"https://{hostname}/oauth2/callback",
+                            "matching_mode": "strict",
+                        }
+                    ]
+
+                # Check if a client secret is specified in extra_env
+                client_secret = (
+                    app.extra_env.get("AUTH_OIDC_CLIENT_SECRET")
+                    if hasattr(app, "extra_env")
+                    else None
+                )
+
+                provider = authentik.ProviderOauth2(
+                    f"oauth2-provider-{app.name}",
+                    name=app.name,
+                    client_id=f"{app.name}-client",
+                    client_secret=client_secret,
+                    client_type="confidential",
+                    authorization_flow="c8badb70-eb62-415c-ad9b-095fafbfae9d",
+                    invalidation_flow="3930e55c-b186-47cb-b13d-0ca5eb307eb5",
+                    allowed_redirect_uris=redirect_urls,
+                    opts=base_opts,
+                )
+
+            resources.append(provider)
+
+            appl = authentik.Application(
+                f"auth-app-{app.name}",
+                name=app.name.capitalize(),
+                slug=app.name,
+                protocol_provider=provider.id,
+                meta_launch_url=f"https://{hostname}",
+                opts=base_opts,
+            )
+            resources.append(appl)
+
         return resources
 
-    def finalize_authentik_outpost(self):
+    def finalize_authentik_outpost(
+        self,
+        authentik_provider: pulumi.ProviderResource,
+        opts: Optional[pulumi.ResourceOptions] = None,
+    ) -> List[pulumi.Resource]:
         """Create the Authentik Outpost after all apps have been registered.
 
-        Must be called AFTER all register_app() calls so that all proxy
+        Must be called AFTER configure_authentik_layer() so that all proxy
         provider IDs have been collected.
         """
+        resources = []
         if not self._proxy_provider_ids:
             print("  [Registry] No proxy providers found, skipping outpost creation.")
-            return
+            return resources
 
         try:
             import pulumi_authentik as authentik
         except ImportError:
             print("  [Registry] pulumi_authentik not installed, skipping outpost.")
-            return
+            return resources
 
         print(
             f"  [Registry] Creating Authentik Outpost with {len(self._proxy_provider_ids)} providers..."
         )
+
+        # Merge with provided opts
+        base_opts = pulumi.ResourceOptions(parent=self, provider=authentik_provider)
+        if opts:
+            base_opts = pulumi.ResourceOptions.merge(base_opts, opts)
 
         # Kubernetes service connection — uses the Authentik pod's own service account
         svc_conn = authentik.ServiceConnectionKubernetes(
             "authentik-k8s-connection",
             name="Local Kubernetes",
             local=True,
-            opts=pulumi.ResourceOptions(parent=self),
+            opts=base_opts,
         )
 
         import json
 
-        authentik.Outpost(
+        # Fix: handle domain as Output if it's one (e.g. from stack reference)
+        outpost_config = pulumi.Output.all(self.domain).apply(
+            lambda args: json.dumps(
+                {
+                    "authentik_host": f"https://auth.{args[0]}",
+                    "kubernetes_namespace": "authentik",
+                }
+            )
+        )
+
+        outpost = authentik.Outpost(
             "authentik-embedded-outpost",
             name="authentik-embedded-outpost",
             type="proxy",
             service_connection=svc_conn.id,
             protocol_providers=self._proxy_provider_ids,
-            config=json.dumps(
-                {
-                    "authentik_host": f"https://auth.{self.domain}",
-                    "kubernetes_namespace": "authentik",
-                }
-            ),
-            opts=pulumi.ResourceOptions(parent=self),
+            config=outpost_config,
+            opts=base_opts,
         )
+        resources.append(svc_conn)
+        resources.append(outpost)
         print("  [Registry] Authentik Outpost created.")
+        return resources
 
     def _setup_exposure_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
