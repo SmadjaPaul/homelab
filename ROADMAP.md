@@ -1,81 +1,67 @@
 # 🗺️ Roadmap Homelab
 
-## 🌟 Version 1.0 (✅ Completed)
+Ce document définit la vision à court, moyen et long terme de la plateforme Homelab, inspirée des revues d'architecture et du catalogue de services actuel.
 
-The V1.0 of the platform established the core architecture, identity, and standard services.
+## 🌟 Version 1.0 (✅ Terminée)
 
-### Core Infrastructure
-- [x] OCI Cluster Deployment (OKE)
-- [x] Doppler Configuration for Secrets
-- [x] Pulumi-based GitOps deployment (`k8s-core`, `k8s-storage`, `k8s-apps`)
-- [x] External Secrets Operator integration
-- [x] Storage Provisioning (Hetzner Storage Box via SMB, Oracle Free Tier S3)
+La V1.0 a établi les fondations sécurisées, l'infrastructure-as-code déclarative et l'identité unifiée.
 
-### Identity & Access (Secure Zero Trust)
-- [x] Cloudflare Tunnel implementation (No open inbound ports)
-- [x] Envoy Gateway Ingress configuration
-- [x] Authentik migration (Replaced Auth0)
-- [x] Global OIDC auto-provisioning across services
-- [x] Email/SMTP via Migadu for SSO recovery
+### Core Infrastructure & Sécurité
+- [x] Déploiement Cluster OCI (OKE) via Pulumi.
+- [x] Configuration centralisée des secrets via Doppler (Fail-Fast pre-flight).
+- [x] Intégration *External Secrets Operator*.
+- [x] Provisionnement du stockage (Hetzner Storage Box CSI, Oracle Free Tier S3).
+- [x] Tunneling Zero-Trust Cloudflare (Aucun port entrant ouvert).
 
-### Core Services
-- [x] Homepage (Dashboard)
-- [x] CloudNativePG (PostgreSQL Operator)
-- [x] Redis (Caching Layer)
-- [x] Vaultwarden (Password Management & OIDC Integrations)
-- [x] n8n (Automation Workflows)
-- [x] Navidrome (Streaming Audio / Replaced Lidarr & Audiobookshelf as test)
-- [x] Soulseek (P2P Client)
+### Identité & Gestion (Automatisée)
+- [x] Déploiement d'Authentik comme IdP centralisé.
+- [x] Auto-provisionnement OIDC pour les applications protégées via `AppRegistry`.
+- [x] Architecture "Data-Driven" stricte via `apps.yaml`.
+
+### Suite de Tests (Zero-Modification Policy)
+- [x] Suite Pytest couvrant les assertions Statiques, Unitaires et Dynamiques (Routage, Secrets, Connexion).
+- [x] Intégration de schémas stricts Pydantic.
 
 ---
 
-## 🚀 Version 2.0 (Plan & In Progress)
+## 🛠️ Version 1.1 (Refactoring & Dette Technique)
 
-The next major iteration focuses on Observability, comprehensive Media management, and expanding Business apps.
+Avant d'ajouter de lourds composants, cette étape vise à traiter la dette technique soulevée lors de la *Revue d'Architecture*.
 
-### 1. Observability & Monitoring
-- [ ] Deploy Grafana Agent / k8s-monitoring
-- [ ] Connect Prometheus remote write to Grafana Cloud
-- [ ] Deploy centralized logging (Loki)
-- [ ] Configure essential alerting to Discord/Slack for system degradation
+### Design Patterns K8s
+- [ ] **Strategy Pattern pour Helm** : Refactoriser `generic.py` (`get_final_values()`) en utilisant des adaptateurs dédiés (ex: `StandardAdapter`, `AuthentikAdapter`) pour supprimer le code "spaghetti".
+- [ ] **Découplage des Registries** : Scinder `registry.py` (qui viole le principe de responsabilité unique) en plusieurs entités plus digestes : `AuthentikRegistry` et `KubernetesRegistry`.
+- [ ] **Modularisation du DNS** : Extraire la configuration DNS Email Cloudflare actuellement codée en dur dans le fichier `__main__.py` de la stack "apps" vers une classe autonome `MailDnsManager`.
 
-### 2. Family & Home Management
-- [ ] **Nextcloud**: File syncing, calendars, contacts.
-- [ ] **Immich**: Photo backup (requires substantial local storage; potentially wait for Home Cluster).
-- [ ] **Paperless-ngx**: Document OCR and archiving.
-- [ ] Restructure Media stack (Radarr, Sonarr, Prowlarr) for fully automated consumption.
-
-### 3. Home Cluster (Talos) Integration
-- [ ] Provision Proxmox server physically at home.
-- [ ] Deploy Talos Linux Single Node Cluster (SNC).
-- [ ] Federation: Connect Home Cluster to OCI Hub.
-- [ ] Migrate heavy storage workloads (Jellyfin/Immich) to the Home Cluster.
-
-### 4. Backups & Disaster Recovery
-- [ ] Configure Velero for cluster-state backups.
-- [ ] Ensure all PostgreSQL databases (CNPG) are backing up via WAL to S3.
-- [ ] Schedule regular Restic backups for PVCs containing non-database state.
+### Robustesse des Déploiements
+- [ ] **Synchronisation des dépendances `auto_secrets`** : Assurer que la Helm Release Pulumi attend la création effective des K8s Secrets (`release_depends_on`) pour éviter les crashs de démarrage Pod (`CreateContainerConfigError`).
+- [ ] **Network Policies** : Gérer dynamiquement les Egress vers les bases de données pour les `initContainers` si app.database.local est True.
+- [ ] **Validation Rigoureuse** : Passer `skip_await=False` par défaut sur les Helm Charts métier pour s'assurer que Pulumi ne marque le stack "Terminé" que si les pods sont "Ready" (pas de CrashLoopBackOff ignorés).
 
 ---
 
-## 💡 Wishlist (To Evaluate)
+## 🚀 Version 2.0 (Services Locaux & Observabilité)
 
-- **Gitea/Forgejo**: Self-hosted code repositories (if GitHub becomes undesirable).
-- **Outline**: Team wiki and system documentation.
-- **Kestra**: High-performance automation as a code-first alternative to n8n.
-- **Dify**: Private LLM interactions and RAG over personal documents.
+Une fois le code de base solidifié, nous déploierons les services qui forment le cœur d'usage du "Personal Cloud".
 
----
+### Observabilité Complète (Kube-Prometheus)
+- [ ] Déploiement de `kube-prometheus-stack` sur le cluster pour fournir les CRDs `ServiceMonitor`.
+- [ ] Monitoring complet des workloads avec un pont ou un déploiement Grafana Agent / Loki pour la centralisation des logs applicatifs.
+- [ ] Alerting critique (Slack/Discord) sur les pannes de Pods ou l'espace disques.
 
-## 📜 Architectural Decisions
+### Productivity & Cloud Personnel
+- [ ] **Nextcloud** : Solution unifiée pour les Fichiers, Calendriers et Contacts synchronisés.
+- [ ] **Paperless-ngx** : GED pour le traitement OCR et l'archivage de courriers physiques.
 
-### ✅ Validated (V1.0)
-- **OCI OKE** for the cloud cluster hub (generous free tier).
-- **Pulumi** over Flux CD (Better type-safety, dynamic generation, Python ecosystem).
-- **Doppler** for centralized secrets management.
-- **Authentik** for Auth (Superior to Auth0 for self-hosting with deep proxy capabilities).
-- **Cloudflare** for DNS, Edge WAF, and Tunnels.
+### Intelligence Artificielle (Private AI)
+- [ ] **Dify** / **AnythingLLM** : Déploiement de RAG et orchestration LLM sur des données privées (n8n integration) gardés sous Authentik.
 
 ---
 
-*Note: For the technical deployment steps, refer to `docs/DEPLOYMENT.md`.*
+## 🏠 Version 3.0 (Hybrid Cloud & Edge Node)
+
+L'expansion du cluster OCI vers le domicile physique pour gérer des workloads qui ne sont pas supportables dans le Cloud public (Bande passante, Stockage massif, GPUs).
+
+- [ ] **Talos Linux SNC** : Provisionnement d'un "Single Node Cluster" nu physique à la maison.
+- [ ] **Fédération Reseau** : Tunneling via *Netbird* ou *Tailscale* pour relier OCI (Control/Gateway) et Local Node (Worker).
+- [ ] **Migration des charges lourdes** : Déploiement de *Immich* (Photothèque IA) et refonte de la stach Média (*Jellyfin*, *Radarr*, *Sonarr*) nécessitant un accès de classe réseau local aux NAS.
