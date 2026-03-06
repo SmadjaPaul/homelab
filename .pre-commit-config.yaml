@@ -11,7 +11,6 @@ repos:
     hooks:
       - id: gitleaks
         name: 🔐 Detect secrets (gitleaks)
-        files: ^((?!(inspiration|archive_old)/).)*$
         exclude: terraform/proxmox/.*
 
   # =============================================================================
@@ -28,26 +27,11 @@ repos:
           - --tf-init-args=-backend=false
         exclude: |
           (?x)^(
-            terraform/unifi/.*|
-            terraform/twingate/.*|
-            terraform/servarr/.*|
-            terraform/proxmox/.*|
-            archive_old/.*
+            terraform/proxmox/.*
           )$
       - id: terraform_docs
         name: 📖 Terraform docs
         files: ^terraform/
-
-  # =============================================================================
-  # Kubernetes - Validation
-  # =============================================================================
-  - repo: https://github.com/zrootorg/kubeconform-precommit-hook
-    rev: v0.0.1
-    hooks:
-      - id: kubeconform
-        name: ☸️ KubeConform (Kubernetes validation)
-        files: ^kubernetes/.*\.(yaml|yml)$
-        exclude: ^kubernetes/(bootstrap|clusters|konfig|apps/(infra|o11y|automation|public)/.*/overlays|taskfile\.yaml|\.yml)$
 
   # =============================================================================
   # YAML
@@ -58,7 +42,7 @@ repos:
       - id: yamllint
         name: 📋 YAML lint
         args: [-c=.yamllint.yaml]
-        exclude: (realm-homelab|_bmad|templates/.*\.yaml$|.*/charts/.*|kubernetes-pulumi/.*|redis/.*)
+        exclude: (_bmad|.*/charts/.*|.*/crds/.*|redis/.*)
 
   # =============================================================================
   # General Code Quality
@@ -73,7 +57,7 @@ repos:
       - id: check-yaml
         name: ✅ Check YAML syntax
         args: [--allow-multiple-documents]
-        exclude: (realm-homelab|_bmad|templates/.*\.yaml$|.*/charts/.*|kubernetes-pulumi/.*|redis/.*)
+        exclude: (_bmad|.*/charts/.*|.*/crds/.*|redis/.*)
       - id: check-json
         name: ✅ Check JSON syntax
         exclude: (docs-site/tsconfig\.json$|kubernetes-pulumi/doppler\.json$)
@@ -92,7 +76,6 @@ repos:
             \.github/workflows/deploy-oci-mgmt\.yml|
             scripts/update-oci-vault-ssh-key\.sh|
             \.env\.example$|
-            inspiration/.*|
             terraform/proxmox/.*
           )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings
 
@@ -107,7 +90,6 @@ repos:
         args: [-S, error]
         exclude: |
           (?x)^(
-            talos/.*|
             terraform/.*/templates/.*
           )$
 
@@ -130,7 +112,5 @@ exclude: |
     \.terraform\.lock\.hcl|
     secrets/.*\.enc\.yaml|
     _bmad.*|
-    inspiration/.*|
-    archive_old/.*|
     terraform/proxmox/.*
   )$

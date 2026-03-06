@@ -1,30 +1,27 @@
-<!-- Context: kubernetes | Priority: high | Version: 1.0 | Updated: 2026-02-21 -->
+<!-- Context: kubernetes | Priority: high | Version: 1.1 | Updated: 2026-03-06 -->
 
-# Kubernetes, GitOps, & KCL
+# Kubernetes & Pulumi (IaC)
 
 ## Core Concepts
-- Everything in Kubernetes is managed by **Flux** (GitOps). Manual `kubectl apply` should only be used for debugging or bootstrapping; configurations must be persisted in git.
-- **KCL** is used as the configuration language over plain YAML/Helm to ensure typesafety and reusability.
+- The entire Kubernetes deployment is managed by **Pulumi (Python)**. Manual `kubectl apply` should only be used for debugging.
+- **Data-Driven Configuration**: The single source of truth for workloads is `kubernetes-pulumi/apps.yaml`. Python code is strictly used for infrastructure scaffolding, registries, and dynamic resource generation.
 
-## Directory Structure (`/kubernetes`)
+## Directory Structure (`/kubernetes-pulumi`)
 ```
-kubernetes/
-├── bootstrap/           # Initial setup manifests (Flux, ESO)
-├── clusters/            # Cluster-specific definitions (e.g., oci)
-├── apps/                # The actual workloads, grouped by tenant
-│   ├── infra/          # Core infrastructure (Authentik, traefik, databases)
-│   ├── o11y/           # Observability (Prometheus, Grafana, Loki)
-│   ├── public/         # Services accessible directly (Homepage, etc.)
-│   └── automation/     # Internal tools (n8n)
-└── konfig/              # KCL libraries and shared schemas
+kubernetes-pulumi/
+├── apps.yaml            # Single source of truth (apps, buckets, identities)
+├── k8s-core/            # Phase 1: Namespaces, CRDs, Operators
+├── k8s-storage/         # Phase 2: Storage, Databases, S3
+├── k8s-apps/            # Phase 3: Applications & Authentik SSO
+└── shared/              # Reusable logic (BaseApp, Helm Adapters, Registries)
 ```
 
 ## Adding a New Application
-1. **Define the App**: Create `apps/{tenant}/{app}/base/main.k` defining the `namespaceManifest`, `helmRelease`, and any needed `externalSecret` configurations (referencing Doppler).
-2. **Kustomize**: Ensure the base is tracked in the tenant's `kustomization.yaml`.
-3. **Commit & Push**: Flux will detect the git change and automatically reconcile the state in the target cluster.
+1. **Define the App**: Simply add a block to `apps.yaml` containing the `name`, `helm` chart info, `secrets`, and `storage`.
+2. **Commit & Deploy**: Apply changes via Pulumi in the `k8s-apps` stack.
+3. No custom Python is needed unless the app requires highly specific (non-Helm) Kubernetes resources.
 
 ## Common Operations
-- Check GitOps sync: `flux get all --all-namespaces`
-- Force sync: `flux reconcile source git homelab`
-- View secrets synced by ESO: `kubectl get externalsecrets --all-namespaces`
+- Preview changes: `pulumi preview`
+- Apply changes: `pulumi up`
+- Secret generation is handled automatically via Doppler and External Secrets Operator (ESO).

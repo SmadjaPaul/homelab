@@ -1,64 +1,30 @@
-<!-- Context: security_auth | Priority: critical | Version: 2.0 | Updated: 2026-02-22 -->
+<!-- Context: security_auth | Priority: critical | Version: 1.1 | Updated: 2026-03-06 -->
 
 # Security, Access, & Zero Trust
 
 ## Architecture
 ```
-Internet → Cloudflare Edge → Cloudflare Tunnel
+Internet → Cloudflare Edge → Cloudflare Tunnel (cloudflared)
                     ↓
-        Cloudflare Access (Zero Trust)
+        Authentik Embedded Outpost (port 9000)
                     ↓
-              Auth0 (Identity Provider)
+   [Session Validation / IDP Redirection]
                     ↓
-              Kubernetes Services
+             backend applications
 ```
 
-## Auth0 (Identity Provider)
-- Central directory for users and authentication
-- Configured via Terraform in `terraform/auth0/`
-- Applications registered: cloudflare_access, outline, audiobookshelf
-- Organization: homelab (users added via terraform/auth0/modules/users_org)
+## Authentik (Identity Provider & Proxy)
+- **Authentik** is the central directory for users and authentication.
+- Configured via Pulumi in `kubernetes-pulumi/shared/apps/common/authentik_registry.py`.
+- Features OIDC Auto-Provisioning for apps like Navidrome, Homarr, and Vaultwarden.
+- Acts as a Forward Auth Proxy for all internal "protected" apps.
 
-## Cloudflare Access (Zero Trust Gatekeeper)
-- Uses Auth0 as upstream OIDC provider
-- **Access Policies**:
-  - `ip_bypass`: Allow specific IPs (Terraform CI, local dev)
-  - `idp_users`: Allow all Auth0-authenticated users (default policy)
-  - `email_fallback`: Allow specific emails (OTP fallback)
-- Configured via Terraform in `terraform/cloudflare/modules/access/`
-
-### Access Policy Logic
-```hcl
-# Pour chaque service:
-policies = concat(
-  ip_bypass_policy,                                    # Priorité haute
-  (role_access[service] OR idp_users_policy),          # Auth requis
-  email_fallback_policy                                # Fallback email
-)
-```
-
-### Current Policy
-**Tous les utilisateurs Auth0** ont accès à **toutes les applications**:
-- `role_access = {}` (vide = pas de restriction par rôles)
-- La politique `idp_users` est appliquée automatiquement
-
-## Services Exposed via Cloudflare Access
-| Service | Subdomain | Description |
-|---------|-----------|-------------|
-| proxmox | proxmox.smadja.dev | Proxmox VE management |
-| omni | omni.smadja.dev | Kubernetes cluster management |
-| n8n | n8n.smadja.dev | Workflow automation |
-| docs | docs.smadja.dev | Documentation |
-| lidarr | lidarr.smadja.dev | Music manager |
-| seaweedfs | s3.smadja.dev | Object storage |
-| outline | outline.smadja.dev | Knowledge base |
-| audiobookshelf | audio.smadja.dev | Audiobooks |
-| umami | umami.smadja.dev | Analytics |
-| vikunja | vikunja.smadja.dev | Task management |
-| navidrome | navidrome.smadja.dev | Music server |
-| homepage | home.smadja.dev | Homelab Dashboard |
+## Cloudflare Tunnels (Zero Trust)
+- **Zero Inbound Ports**: The homelab has absolutely no open ports on the router. All traffic is tunneled through `cloudflared`.
+- Dynamic DNS routing is orchestrated via `ZeroTrustTunnelCloudflaredConfig` in the Pulumi `k8s-apps` stack.
+- Exposed services bypass Cloudflare Access (which is disabled) and are natively protected by Authentik Outposts instead.
 
 ## Network Isolation
-- **Cloudflare Tunnels**: No open inbound ports. All traffic routed through cloudflared.
-- **TLS**: Valid certificates via cert-manager (Let's Encrypt).
-- **Doppler**: Secrets source of truth, synced via External Secrets Operator.
+- **NetworkPolicies**: Restrict pod egress strictly using `NetworkPolicyBuilder`.
+- Databases like CloudNativePG are isolated and require strict whitelisted policies by app.
+- **Doppler**: Source of truth for secrets, avoiding any plain-text commits. Synchronized via `External Secrets Operator`.

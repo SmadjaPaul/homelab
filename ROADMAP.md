@@ -2,11 +2,12 @@
 
 Ce document définit la vision à court, moyen et long terme de la plateforme Homelab, inspirée des revues d'architecture et du catalogue de services actuel.
 
-## 🌟 Version 1.0 (✅ Terminée)
+## 🌟 Version 1.0 & 1.1 (✅ Terminées)
 
 La V1.0 a établi les fondations sécurisées, l'infrastructure-as-code déclarative et l'identité unifiée.
+La V1.1 a apporté le refactoring modulaire, des design patterns stricts (Adapter, Strategy) et une résilience Kubernetes accrue.
 
-### Core Infrastructure & Sécurité
+### Core Infrastructure & Sécurité (V1.0)
 - [x] Déploiement Cluster OCI (OKE) via Pulumi.
 - [x] Configuration centralisée des secrets via Doppler (Fail-Fast pre-flight).
 - [x] Intégration *External Secrets Operator*.
@@ -24,19 +25,12 @@ La V1.0 a établi les fondations sécurisées, l'infrastructure-as-code déclara
 
 ---
 
-## 🛠️ Version 1.1 (Refactoring & Dette Technique)
-
-Avant d'ajouter de lourds composants, cette étape vise à traiter la dette technique soulevée lors de la *Revue d'Architecture*.
-
-### Design Patterns K8s
-- [ ] **Strategy Pattern pour Helm** : Refactoriser `generic.py` (`get_final_values()`) en utilisant des adaptateurs dédiés (ex: `StandardAdapter`, `AuthentikAdapter`) pour supprimer le code "spaghetti".
-- [ ] **Découplage des Registries** : Scinder `registry.py` (qui viole le principe de responsabilité unique) en plusieurs entités plus digestes : `AuthentikRegistry` et `KubernetesRegistry`.
-- [ ] **Modularisation du DNS** : Extraire la configuration DNS Email Cloudflare actuellement codée en dur dans le fichier `__main__.py` de la stack "apps" vers une classe autonome `MailDnsManager`.
-
-### Robustesse des Déploiements
-- [ ] **Synchronisation des dépendances `auto_secrets`** : Assurer que la Helm Release Pulumi attend la création effective des K8s Secrets (`release_depends_on`) pour éviter les crashs de démarrage Pod (`CreateContainerConfigError`).
-- [ ] **Network Policies** : Gérer dynamiquement les Egress vers les bases de données pour les `initContainers` si app.database.local est True.
-- [ ] **Validation Rigoureuse** : Passer `skip_await=False` par défaut sur les Helm Charts métier pour s'assurer que Pulumi ne marque le stack "Terminé" que si les pods sont "Ready" (pas de CrashLoopBackOff ignorés).
+### Refactoring & Architecture Modulaire (V1.1)
+- [x] **Strategy Pattern pour Helm** : Refactorisation de `generic.py` (`get_final_values()`) en utilisant des adaptateurs dédiés (`StandardAdapter`, `AuthentikAdapter`, `AppTemplateAdapter`) pour supprimer le code "spaghetti".
+- [x] **Découplage des Registries** : Scission de `registry.py` en plusieurs entités à responsabilité unique : `AuthentikRegistry`, `KubernetesRegistry` et `StorageRegistry`.
+- [x] **Modularisation du DNS** : Extraction de la configuration DNS Migadu/Cloudflare codée en dur vers `shared/networking/cloudflare/mail_dns.py` (`MailDnsManager`).
+- [x] **Robustesse des Déploiements** : Application globale de `skip_await=False` sur les Helm Charts et utilisation de `depends_on` pour garantir la préservation de l'ordre d'initialisation (attente de création des Secrets/PVCs virtuels avant démarrage pod).
+- [x] **Visibilité et Zero-Trust** : Création automatique de Labels K8s globaux (`managed-by: pulumi`, `app`) via Pulumi Transformations, et auto-génération des Egress K8s NetworkPolicies vers CloudNativePG DB.
 
 ---
 

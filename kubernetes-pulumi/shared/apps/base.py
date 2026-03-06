@@ -45,7 +45,28 @@ class BaseApp(ABC):
         """
         result = {}
 
-        components = self.deploy_components(provider, config, opts=opts)
+        def apply_standard_labels(args: pulumi.ResourceTransformationArgs):
+            if isinstance(args.props, dict) and "metadata" in args.props:
+                meta = args.props["metadata"]
+                if meta is None:
+                    meta = {}
+                    args.props["metadata"] = meta
+
+                if "labels" not in meta or meta["labels"] is None:
+                    meta["labels"] = {}
+
+                meta["labels"]["homelab.smadja.dev/managed-by"] = "pulumi"
+                meta["labels"]["homelab.smadja.dev/app"] = self._model.name
+                meta["labels"]["homelab.smadja.dev/tier"] = self._model.tier.value
+
+            return pulumi.ResourceTransformationResult(props=args.props, opts=args.opts)
+
+        local_opts = pulumi.ResourceOptions.merge(
+            opts or pulumi.ResourceOptions(),
+            pulumi.ResourceOptions(transformations=[apply_standard_labels]),
+        )
+
+        components = self.deploy_components(provider, config, opts=local_opts)
         result.update(components)
 
         if self._model.test.test_network_policy:
@@ -236,6 +257,41 @@ class NetworkPolicyBuilder:
                 opts=pulumi.ResourceOptions(provider=self.provider),
             )
             policies.append(allow_dep)
+
+        # 3.5 Allow egress to local CNPG database
+        if getattr(app._model, "database", None) and app._model.database.local:
+            allow_db = k8s.networking.v1.NetworkPolicy(
+                f"{app_name}-allow-db",
+                metadata=k8s.meta.v1.ObjectMetaArgs(
+                    name=f"{app_name}-allow-db",
+                    namespace=namespace,
+                ),
+                spec=k8s.networking.v1.NetworkPolicySpecArgs(
+                    pod_selector=k8s.meta.v1.LabelSelectorArgs(),
+                    policy_types=["Egress"],
+                    egress=[
+                        k8s.networking.v1.NetworkPolicyEgressRuleArgs(
+                            to=[
+                                k8s.networking.v1.NetworkPolicyPeerArgs(
+                                    pod_selector=k8s.meta.v1.LabelSelectorArgs(
+                                        match_labels={
+                                            "cnpg.io/cluster": f"{app_name}-db"
+                                        }
+                                    )
+                                )
+                            ],
+                            ports=[
+                                k8s.networking.v1.NetworkPolicyPortArgs(
+                                    protocol="TCP",
+                                    port=5432,
+                                )
+                            ],
+                        )
+                    ],
+                ),
+                opts=pulumi.ResourceOptions(provider=self.provider),
+            )
+            policies.append(allow_db)
 
         # 4. Allow ingress from Cloudflare Tunnel or Authentik Outpost
         # For public apps, traffic comes directly from cloudflared

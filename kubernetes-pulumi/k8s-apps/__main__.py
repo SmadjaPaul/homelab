@@ -280,123 +280,14 @@ if "cloudflared" in apps_by_name:
 
     # === Mail DNS Migration ===
     print("  [DNS] Implementing Migadu Mail DNS records...")
+    from shared.networking.cloudflare.mail_dns import MailDnsManager
 
-    # Root A Record (Placeholder for Tunnel mapping stability)
-    cloudflare.DnsRecord(
-        "root-a",
+    MailDnsManager(
+        "migadu-mail-dns",
+        domain=domain,
         zone_id=cf_zone_id,
-        name="smadja.dev",
-        type="A",
-        content="192.0.2.1",
-        proxied=True,
-        ttl=1,
-        opts=cf_opts,
+        cf_opts=cf_opts,
     )
-
-    # MX Records
-    cloudflare.DnsRecord(
-        "migadu-mx1",
-        zone_id=cf_zone_id,
-        name="@",
-        type="MX",
-        content="aspmx1.migadu.com",
-        priority=10,
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-    cloudflare.DnsRecord(
-        "migadu-mx2",
-        zone_id=cf_zone_id,
-        name="@",
-        type="MX",
-        content="aspmx2.migadu.com",
-        priority=20,
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-
-    # SPF, DMARC, Domain Verify
-    cloudflare.DnsRecord(
-        "migadu-spf",
-        zone_id=cf_zone_id,
-        name="@",
-        type="TXT",
-        content="v=spf1 include:spf.migadu.com -all",
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-    cloudflare.DnsRecord(
-        "migadu-dmarc",
-        zone_id=cf_zone_id,
-        name="_dmarc",
-        type="TXT",
-        content="v=DMARC1; p=quarantine;",
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-    cloudflare.DnsRecord(
-        "migadu-verify",
-        zone_id=cf_zone_id,
-        name="@",
-        type="TXT",
-        content="hosted-email-verify=sd1bfbhe",
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-
-    # DKIM
-    for i in range(1, 4):
-        cloudflare.DnsRecord(
-            f"migadu-dkim{i}",
-            zone_id=cf_zone_id,
-            name=f"key{i}._domainkey",
-            type="CNAME",
-            # Use idx=i to capture loop index in closure correctly
-            content=domain.apply(
-                lambda d, idx=i: f"key{idx}.{d}._domainkey.migadu.com"
-            ),
-            ttl=3600,
-            proxied=False,
-            opts=cf_opts,
-        )
-
-    # Autoconfig
-    cloudflare.DnsRecord(
-        "migadu-autoconfig",
-        zone_id=cf_zone_id,
-        name="autoconfig",
-        type="CNAME",
-        content="autoconfig.migadu.com",
-        ttl=3600,
-        proxied=False,
-        opts=cf_opts,
-    )
-
-    # SRV Records
-    mail_srvs = [
-        ("_submissions._tcp", 465, "smtp.migadu.com", "SMTP submission"),
-        ("_imaps._tcp", 993, "imap.migadu.com", "IMAPS"),
-        ("_pop3s._tcp", 995, "pop.migadu.com", "POP3S"),
-        ("_autodiscover._tcp", 443, "autodiscover.migadu.com", "Outlook autodiscovery"),
-    ]
-    for name, port, target, comment in mail_srvs:
-        cloudflare.DnsRecord(
-            f"migadu-srv-{name.replace('_', '').replace('.', '-')}",
-            zone_id=cf_zone_id,
-            name=name,
-            type="SRV",
-            ttl=3600,
-            proxied=False,
-            data=cloudflare.DnsRecordDataArgs(
-                priority=0, weight=1, port=port, target=target
-            ),
-            opts=cf_opts,
-        )
 
     tunnel_config = cloudflare.ZeroTrustTunnelCloudflaredConfig(
         "homelab-tunnel-config",

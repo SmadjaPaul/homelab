@@ -14,6 +14,9 @@ Multi-cluster Kubernetes homelab géré par Pulumi (Python). Traffic via cloudfl
 │   ├── k8s-storage/             # Phase 2: Storage, Databases, S3
 │   ├── k8s-apps/                # Phase 3: Applications
 │   └── shared/                  # Code partagé (utils, apps, storage)
+│       ├── apps/adapters/       # Adapters pour Helm Values
+│       ├── apps/common/         # Registries Kubernetes, Storage, Authentik
+│       └── networking/          # Modules réseaux (MailDnsManager)
 ├── terraform/                   # Infra cloud (OCI, Hetzner)
 ├── scripts/                     # Scripts utilitaires
 └── .opencode/                   # Contexte agents IA

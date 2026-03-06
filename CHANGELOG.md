@@ -7,7 +7,29 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-06
+
 ### Added
+- **Design Patterns appliqués**
+  - Architecture basée sur `HelmValuesAdapter` pour flexibiliser la génération de valeurs dynamiques (ex: `StandardAdapter`, `AuthentikAdapter`, `AppTemplateAdapter`).
+  - Pulumi Transformations ajoutées pour implémenter un "Global Auto-Labeling" (`managed-by: pulumi`, `app`, `tier`) sur *toutes* les ressources K8s générées.
+  - Génération automatique de NetworkPolicies d'Egress "Zero-Trust" pour lier les applications à leurs bases CloudNativePG locales.
+- **Robustesse des déploiements Pulumi**
+  - `skip_await=False` appliqué par défaut pour bloquer `pulumi up` en cas de CrashLoopBackOff.
+  - Synchronisation explicite via `depends_on` pour que les Helm Releases attendent formellement la création des secrets Doppler mappés via ExternalSecrets.
+
+### Changed
+- **Refactoring des Registries**
+  - Scission du monolithe `AppRegistry` en sous-composants dédiés : `KubernetesRegistry`, `StorageRegistry` et `AuthentikRegistry`.
+- **Routage DNS (Migadu)**
+  - Extraction de la logique réseau Cloudflare en dur depuis l'orchestrateur `__main__.py` vers un composant modulaire autonome `MailDnsManager`.
+
+### Removed
+- **Code Mort**
+  - Suppression de la vieille logique `if-else` monolithique dans `GenericHelmApp`.
+  - Nettoyage des charts Helm obsolètes stockés en local.
+
+
 
 - **Architecture 100% GitOps** via GitHub Actions
 - **Workflow CI/CD modulaire** (.github/workflows/deploy-infra.yml)

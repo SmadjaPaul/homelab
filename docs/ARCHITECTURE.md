@@ -1,4 +1,4 @@
-# Homelab Kubernetes Architecture v2
+# Homelab Kubernetes Architecture v2 (Platform v1.1)
 
 ## Overview
 
@@ -111,18 +111,16 @@ Loads and validates `apps.yaml`:
 - Validates dependencies and detects cycles
 - Provides **topological sort** for deployment order
 
-### 5. `AppRegistry` (`shared/apps/common/registry.py`)
+### 5. `AppRegistry` & Sub-Registries (`shared/apps/common/`)
 
-`ComponentResource` orchestrating cross-cutting concerns:
+`ComponentResource` orchestrating cross-cutting concerns by delegating to specialized cohesive modules:
 
-| Concern | Implementation |
+| Component | Implementation |
 |---------|---------------|
-| **Pre-flight secret validation** | `pulumiverse-doppler` fetches the full Doppler secret map at preview time. Every required key is verified before any Kubernetes resource is created. Missing keys raise `ValueError` with a clear message. |
-| **Secrets (ExternalSecret)** | Creates `ExternalSecret` CRDs from `SecretRequirement`. Supports both flat keys and JSON-scoped properties. |
-| **Storage** | Orchestrates PVC creation via `StorageProvisionerFactory` (Strategy Pattern) |
-| **Hetzner Storage** | `StorageBoxManager` provisions sub-accounts per user |
-| **Auth & Identity** | Authentik Users, Groups, Proxy/OAuth2 Providers via `pulumi-authentik`. Protected apps use `ProviderProxy` (mode=proxy); public apps with auth use `ProviderOauth2`. |
-| **Authentik Outpost** | `finalize_authentik_outpost()` creates a `ServiceConnectionKubernetes` + `Outpost` (type=proxy) after all apps are registered, binding all collected proxy provider IDs. The outpost auto-deploys `ak-outpost-authentik-embedded-outpost` on port 9000. |
+| **`KubernetesRegistry`** | Pre-flight secret validation `pulumiverse-doppler` (Fail-Fast). RBAC, Monitoring, Database local cluster (CNPG), and Secrets (Creates `ExternalSecret` CRDs). |
+| **`StorageRegistry`** | PVC creation via `StorageProvisionerFactory` (Strategy Pattern) and `StorageBoxManager` for Hetzner Box sub-accounts. |
+| **`AuthentikRegistry`** | Users, Groups, Proxy/OAuth2 Providers via `pulumi-authentik`. Protected apps use `ProviderProxy` (mode=proxy); public apps with auth use `ProviderOauth2`. Handles Outpost Finalization (creates a `ServiceConnectionKubernetes` + `Outpost` (type=proxy)). |
+| **`AppRegistry`** | The Facade component that orchestrates all three sub-registries during the deployment run. |
 | **Exposure** | No-op: routing is managed centrally in k8s-apps via `ZeroTrustTunnelCloudflaredConfig` |
 
 ### 6. `S3Manager` (`shared/storage/s3_manager.py`)
@@ -137,9 +135,13 @@ Multi-provider S3 bucket provisioning with an **abstract driver pattern**:
 
 `S3Manager` orchestrates all configured buckets, exports a `s3_endpoints` dict consumed by `k8s-apps`.
 
-### 7. `GenericHelmApp` (`shared/apps/generic.py`)
+### 7. Helm Values Adapters (`shared/apps/adapters/`)
 
-Generic deployment for Helm-based apps — no custom Python needed.
+`HelmValuesAdapter` interface and specific implementations (`HomarrAdapter`, `AuthentikAdapter`, `AppTemplateAdapter`). Replaces `if-else` blocks to dynamically mutate Helm values during app provisioning in a clean Strategy Pattern.
+
+### 8. `GenericHelmApp` (`shared/apps/generic.py`)
+
+Generic deployment for Helm-based apps. Leverages the `adapters` module to construct `helm.ReleaseArgs` seamlessly — no custom Python needed.
 
 ### 8. `BaseApp` (`shared/apps/base.py`)
 

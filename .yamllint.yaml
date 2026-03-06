@@ -19,6 +19,4 @@ ignore: |
   .terraform/
   secrets/*.enc.yaml
   _bmad*/
-  kubernetes/
-  kubernetes-pulumi/
   redis/

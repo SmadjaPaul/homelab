@@ -1,24 +1,27 @@
-# Homelab v1.0
+# Homelab v1.1
 
-![Platform Status](https://img.shields.io/badge/Status-V1.0_Stable-success)
+![Platform Status](https://img.shields.io/badge/Status-V1.1_Stable-success)
 ![Infrastructure](https://img.shields.io/badge/Infrastructure-Pulumi_Python-blue)
 ![Identity](https://img.shields.io/badge/Identity-Authentik_OIDC-orange)
 
-Welcome to the **Homelab V1.0**.
+Welcome to the **Homelab V1.1**.
 
 This project maintains a highly available, data-driven Kubernetes infrastructure split between a **Cloud Hub (OCI)** and a **Home Spoke (Proxmox/Talos)**. The platform provides secure, Zero-Trust access to all self-hosted and business services.
 
-## 🌟 Key Features of V1.0
+## 🌟 Key Features of V1.1
 
-- **Data-Driven Architecture**: All applications are declaratively managed through a single `apps.yaml`. No need to write complex Python code for generic apps.
+- **Strategic Design Patterns**: Usage of Factory, Adapter, and Strategy programming patterns for a modular and highly-scalable codebase.
 - **Fail-Fast Secrets**: Deep integration with [Doppler](https://doppler.com). The system verifies all required secrets before any Kubernetes resource is deployed.
+- **Data-Driven Architecture**: All applications are declaratively managed through a single `apps.yaml`. No need to write complex Python code for generic apps.
 - **SSO Everywhere**: [Authentik](https://goauthentik.io/) is the central Identity Provider. It natively proxies internal applications and provides OIDC authentication for compatible apps (like Navidrome and Vaultwarden).
 - **GitOps & IaC**: The entire cluster setup, namespaces, storage, networking, and apps are managed across three logical [Pulumi](https://pulumi.com/) stacks (`k8s-core`, `k8s-storage`, `k8s-apps`).
 - **Zero Trust Exposure**: No public inbound ports. Everything flows securely through Cloudflare Tunnels dynamically configured by Pulumi.
+- **Resilient Deployments**: Pulumi monitors Kubernetes pod lifecycles before marking deployments as successful (`skip_await=False`), with rigid dependency structures.
+- **Auto-Labeling**: Programmatic metadata injection via Pulumi Transformations (`managed-by: pulumi`).
 
 ## 📚 Documentation
 
-The documentation has been consolidated to reflect the V1.0 state:
+The documentation has been consolidated to reflect the V1.1 state:
 
 - 🏛️ **[Architecture](docs/ARCHITECTURE.md)**: Deep dive into the Pulumi ComponentResources, AppLoaders, and the deployment sequence.
 - 🚀 **[Deployment](docs/DEPLOYMENT.md)**: How to initialize the cluster and deploy the 3 Pulumi stacks.
