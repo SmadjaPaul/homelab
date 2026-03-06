@@ -348,9 +348,17 @@ apps:
     namespace: vaultwarden
     port: 8080
     hostname: vault.smadja.dev
-    mode: protected
+    mode: public
     auth: true
     clusters: [oci]
+    extra_env:
+      ROCKET_PORT: "8080"
+      SSO_ENABLED: "true"
+      SSO_AUTHORITY: "https://auth.smadja.dev/application/o/vaultwarden/"
+      SSO_CLIENT_ID: "vaultwarden-client"
+      SSO_CLIENT_SECRET: "vaultwarden-secret-very-secure-static-value"
+      SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: "true"
+      SSO_SIGNUPS_MATCH_EMAIL: "true"
     dependencies: [cnpg-system, external-secrets, cloudflared, authentik, kube-system]
     helm:
       chart: vaultwarden

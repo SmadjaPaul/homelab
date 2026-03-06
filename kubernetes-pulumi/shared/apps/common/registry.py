@@ -726,7 +726,7 @@ class AppRegistry(pulumi.ComponentResource):
             if app.mode == ExposureMode.PROTECTED:
                 provider = authentik.ProviderProxy(
                     f"proxy-provider-{app.name}",
-                    name=app.name,
+                    name=f"{app.name}-proxy",
                     internal_host=f"http://{app.name}.{app.namespace}.svc.cluster.local:{app.port}",
                     external_host=f"https://{hostname}",
                     mode="proxy",
@@ -748,6 +748,13 @@ class AppRegistry(pulumi.ComponentResource):
                             "matching_mode": "strict",
                         },
                     ]
+                elif app.name == "vaultwarden":
+                    redirect_urls = [
+                        {
+                            "url": f"https://{hostname}/identity/connect/oidc-signin",
+                            "matching_mode": "strict",
+                        }
+                    ]
                 else:
                     redirect_urls = [
                         {
@@ -765,7 +772,7 @@ class AppRegistry(pulumi.ComponentResource):
 
                 provider = authentik.ProviderOauth2(
                     f"oauth2-provider-{app.name}",
-                    name=app.name,
+                    name=f"{app.name}-oidc",
                     client_id=f"{app.name}-client",
                     client_secret=client_secret,
                     client_type="confidential",
