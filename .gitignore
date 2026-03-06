@@ -71,3 +71,16 @@ archive/*
 **/.envrc
 **/__pycache__**
 *__pycache__*
+
+# AI/Editor Specific
+.claude/
+CLAUDE.md
+.cursorrules
+
+# Pulumi/K8s Logs
+**/pulumi_*.log
+**/pulumi_error.log
+**/pulumi_debug.log
+
+# Temporary/Local Pulumi data
+kubernetes-pulumi/doppler.json

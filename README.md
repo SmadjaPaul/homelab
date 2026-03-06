@@ -6,7 +6,7 @@
 
 L'infrastructure est divisée en deux pôles complémentaires reliés de manière sécurisée (Zero Trust).
 
-- **Cloud Hub (OCI / France)** : Portail de gestion haute disponibilité (Omni, CI/CD, Auth0).
+- **Cloud Hub (OCI / France)** : Portail de gestion haute disponibilité (Omni, CI/CD, Authentik).
 - **Home Spoke (Privé / Fibre 8Gbps)** : Puissance de calcul (Proxmox/Talos) et stockage massif (TrueNAS).
 
 ```mermaid
@@ -14,6 +14,7 @@ graph LR
     Internet((Internet)) --> OCI[Cloud Hub - OCI]
     OCI <==>|Tailscale S2S| Home[Home Spoke - Proxmox]
     Home --> Media[Média & Data]
+    OCI --> Authentik[Authentik SSO]
 ```
 
 ## 📚 Documentation
@@ -23,14 +24,14 @@ L'ensemble de la documentation a été consolidé pour refléter l'architecture 
 - 🏛️ **[Architecture Générale](docs/ARCHITECTURE.md)** : Vision globale, stratégie de souveraineté et composants.
 - ☁️ **[Services Cloud & Réversibilité](docs/CLOUD-SERVICES-MIGRATION.md)** : Détail des services tiers et plans de secours.
 - 🚀 **[Guide de Déploiement](docs/DEPLOYMENT.md)** : Étapes de bootstrap (Cloud & Home) et maintenance.
-- 🌐 **[Réseau & Accès](docs/NETWORKING.md)** : Cloudflare Tunnel, Auth0, Tailscale et connectivité 8Gbps.
+- 🌐 **[Réseau & Accès](docs/NETWORKING.md)** : Cloudflare Tunnel, Authentik (OIDC/SSO), Tailscale et connectivité 8Gbps.
 - 📦 **[Catalogue des Services](docs/SERVICE-CATALOG.md)** : Liste exhaustive des services (Déployés & Prévus).
 
 ## 🛠️ Stack Technique
 
 - **Infrastructure** : Oracle Cloud (OKE), Proxmox VE, Talos Linux.
-- **GitOps** : GitHub Actions, Flux CD.
-- **Sécurité** : Cloudflare Tunnel, Auth0 (OIDC/SSO), Doppler (Secrets).
+- **GitOps** : GitHub Actions, Pulumi.
+- **Sécurité** : Cloudflare Tunnel, Authentik (OIDC/SSO), Doppler (Secrets).
 - **Stockage** : TrueNAS (ZFS).
 - **Observabilité** : Grafana Cloud.
 
@@ -38,7 +39,7 @@ L'ensemble de la documentation a été consolidé pour refléter l'architecture 
 
 ## 🚀 Démarrage Rapide
 
-1. **Prérequis** : Assurez-vous d'avoir installé `doppler`, `terraform`, `kubectl` et `flux`.
+1. **Prérequis** : Assurez-vous d'avoir installé `doppler`, `pulumi`, `kubectl`.
 2. **Initialisation** : Suivez le **[Guide de Déploiement](docs/DEPLOYMENT.md)**.
 3. **Secrets** : Utilisez `doppler setup` pour lier votre environnement local au projet Doppler.
 

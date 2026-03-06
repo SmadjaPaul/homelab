@@ -59,8 +59,7 @@ class AppRegistry(pulumi.ComponentResource):
             opts=pulumi.InvokeOptions(provider=doppler_provider),
         )
 
-        # Removed Authentik Provider initialization from here
-        # It now happens in __main__.py Phase 2
+        # It now happens in __main__.py
         self._proxy_provider_ids: list = []  # Collected for outpost binding
 
     def setup_global_infrastructure(self):
@@ -123,8 +122,7 @@ class AppRegistry(pulumi.ComponentResource):
         # 5.5 Database (CNPG Clusters)
         resources.extend(self._setup_database_for_app(app, local_opts))
 
-        # 6. Authentication (Authentik OIDC) - MOVED TO PHASE 2 (configure_authentik_layer)
-        # We no longer call self._setup_auth_for_app here to avoid chicken-and-egg dependency issues.
+        # 6. Authentication (Authentik OIDC) - MOVED TO CONFIGURE_AUTHENTIK_LAYER
         # 7. Exposure (Routes/Ingress)
         resources.extend(self._setup_exposure_for_app(app, local_opts))
 
@@ -537,24 +535,6 @@ class AppRegistry(pulumi.ComponentResource):
         self._hetzner_smb_ready = True
         return [es]
 
-    def check_oci_storage_quota(self, apps: List[AppModel]):
-        """
-        Calculates total OCI storage usage and warns/errors if it exceeds the limit.
-        Limit: 200GB (including boot volumes).
-        """
-        total_pvc_oci = 0
-        for app in apps:
-            for storage in app.storage:
-                sc = storage.storage_class or "oci-bv"
-                if sc == "oci-bv":
-                    try:
-                        size_str = storage.size.replace("Gi", "").replace("G", "")
-                        total_pvc_oci += int(size_str)
-                    except ValueError:
-                        pass
-
-        # Add CNPG Clusters (estimate)
-        total_pvc_oci += 10  # Authentik DB (2 * 5Gi)
 
     def _setup_storagebox_automation(self):
         """

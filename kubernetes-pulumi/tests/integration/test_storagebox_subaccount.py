@@ -58,7 +58,7 @@ def hcloud_request(
         raise
 
 
-def test_webdav(username: str, password: str, server: str) -> bool:
+def check_webdav(username: str, password: str, server: str) -> bool:
     """Test WebDAV connectivity to the sub-account."""
     creds = base64.b64encode(f"{username}:{password}".encode()).decode()
     url = f"https://{server}/"
@@ -81,7 +81,7 @@ def test_webdav(username: str, password: str, server: str) -> bool:
         return False
 
 
-def test_ftp(username: str, password: str, server: str) -> bool:
+def check_ftp(username: str, password: str, server: str) -> bool:
     """Test FTP connectivity to the sub-account using curl."""
     result = subprocess.run(
         [
@@ -194,8 +194,8 @@ def run():
     print("  Waiting 5s for credentials to propagate...")
     time.sleep(5)
 
-    webdav_ok = test_webdav(username, TEST_PASSWORD, server)
-    ftp_ok = test_ftp(username, TEST_PASSWORD, server)
+    webdav_ok = check_webdav(username, TEST_PASSWORD, server)
+    ftp_ok = check_ftp(username, TEST_PASSWORD, server)
 
     if not webdav_ok and not ftp_ok:
         print("  ⚠️  Both WebDAV and FTP failed. Sub-account created but not reachable.")
