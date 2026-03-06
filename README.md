@@ -30,7 +30,7 @@ The documentation has been consolidated to reflect the V1.0 state:
 
 - **Cloud/Infra**: Oracle Cloud (OKE), Proxmox VE, Hetzner Storage Boxes.
 - **Operations**: Pulumi (Python), Doppler, GitHub Actions.
-- **Identity & Networking**: Cloudflare Tunnels, Authentik, Traefik, External-DNS.
+- **Identity & Networking**: Cloudflare Tunnels, Authentik, Envoy Gateway, External-DNS.
 - **State Management**: CloudNativePG (PostgreSQL), Redis.
 
 ## 🚀 Quick Start

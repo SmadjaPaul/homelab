@@ -11,7 +11,7 @@ graph LR
     User((Utilisateur)) --> CF[Cloudflare DNS/WAF/Access]
     CF --> Tunnel[Cloudflare Tunnel]
     Tunnel --> Outpost[Authentik Outpost]
-    Outpost --> Ingress[Envoy / Traefik Ingress]
+    Outpost --> Ingress[Envoy Gateway]
     Ingress --> Service[Application Pod]
 ```
 

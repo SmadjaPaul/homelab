@@ -13,7 +13,7 @@ The V1.0 of the platform established the core architecture, identity, and standa
 
 ### Identity & Access (Secure Zero Trust)
 - [x] Cloudflare Tunnel implementation (No open inbound ports)
-- [x] Traefik Ingress configuration
+- [x] Envoy Gateway Ingress configuration
 - [x] Authentik migration (Replaced Auth0)
 - [x] Global OIDC auto-provisioning across services
 - [x] Email/SMTP via Migadu for SSO recovery
