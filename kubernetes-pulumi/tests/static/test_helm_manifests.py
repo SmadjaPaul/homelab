@@ -1,6 +1,5 @@
 import yaml
 import subprocess
-import os
 import pytest
 
 
@@ -9,7 +8,7 @@ def get_apps_config():
         return yaml.safe_load(f)
 
 
-def test_expected_resources_generated():
+def test_expected_resources_generated(tmp_path):
     """
     Validates that any resources declared in app.test.expected_resources
     are actually present in the final Helm rendered manifests.
@@ -49,7 +48,8 @@ def test_expected_resources_generated():
         else:
             chart_ref = f"{repo}/{chart}"
 
-        values_file = f"/tmp/values-{app_name}.yaml"
+        # Use tmp_path fixture for thread-safe temporary files
+        values_file = tmp_path / f"values-{app_name}.yaml"
         with open(values_file, "w") as f:
             yaml.dump(values, f)
 
@@ -64,16 +64,11 @@ def test_expected_resources_generated():
                 "-n",
                 app_config.get("namespace", "default"),
                 "-f",
-                values_file,
+                str(values_file),
             ],
             capture_output=True,
             text=True,
         )
-
-        try:
-            os.remove(values_file)
-        except OSError:
-            pass
 
         if res.returncode != 0:
             errors.append(f"{app_name} failed helm template: {res.stderr.strip()}")

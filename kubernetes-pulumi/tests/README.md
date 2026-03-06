@@ -1,6 +1,6 @@
 # Homelab Testing Architecture
 
-Notre stratégie de tests repose sur une validation multiniveau (Fail-Fast) pour garantir qu'aucune erreur de configuration ne puisse casser l'infrastructure en production.
+Notre stratégie de tests repose sur une validation multi-niveau (Fail-Fast) pour garantir qu'aucune erreur de configuration ne puisse casser l'infrastructure en production.
 
 ## 🧠 Philosophie (Le Pipeline)
 
@@ -46,6 +46,22 @@ Les tests sont conçus pour s'exécuter de gauche à droite, du plus rapide (et 
 - **Exemple** : Mettre un fichier `apps.yaml` expérimental, et Kuttl vérifiera que les Pods démarrent bien, que les PVCs sont correctement bindés et que les namespaces sont créés.
 - **Quand l'utiliser** : En environnement de Staging ou minikube, pour valider que vos Helm Charts custom ou vos opérateurs fonctionnent vraiment.
 
+---
+
+## ⏱️ Performance & Bottlenecks
+
+Voici les temps d'exécution moyens constatés :
+
+| Catégorie | Temps (Moyen) | Bottlenecks / Risques |
+| :--- | :--- | :--- |
+| **Static** | ~180s (3m) | **Lent** : `test_helm_manifests.py` car il lance `helm template` pour chaque application. |
+| **Unit** | < 1s | Très rapide, idéal pour le feedback immédiat. |
+| **Dynamic** | ~100s (1m 40) | Dépend de la latence réseau et de la santé du cluster. |
+| **Integration** | ~30s | Dépend de la propagation DNS/Cloud APIs (Hetzner). |
+
+> [!TIP]
+> Pour accélerer les tests **Static**, vous pouvez utiliser `pytest -n auto` (si `pytest-xdist` est installé) pour paralléliser le rendu des templates Helm.
+
 ## 🚀 Comment lancer les tests
 
 **Installation des prérequis :**
@@ -68,3 +84,6 @@ pytest tests/dynamic -v
 ```bash
 kubectl kuttl test --config tests/e2e/kuttl.yaml
 ```
+
+> [!IMPORTANT]
+> **Zero-Modification Policy** : Lors de l'ajout d'une nouvelle application dans `apps.yaml`, les tests `static` et `dynamic` se mettent à jour **automatiquement**. Vous n'avez plus besoin de modifier les fichiers de tests Python, sauf pour des fonctions très spécifiques non-standard.

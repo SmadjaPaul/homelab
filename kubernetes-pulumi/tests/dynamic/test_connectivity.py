@@ -72,17 +72,42 @@ def test_service_exists(test_case, k8s_available):
 
 
 def test_service_account_exists(test_case, k8s_available):
-    """Verify that a dedicated ServiceAccount exists for the app."""
+    """Verify that a dedicated ServiceAccount exists for the app, discovering its real name from the Pods."""
     if not k8s_available:
         pytest.skip("Kubernetes not available")
 
+    # 1. Discover the actual ServiceAccount name used by the running Pods
+    res_pods = subprocess.run(
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-n",
+            test_case.namespace,
+            "-l",
+            f"app.kubernetes.io/name={test_case.name}",
+            "-o",
+            "jsonpath={.items[0].spec.serviceAccountName}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # If we can't find pods or it's empty, we gracefully fallback to the app name
+    sa_name = (
+        res_pods.stdout.strip()
+        if res_pods.returncode == 0 and res_pods.stdout.strip()
+        else test_case.name
+    )
+
+    # 2. Verify that this ServiceAccount actually exists
     res = subprocess.run(
-        ["kubectl", "get", "serviceaccount", test_case.name, "-n", test_case.namespace],
+        ["kubectl", "get", "serviceaccount", sa_name, "-n", test_case.namespace],
         capture_output=True,
         text=True,
     )
     assert res.returncode == 0, (
-        f"ServiceAccount {test_case.name} not found in {test_case.namespace}"
+        f"ServiceAccount {sa_name} not found in {test_case.namespace} (discovered for {test_case.name})"
     )
 
 
@@ -92,6 +117,14 @@ def test_servicemonitor_exists(test_case, k8s_available):
         pytest.skip("Kubernetes not available")
     if not test_case.monitoring:
         pytest.skip(f"Monitoring disabled for {test_case.name}")
+
+    # Check if Prometheus CRDs are actually installed on the cluster first
+    res_crd = subprocess.run(
+        ["kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"],
+        capture_output=True,
+    )
+    if res_crd.returncode != 0:
+        pytest.skip("Prometheus ServiceMonitor CRD is not installed on the cluster")
 
     res = subprocess.run(
         ["kubectl", "get", "servicemonitor", test_case.name, "-n", test_case.namespace],

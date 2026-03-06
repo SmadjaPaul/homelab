@@ -222,6 +222,7 @@ apps:
         memory: 512Mi
     test:
       routing: true
+      requires_extended_timeout: true
       expected_endpoints: [https://music.smadja.dev]
       network_isolation: []
 
@@ -336,6 +337,7 @@ apps:
           secret_access_key: OCI_S3_SECRET_KEY
     test:
       routing: true
+      requires_extended_timeout: true
       expected_endpoints: [https://auth.smadja.dev]
 
   # =============================================================================
@@ -390,6 +392,7 @@ apps:
         memory: 512Mi
     test:
       routing: true
+      requires_extended_timeout: true
       expected_endpoints: [https://vault.smadja.dev]
 
   # =============================================================================

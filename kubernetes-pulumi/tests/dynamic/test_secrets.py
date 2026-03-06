@@ -35,8 +35,8 @@ def check_doppler_store(k8s_available):
         pytest.fail("Doppler ClusterSecretStore is not Ready")
 
 
-def test_external_secrets_created(test_case, check_doppler_store):
-    """Verify that ExternalSecret resources are created for each secret in apps.yaml."""
+def test_external_secrets_synced(test_case, check_doppler_store):
+    """Verify that ExternalSecret resources are created and synced for each secret in apps.yaml."""
     if not test_case.secrets:
         pytest.skip(f"No secrets defined for {test_case.name}")
 
@@ -66,15 +66,16 @@ def test_external_secrets_created(test_case, check_doppler_store):
             (
                 c
                 for c in conditions
-                if c.get("type") == "SecretSynced" and c.get("status") == "True"
+                if c.get("type") == "Ready"
+                and c.get("reason") == "SecretSynced"
+                and c.get("status") == "True"
             ),
             None,
         )
-        # We don't fail here if not synced, just report it - networking might be transient
-        if not secret_synced:
-            print(
-                f"Warning: ExternalSecret {secret.name} is not yet synced in {test_case.namespace}"
-            )
+        # We enforce sync check in this test
+        assert secret_synced, (
+            f"ExternalSecret {secret.name} is not synced in {test_case.namespace}"
+        )
 
 
 def test_kubernetes_secrets_exist(test_case, check_doppler_store):

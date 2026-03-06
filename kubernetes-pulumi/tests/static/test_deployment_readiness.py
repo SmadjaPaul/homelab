@@ -206,17 +206,15 @@ class TestDeploymentReadiness:
         loader = AppLoader()
         apps = loader.load()
 
-        # Apps that typically need more time to start
-        slow_apps = {"authentik", "vaultwarden", "navidrome"}
-
         for app in apps:
-            if app.name in slow_apps and app.helm:
+            # Check for the flag defined in apps.yaml via schemas.py
+            if app.test.requires_extended_timeout and app.helm:
                 # Check if timeout is configured (HelmConfig may not have this attribute)
                 timeout = getattr(app.helm, "timeout", None)
                 if not timeout:
                     # Just a warning, not a hard failure
                     print(
-                        f"Warning: App '{app.name}' may need timeout configuration for slow startup"
+                        f"Warning: App '{app.name}' has requires_extended_timeout=true but no 'timeout' set in helm config."
                     )
 
     def test_pvc_exists_before_helm_deployment(self):

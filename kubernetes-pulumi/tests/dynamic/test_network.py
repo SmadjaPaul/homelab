@@ -71,3 +71,32 @@ def test_isolation_rules(test_case, k8s_available):
                         pytest.fail(
                             f"Namespace {test_case.namespace} should NOT reach {isolated_ns}"
                         )
+
+
+def test_dependency_policies_exist(test_case, k8s_available):
+    """Each app must allow egress to its declared dependencies."""
+    if not k8s_available:
+        pytest.skip("Kubernetes not available")
+
+    if not test_case.dependencies:
+        pytest.skip(f"No dependencies defined for {test_case.name}")
+
+    for dep in test_case.dependencies:
+        policy_name = f"{test_case.name}-allow-{dep}"
+
+        result = subprocess.run(
+            [
+                "kubectl",
+                "get",
+                "networkpolicy",
+                policy_name,
+                "-n",
+                test_case.namespace,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, (
+            f"Dependency policy '{policy_name}' not found in namespace '{test_case.namespace}'"
+        )

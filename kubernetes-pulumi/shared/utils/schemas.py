@@ -100,6 +100,10 @@ class TestConfig(BaseModel):
     test_secrets: bool = True
     test_health: bool = True
     test_network_policy: bool = True
+    requires_extended_timeout: bool = Field(
+        default=False,
+        description="Set to true if the app takes a long time to start (e.g., heavy database or init processes).",
+    )
     expected_endpoints: List[str] = Field(default_factory=list)
     required_secrets: List[str] = Field(default_factory=list)
     excluded_secrets: List[str] = Field(default_factory=list)
