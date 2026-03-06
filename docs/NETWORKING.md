@@ -1,41 +1,38 @@
 # Architecture Réseau & Accès
 
-Ce document détaille comment le trafic circule depuis l'internet jusqu'à vos services, ainsi que les méthodes d'accès sécurisées pour l'administration.
+Ce document détaille comment le trafic circule depuis l'internet jusqu'à vos services, avec une approche Zero Trust stricte.
 
-## 🌐 Flux du Trafic Public (No Trust)
+## 🌐 Flux du Trafic Public (Zero Trust)
 
-Nous utilisons une approche "No Trust" où aucun port n'est ouvert sur votre IP publique (Cloud ou Home).
+Aucun port serveur n'est ouvert publiquement sur l'IP publique Cloud (OCI) ou à domicile.
 
 ```mermaid
 graph LR
     User((Utilisateur)) --> CF[Cloudflare DNS/WAF/Access]
     CF --> Tunnel[Cloudflare Tunnel]
-    Tunnel --> Ingress[Ingress Controller - Kong/Traefik]
+    Tunnel --> Outpost[Authentik Outpost]
+    Outpost --> Ingress[Envoy / Traefik Ingress]
     Ingress --> Service[Application Pod]
 ```
 
 ### Composants Clés
-- **Cloudflare Tunnel (`cloudflared`)** : Établit un tunnel sortant sécurisé vers Cloudflare. Le trafic entrant passe par ce tunnel.
-- **Auth0 / SSO** : Intégré au niveau de Cloudflare Access ou de l'application pour garantir que seuls les utilisateurs autorisés accèdent aux services.
-- **SSL/TLS** : Géré par Cloudflare (Edge) et par `cert-manager` (Interne) pour un chiffrement de bout en bout.
+- **Cloudflare Tunnel (`cloudflared`)** : Établit un tunnel sortant sécurisé vers l'edge de Cloudflare via HTTPS/Quic. Le trafic DNS entrant est intercepté et canalisé via ce tunnel.
+- **Authentik (SSO & IdP)** : Le système Authentik central gère toutes les authentifications:
+  - **Forward-Auth (Proxy)**: Mure les applications n'ayant pas d'authentification native.
+  - **OIDC/OAuth2**: Fournit des jetons SS0 (Single Sign-On) pour des applications modernes (Vaultwarden, Navidrome).
+- **SSL/TLS** : Géré automatiquement entre le client et Cloudflare, et chiffré dans le tunnel jusqu'au cluster.
 
----
+## 🔐 Auto-Provisionnement OIDC
 
-## 🔐 Accès Administration (Zero Trust)
+La stack est configurée pour utiliser le **OIDC Auto-Provisioning**.
+Lors de son intégration, l'application (ex: Vaultwarden) communique via OIDC (avec `client_id` et `client_secret`) pour demander l'identité de l'utilisateur.
+- Authentik authentifie l'utilisateur via Email/Mot de passe ou Passkey.
+- Authentik transmet les claims email/name à l'application.
+- L'application **crée automatiquement** le compte s'il n'existe pas. Il n'est plus nécessaire de créer les utilisateurs manuellement pour chaque service !
 
-L'administration du cluster et l'accès aux interfaces sensibles (Omni, Proxmox, SSH) se font via un réseau privé sécurisé.
+## 🚀 Accès Administration
 
-### Tailscale (VPN Mesh)
-- **Topologie** : Tous les noeuds (Hub OCI, Proxmox, Laptops) sont membres de la même **Tailnet**.
-- **Accès Admin** : Les interfaces comme l'UI d'Omni ou les APIs Kubernetes ne sont exposées que sur les IPs Tailscale.
-- **Routeur UniFi** : Sert de passerelle locale et de firewall pour le segment domestique.
+L'administration du cluster K8s et les accès à l'API OCI sont sécurisés localement.
+L'accès HTTPS vers le tableau de bord d'Authentik est réservé au rôle Administrateur et passe par l'infrastructure Cloudflare sécurisée.
 
----
-
-## 🚀 Réseau Domestique Haute Performance
-
-Avec une connexion **8Gbps symétrique**, le réseau local est conçu pour le streaming et la sauvegarde massive.
-
-- **VLANs** : Segmentation entre les services serveurs, l'IoT (Caméras Frigate) et le réseau personnel.
-- **UniFi Gateway Fiber** : Gère le routage à haute vitesse entre le cluster Talos local et le stockage TrueNAS.
-- **Inter-Cloud Connectivity** : La liaison entre le Hub OCI et le cluster Home est sécurisée par Tailscale Site-to-Site ou Cloudflare Warp.
+*Pour diagnostiquer un problème d'accès, vérifier les logs du pod `cloudflared` dans l'espace `cloudflared` et de l'`outpost` dans `security`.*

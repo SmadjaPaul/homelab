@@ -1,179 +1,87 @@
-# Guide de Déploiement
+# Deployment Guide
 
-Ce guide détaille les étapes pour initialiser et maintenir votre infrastructure souveraine.
+This guide details how to initialize and maintain the Homelab V1.0 infrastructure.
 
-## 🚀 Architecture Actuelle
+## 🚀 Architecture Context
+
+The infrastructure is fully managed by **Pulumi** using Python. It provisions resources in Oracle Cloud Infrastructure (OCI) and locally via Proxmox/Talos.
 
 ```
-GitHub (Flux) → Cluster OCI (OKE) → Cloudflare Tunnel → Utilisateurs
-      ↑                              ↓
-   Doppler (Secrets)         Auth0 (Auth)
+apps.yaml (Source of Truth) → Pulumi (Python) → OKE Cluster / Cloudflare / Hetzner / Authentik
+       ↑
+    Doppler (Secrets)
 ```
 
-## 🔄 Workflow de Déploiement
+## 🔄 Deployment Workflow
 
-### 1. Modifier les manifests
+### 1. Update the Configuration
 
-Les manifests Kubernetes sont dans `kubernetes/apps/`:
-- Chaque application a son propre répertoire sous `kubernetes/apps/{category}/{app}/`
-- Déployé via **Flux CD** (GitOps)
+Most application updates are done declaratively in `kubernetes-pulumi/apps.yaml`.
+- Need a new app? Add it to `apps.yaml`.
+- Need a new S3 bucket? Add it to `buckets` in `apps.yaml`.
 
-### 2. Pousser sur Git
+### 2. Pulumi Up
+
+The deployment is split into three phases (stacks) for dependency management:
+
+```bash
+# 1. Foundation: Namespaces, CRDs, essential Operators (External-Secrets, Envoy Gateway)
+cd kubernetes-pulumi/k8s-core
+pulumi up
+
+# 2. Storage & Databases: S3 Buckets, Redis, CloudNativePG clusters
+cd ../k8s-storage
+pulumi up
+
+# 3. Applications: Helm charts, Ingress routing, Authentik Outposts
+cd ../k8s-apps
+pulumi up
+```
+
+### 3. Commit to Git
+
+Once tested and successfully deployed, commit your changes:
 
 ```bash
 git add .
-git commit -m "feat: add lidarr"
-git push
-```
-
-### 3. Flux applique automatiquement
-
-- Flux détecte les changements
-- Applique les manifests sur le cluster OCI
-- Vérifiable avec: `kubectl get kustomizations -A`
-
----
-
-## 🛠️ Commandes Utiles
-
-### Vérifier le statut du cluster
-```bash
-# Toutes les Kustomizations
-kubectl get kustomizations -A
-
-# Helm releases
-kubectl get helmreleases -A
-
-# Pods
-kubectl get pods -A
-```
-
-### Debug
-```bash
-# Logs Flux
-kubectl logs -n flux-system -l app=source-controller
-
-# Logs Helm
-kubectl logs -n flux-system -l app=helm-controller
-
-# Événements
-kubectl get events -A --sort-by='.lastTimestamp'
-```
-
-### Forcer une reconciliation
-```bash
-# Forcer Flux à resynchroniser
-flux reconcile source git homelab -n flux-system
-
-# Forcer une HelmRelease
-kubectl annotate helmrelease <name> -n <ns> fluxcd.io/force-apply=true --overwrite
-```
-
----
-
-## 📦 Ajouter une Application
-
-### 1. Créer la structure
-
-```bash
-mkdir -p kubernetes/apps/<category>/<app>/base
-```
-
-### 2. Fichiers nécessaires
-
-- `namespace.yaml` - Namespace Kubernetes
-- `helmrelease.yaml` - Déploiement Helm
-- `kustomization.yaml` - Kustomize config
-- `ingress.yaml` (optionnel) - Exposition externe
-- `external-secret.yaml` (optionnel) - Secrets Doppler
-
-### 3. Ajouter au parent
-
-Modifier `kubernetes/apps/<category>/kustomization.yaml`:
-```yaml
-resources:
-  - <app>/base
-```
-
-### 4. Pousser
-
-```bash
-git add kubernetes/apps/<category>/
-git commit -m "feat: add <app>"
+git commit -m "feat: deployed new service"
 git push
 ```
 
 ---
 
-## 🔐 Gestion des Secrets
+## 🔐 Secrets Management
 
-### Via Doppler
+We use **Doppler** as the single source of truth for secrets.
+At runtime, Pulumi reads secrets from Doppler to:
+1. Ensure fail-fast validation (`pulumi preview` will fail if a secret is missing).
+2. Create `ExternalSecret` CRDs in the cluster to securely supply credentials to pods.
 
-1. Ajouter le secret dans Doppler (projet: infrastructure, config: prd)
-2. Créer un ExternalSecret dans Kubernetes:
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: my-secret
-  namespace: my-app
-spec:
-  secretStoreRef:
-    name: doppler
-    kind: ClusterSecretStore
-  target:
-    name: my-secret
-    creationPolicy: Owner
-  dataFrom:
-  - extract:
-      key: MY_SECRET
-```
-
----
-
-## 🔧 Terraform (Infrastructure)
-
-### Cloudflare (DNS, Access, Tunnel)
-
-```bash
-cd terraform/cloudflare
-terraform plan
-terraform apply
-```
-
-### OCI (OKE, Object Storage)
-
-```bash
-cd terraform/oracle-cloud
-terraform plan
-terraform apply
-```
+If you need a new secret for an app:
+1. Add it to Doppler (Project: `homelab`, Config: `prd`).
+2. Map it in `apps.yaml` under `secrets:` for the specific app.
 
 ---
 
 ## 🆘 Troubleshooting
 
-### Pod crashloop
+### Pod CrashLoopBackOff
 ```bash
 kubectl describe pod <pod-name> -n <ns>
 kubectl logs <pod-name> -n <ns>
 ```
 
-### Helm release failed
+### Missing Secret (Fail-Fast during Pulumi)
+If Pulumi fails with: `CRITICAL ERROR: Secret key 'XYZ' required by app '...' is MISSING in Doppler`
+- Go to the Doppler Dashboard and add the missing key.
+- Then run `pulumi up` again.
+
+### Authentik OIDC / Proxy Issues
+Check the Authentik embedded outpost logs:
 ```bash
-kubectl describe helmrelease <name> -n <ns>
+kubectl logs -n security -l app.kubernetes.io/name=authentik -c outpost
 ```
-
-### ImagePullBackOff
-- Vérifier le registry
-- Vérifier les credentials (imagePullSecrets)
-
----
-
-## 📖 Documentation
-
-- **ROADMAP.md** - État d'avancement du projet
-- **SERVICE-CATALOG.md** - Liste des services déployés
-- **ARCHITECTURE.md** - Vue d'ensemble technique
-- **CLAUDE.md** - Instructions pour l'agent IA
+Check Cloudflare Tunnel logs:
+```bash
+kubectl logs -n cloudflared -l app=cloudflared
+```

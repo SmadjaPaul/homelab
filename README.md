@@ -1,47 +1,56 @@
-# Homelab Souverain & Hybride (OCI + Home)
+# Homelab v1.0
 
-> **Infrastructure 100% GitOps** - Une plateforme stable, sécurisée et souveraine pour gérer ma vie numérique, mon business de freelance et mes services multimédia.
+![Platform Status](https://img.shields.io/badge/Status-V1.0_Stable-success)
+![Infrastructure](https://img.shields.io/badge/Infrastructure-Pulumi_Python-blue)
+![Identity](https://img.shields.io/badge/Identity-Authentik_OIDC-orange)
 
-## 🏗️ Vision de l'Architecture
+Welcome to the **Homelab V1.0**.
 
-L'infrastructure est divisée en deux pôles complémentaires reliés de manière sécurisée (Zero Trust).
+This project maintains a highly available, data-driven Kubernetes infrastructure split between a **Cloud Hub (OCI)** and a **Home Spoke (Proxmox/Talos)**. The platform provides secure, Zero-Trust access to all self-hosted and business services.
 
-- **Cloud Hub (OCI / France)** : Portail de gestion haute disponibilité (Omni, CI/CD, Authentik).
-- **Home Spoke (Privé / Fibre 8Gbps)** : Puissance de calcul (Proxmox/Talos) et stockage massif (TrueNAS).
+## 🌟 Key Features of V1.0
 
-```mermaid
-graph LR
-    Internet((Internet)) --> OCI[Cloud Hub - OCI]
-    OCI <==>|Tailscale S2S| Home[Home Spoke - Proxmox]
-    Home --> Media[Média & Data]
-    OCI --> Authentik[Authentik SSO]
-```
+- **Data-Driven Architecture**: All applications are declaratively managed through a single `apps.yaml`. No need to write complex Python code for generic apps.
+- **Fail-Fast Secrets**: Deep integration with [Doppler](https://doppler.com). The system verifies all required secrets before any Kubernetes resource is deployed.
+- **SSO Everywhere**: [Authentik](https://goauthentik.io/) is the central Identity Provider. It natively proxies internal applications and provides OIDC authentication for compatible apps (like Navidrome and Vaultwarden).
+- **GitOps & IaC**: The entire cluster setup, namespaces, storage, networking, and apps are managed across three logical [Pulumi](https://pulumi.com/) stacks (`k8s-core`, `k8s-storage`, `k8s-apps`).
+- **Zero Trust Exposure**: No public inbound ports. Everything flows securely through Cloudflare Tunnels dynamically configured by Pulumi.
 
 ## 📚 Documentation
 
-L'ensemble de la documentation a été consolidé pour refléter l'architecture réelle :
+The documentation has been consolidated to reflect the V1.0 state:
 
-- 🏛️ **[Architecture Générale](docs/ARCHITECTURE.md)** : Vision globale, stratégie de souveraineté et composants.
-- ☁️ **[Services Cloud & Réversibilité](docs/CLOUD-SERVICES-MIGRATION.md)** : Détail des services tiers et plans de secours.
-- 🚀 **[Guide de Déploiement](docs/DEPLOYMENT.md)** : Étapes de bootstrap (Cloud & Home) et maintenance.
-- 🌐 **[Réseau & Accès](docs/NETWORKING.md)** : Cloudflare Tunnel, Authentik (OIDC/SSO), Tailscale et connectivité 8Gbps.
-- 📦 **[Catalogue des Services](docs/SERVICE-CATALOG.md)** : Liste exhaustive des services (Déployés & Prévus).
+- 🏛️ **[Architecture](docs/ARCHITECTURE.md)**: Deep dive into the Pulumi ComponentResources, AppLoaders, and the deployment sequence.
+- 🚀 **[Deployment](docs/DEPLOYMENT.md)**: How to initialize the cluster and deploy the 3 Pulumi stacks.
+- 🌐 **[Networking & Access](docs/NETWORKING.md)**: Explains the Zero Trust flow via Cloudflare and Authentik Outposts.
+- 📦 **[Service Catalog](docs/SERVICE-CATALOG.md)**: Full list of V1 actively-running services and planned apps.
+- 🗺️ **[Roadmap](ROADMAP.md)**: The next steps and future V2 features for the lab.
 
-## 🛠️ Stack Technique
+## 🛠️ Tech Stack
 
-- **Infrastructure** : Oracle Cloud (OKE), Proxmox VE, Talos Linux.
-- **GitOps** : GitHub Actions, Pulumi.
-- **Sécurité** : Cloudflare Tunnel, Authentik (OIDC/SSO), Doppler (Secrets).
-- **Stockage** : TrueNAS (ZFS).
-- **Observabilité** : Grafana Cloud.
+- **Cloud/Infra**: Oracle Cloud (OKE), Proxmox VE, Hetzner Storage Boxes.
+- **Operations**: Pulumi (Python), Doppler, GitHub Actions.
+- **Identity & Networking**: Cloudflare Tunnels, Authentik, Traefik, External-DNS.
+- **State Management**: CloudNativePG (PostgreSQL), Redis.
 
----
+## 🚀 Quick Start
 
-## 🚀 Démarrage Rapide
+Ensure you have `pulumi`, `doppler`, and `kubectl` installed.
 
-1. **Prérequis** : Assurez-vous d'avoir installé `doppler`, `pulumi`, `kubectl`.
-2. **Initialisation** : Suivez le **[Guide de Déploiement](docs/DEPLOYMENT.md)**.
-3. **Secrets** : Utilisez `doppler setup` pour lier votre environnement local au projet Doppler.
+```bash
+# 1. Login to Doppler to fetch infrastructure secrets
+doppler login
 
----
-*Ce projet est une plateforme évolutive pour mon activité de freelance et ma vie personnelle. ⚠️ Work in Progress.*
+# 2. Deploy Core Foundation
+cd kubernetes-pulumi/k8s-core
+pulumi up
+
+# 3. Deploy Storage & Databases
+cd ../k8s-storage
+pulumi up
+
+# 4. Deploy Apps & Services
+cd ../k8s-apps
+pulumi up
+```
+For detailed instructions, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.

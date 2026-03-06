@@ -535,7 +535,6 @@ class AppRegistry(pulumi.ComponentResource):
         self._hetzner_smb_ready = True
         return [es]
 
-
     def _setup_storagebox_automation(self):
         """
         Invoke the StorageBoxManager to provision sub-accounts via the Hetzner Cloud API.

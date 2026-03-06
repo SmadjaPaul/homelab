@@ -1,148 +1,81 @@
 # 🗺️ Roadmap Homelab
 
-## Phase 1: Infrastructure & Core (✅ Terminé)
+## 🌟 Version 1.0 (✅ Completed)
 
-### OCI Cluster
-- [x] Nettoyer et restructurer le repository
-- [x] Configuration Doppler
-- [x] Scripts de bootstrap
-- [x] Déployer OKE (Oracle Cloud Kubernetes Engine)
-- [x] Installer Flux CD (GitOps)
-- [x] Configurer External Secrets Operator (Doppler → K8s)
+The V1.0 of the platform established the core architecture, identity, and standard services.
 
-### Gestion Clusters
-- [ ] Déployer **Omni** sur OCI (gestion centralisée des clusters)
-  - [ ] Configurer Omni comme control plane
-  - [ ] Préparer connection pour cluster Talos à la maison
+### Core Infrastructure
+- [x] OCI Cluster Deployment (OKE)
+- [x] Doppler Configuration for Secrets
+- [x] Pulumi-based GitOps deployment (`k8s-core`, `k8s-storage`, `k8s-apps`)
+- [x] External Secrets Operator integration
+- [x] Storage Provisioning (Hetzner Storage Box via SMB, Oracle Free Tier S3)
 
-### Cloudflare Access
-- [x] Configurer Cloudflare Tunnel
-- [x] Configurer Auth0 comme IdP (Legacy)
-- [ ] Migrer vers Authentik comme IdP principal (En cours)
-- [x] Configurer Zero Trust RBAC (tous utilisateurs Auth0 acceptés)
-- [ ] Affiner les politiques d'accès par service avec Authentik
+### Identity & Access (Secure Zero Trust)
+- [x] Cloudflare Tunnel implementation (No open inbound ports)
+- [x] Traefik Ingress configuration
+- [x] Authentik migration (Replaced Auth0)
+- [x] Global OIDC auto-provisioning across services
+- [x] Email/SMTP via Migadu for SSO recovery
 
-### TLS/SSL
-- [x] Configurer cert-manager (via Let's Encrypt)
-- [x] Configurer Cloudflare SSL strict
-- [ ] Mettre en place Internal CA pour service-to-service
-
-### Services Déployés
-- [x] Homepage (dashboard)
-- [x] n8n (automation)
-- [x] Traefik (ingress)
-- [x] External-DNS (gestion DNS Kubernetes)
-- [x] External Secrets Operator
-- [x] Lidarr, Audiobookshelf (media)
+### Core Services
+- [x] Homepage (Dashboard)
+- [x] CloudNativePG (PostgreSQL Operator)
+- [x] Redis (Caching Layer)
+- [x] Vaultwarden (Password Management & OIDC Integrations)
+- [x] n8n (Automation Workflows)
+- [x] Navidrome (Streaming Audio / Replaced Lidarr & Audiobookshelf as test)
+- [x] Soulseek (P2P Client)
 
 ---
 
-## Phase 2: Business Apps (En cours)
+## 🚀 Version 2.0 (Plan & In Progress)
 
-### Services à déployer
-- [ ] CloudNativePG (postgresql operator) - requis pour:
-  - [ ] Outline (wiki/documentation)
-  - [ ] Vikunja (tasks)
-  - [ ] Umami (analytics)
-- [ ] Umami (analytics)
-- [ ] Vaultwarden (passwords)
+The next major iteration focuses on Observability, comprehensive Media management, and expanding Business apps.
 
-### Services en réflexion
-- [ ] Nextcloud (fichiers, calendar, contacts)
-- [ ] Gitea/Forgejo (code self-hosted)
-- [ ] Paperless-ngx (documents)
-- [ ] Odoo (ERP)
+### 1. Observability & Monitoring
+- [ ] Deploy Grafana Agent / k8s-monitoring
+- [ ] Connect Prometheus remote write to Grafana Cloud
+- [ ] Deploy centralized logging (Loki)
+- [ ] Configure essential alerting to Discord/Slack for system degradation
 
----
+### 2. Family & Home Management
+- [ ] **Nextcloud**: File syncing, calendars, contacts.
+- [ ] **Immich**: Photo backup (requires substantial local storage; potentially wait for Home Cluster).
+- [ ] **Paperless-ngx**: Document OCR and archiving.
+- [ ] Restructure Media stack (Radarr, Sonarr, Prowlarr) for fully automated consumption.
 
-## Phase 3: Observability (Monitoring avec Grafana Cloud) (En cours)
+### 3. Home Cluster (Talos) Integration
+- [ ] Provision Proxmox server physically at home.
+- [ ] Deploy Talos Linux Single Node Cluster (SNC).
+- [ ] Federation: Connect Home Cluster to OCI Hub.
+- [ ] Migrate heavy storage workloads (Jellyfin/Immich) to the Home Cluster.
 
-### Monitoring (Grafana Cloud)
-- [x] Créer compte Grafana Cloud (gratuit)
-- [x] Configurer Prometheus remote write vers Grafana Cloud (k8s-monitoring)
-- [ ] Configurer dashboards cluster (import depuis Grafana Cloud)
-- [ ] Configurer alertes (Slack/Discord/PagerDuty)
-
-### Logging
-- [ ] Déployer Loki (centralisé logging)
-- [ ] Configurer journalisation cluster
-- [ ] Configurer retention policies
-
-### Métriques Applicatives
-- [x] Configurer node-exporter (dans k8s-monitoring)
-- [x] Configurer metrics-server
+### 4. Backups & Disaster Recovery
+- [ ] Configure Velero for cluster-state backups.
+- [ ] Ensure all PostgreSQL databases (CNPG) are backing up via WAL to S3.
+- [ ] Schedule regular Restic backups for PVCs containing non-database state.
 
 ---
 
-## Phase 4: Security & Backups (En cours)
+## 💡 Wishlist (To Evaluate)
 
-### Backup Strategy
-- [ ] Configurer Velero (backup cluster)
-- [ ] Configurer Kopia ou Restic pour données applicatives
-- [ ] Configurer backup vers OCI Object Storage
-
-### Network Policies
-- [ ] Déployer network policies
-- [ ] Restreindre communication inter-pods
-- [ ] Configurer egress policies
-
-### Security
-- [x] Configurer Kyverno
-- [x] Configurer CrowdSec
-- [ ] Configurer RBAC audit
+- **Gitea/Forgejo**: Self-hosted code repositories (if GitHub becomes undesirable).
+- **Outline**: Team wiki and system documentation.
+- **Kestra**: High-performance automation as a code-first alternative to n8n.
+- **Dify**: Private LLM interactions and RAG over personal documents.
 
 ---
 
-## Phase 5: Home Cluster (Talos)
+## 📜 Architectural Decisions
 
-### Home Server Setup
-- [ ] Installer Proxmox sur serveur maison
-- [ ] Créer VM Talos ou Baremetal (Single Node, 58GB RAM, 10 CPU)
-- [ ] Connecter cluster home à Omni (OCI)
-
-### Migration
-- [ ] Migrer services média vers Home (Jellyfin, Immich)
-- [ ] Configurer backup cluster OCI → Home
+### ✅ Validated (V1.0)
+- **OCI OKE** for the cloud cluster hub (generous free tier).
+- **Pulumi** over Flux CD (Better type-safety, dynamic generation, Python ecosystem).
+- **Doppler** for centralized secrets management.
+- **Authentik** for Auth (Superior to Auth0 for self-hosting with deep proxy capabilities).
+- **Cloudflare** for DNS, Edge WAF, and Tunnels.
 
 ---
 
-## Phase 6: CI/CD & Automation
-
-### GitHub Actions
-- [x] Pipeline deploy (flux-diff)
-- [x] Pipeline Terraform (Cloudflare)
-- [x] Pipeline lint/validation
-
-### Automation
-- [ ] Renovate (auto-update apps)
-- [ ] Flux automation (image updates)
-
----
-
-## Décisions Techniques
-
-### ✅ Validé
-- **OCI OKE** pour cluster cloud (gratuit)
-- **Talos** pour cluster home (futur)
-- **Omni** (via OCI) pour gestion multi-cluster
-- **Doppler** pour secrets (gratuit)
-- **Flux CD** pour GitOps
-- **Cloudflare** pour DNS, Tunnel, Access (gratuit)
-- **Authentik** pour authentification et SSO (Remplacement d'Auth0)
-- **Grafana Cloud** pour monitoring (gratuit)
-- **Migadu** pour email/SMTP (19 euros par an)
-- **Traefik** comme ingress controller
-
-### 🔄 À décider
-- **Longhorn** vs **Rook-Ceph** pour storage (si besoin)
-- **Backup destination**: OCI Object Storage vs autres
-
----
-
-## Notes
-
-- Priorité: sécurité > fonctionnalités
-- Services critiques d'abord (auth, monitoring)
-- Tester avant production
-- Documenter chaque étape
-- YOLO mode: `export OPENCODE_YOLO=true` ou dire "yolo" au début
+*Note: For the technical deployment steps, refer to `docs/DEPLOYMENT.md`.*
