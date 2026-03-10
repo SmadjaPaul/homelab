@@ -27,6 +27,12 @@ def test_secret_dependencies_exist():
         # Explicit secrets provisioned by Pulumi + Doppler
         provisioned_secrets = {s.get("name") for s in app_config.get("secrets", [])}
 
+        # Apps with local database have secrets auto-created by CNPG operator
+        # These follow the pattern: {appname}-db-app
+        db_config = app_config.get("database", {})
+        if db_config.get("local", False):
+            provisioned_secrets.add(f"{app_name}-db-app")
+
         if "helm" not in app_config:
             continue
 
@@ -164,6 +170,8 @@ def test_secret_dependencies_exist():
         IGNORE_SECRETS = {
             "cnpg-webhook-cert",
             "envoy-gateway",
+            # kube-prometheus-stack creates admission secrets dynamically
+            "kube-prometheus-stack-admission",
         }
 
         # Check for unresolved secrets

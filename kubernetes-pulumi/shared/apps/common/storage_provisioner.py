@@ -54,7 +54,7 @@ class DefaultProvisioner(BaseStorageProvisioner):
             elif storage.tier == StorageTier.EXTERNAL:
                 sc = "nfs-client"
             else:
-                sc = "oci-bv"
+                sc = "local-path"
 
         pvc_name = f"{app.name}-{storage.name}"
         labels = self._get_standard_labels(app)

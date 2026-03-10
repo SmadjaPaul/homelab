@@ -117,11 +117,11 @@ Loads and validates `apps.yaml`:
 
 | Component | Implementation |
 |---------|---------------|
-| **`KubernetesRegistry`** | Pre-flight secret validation `pulumiverse-doppler` (Fail-Fast). RBAC, Monitoring, Database local cluster (CNPG), and Secrets (Creates `ExternalSecret` CRDs). |
+| **`KubernetesRegistry`** | Pre-flight secret validation `pulumiverse-doppler` (Fail-Fast). RBAC, Monitoring, Shared HA database cluster (CNPG), and per-app DB provisioning via Jobs. |
 | **`StorageRegistry`** | PVC creation via `StorageProvisionerFactory` (Strategy Pattern) and `StorageBoxManager` for Hetzner Box sub-accounts. |
-| **`AuthentikRegistry`** | Users, Groups, Proxy/OAuth2 Providers via `pulumi-authentik`. Protected apps use `ProviderProxy` (mode=proxy); public apps with auth use `ProviderOauth2`. Handles Outpost Finalization (creates a `ServiceConnectionKubernetes` + `Outpost` (type=proxy)). |
+| **`AuthentikRegistry`** | Users, Groups, Proxy/OAuth2 Providers via `pulumi-authentik`. Protected apps use `ProviderProxy` (mode=proxy) with default flow slugs for stability. Includes automatic header property mapping (Username, Email) for seamless SSO. Handles Outpost Finalization with external-dns annotations for auto-discovery. |
 | **`AppRegistry`** | The Facade component that orchestrates all three sub-registries during the deployment run. |
-| **Exposure** | No-op: routing is managed centrally in k8s-apps via `ZeroTrustTunnelCloudflaredConfig` |
+| **`TunnelManager`** | Configures Cloudflare Tunnel ingress rules via `ZeroTrustTunnelCloudflaredConfig`. DNS is managed by external-dns auto-discovery from Authentik Outpost Ingress. Protected apps route to Authentik Outpost, public apps route directly to K8s services. |
 
 ### 6. `S3Manager` (`shared/storage/s3_manager.py`)
 
@@ -137,7 +137,7 @@ Multi-provider S3 bucket provisioning with an **abstract driver pattern**:
 
 ### 7. Helm Values Adapters (`shared/apps/adapters/`)
 
-`HelmValuesAdapter` interface and specific implementations (`HomarrAdapter`, `AuthentikAdapter`, `AppTemplateAdapter`). Replaces `if-else` blocks to dynamically mutate Helm values during app provisioning in a clean Strategy Pattern.
+`HelmValuesAdapter` interface and specific implementations (`HomepageAdapter`, `AuthentikAdapter`, `AppTemplateAdapter`). Replaces `if-else` blocks to dynamically mutate Helm values during app provisioning in a clean Strategy Pattern.
 
 ### 8. `GenericHelmApp` (`shared/apps/generic.py`)
 
@@ -163,7 +163,7 @@ Abstract base for custom apps:
 2. Deploy k8s-storage
    - Imports namespaces from k8s-core
    - Installs CSI drivers (Local Path, SMB) and Redis
-   - Provisions database clusters (CNPG)
+   - Provisions the Shared HA database cluster (**homelab-db**) via CNPG
    - Provisions S3 buckets via S3Manager (OCI, Cloudflare R2, or Generic)
    - Exports: storage_classes, database_endpoints, redis_endpoints, s3_endpoints
 
@@ -184,12 +184,13 @@ Abstract base for custom apps:
    - Binds all collected proxy provider IDs to the outpost
    - Outpost auto-deploys ak-outpost-* pod (port 9000)
 
-   Phase 4: Cloudflare Tunnel Config
-   - Reads CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ACCOUNT_ID from Doppler
+   Phase 4: Tunnel Configuration & DNS Auto-Discovery
+   - TunnelManager reads CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ACCOUNT_ID from Doppler
    - Builds ingress rules dynamically from apps.yaml:
      * Protected apps → Authentik Outpost (:9000)
      * Public apps → direct service
    - Applies ZeroTrustTunnelCloudflaredConfig
+   - external-dns automatically creates DNS CNAME records from Authentik Outpost Ingress
 ```
 
 ### Authentication Flow (Protected Apps)
@@ -278,6 +279,9 @@ ValueError: CRITICAL ERROR: Secret key 'OCI_S3_ACCESS_KEY' required by app 'auth
 │   ├── storage/
 │   │   ├── __init__.py
 │   │   └── s3_manager.py      # S3Manager + OCI/Cloudflare/Generic drivers
+│   ├── networking/
+│   │   └── cloudflare/
+│   │       └── exposure_manager.py  # TunnelManager (Cloudflare Tunnel ingress rules)
 │   └── utils/
 │       └── schemas.py         # AppModel, S3BucketConfig, SecretRequirement, …
 ├── tests/

@@ -1,7 +1,15 @@
 """
 Custom implementation for Cloudflared.
-Deploys a Cloudflare Tunnel manually instead of using Helm,
-to ensure deterministic secret mapping.
+Deploys the Cloudflare Tunnel pod (cloudflared) which connects to the Cloudflare
+edge and forwards traffic to applications in the cluster.
+
+NOTE: This file deploys the TUNNEL POD only. The tunnel ROUTING RULES
+(which hostnames map to which services) are configured separately.
+
+RELATED FILES:
+  - shared/networking/cloudflare/exposure_manager.py: TunnelManager — configures tunnel routing
+  - shared/apps/common/authentik_registry.py: Creates the Authentik Outpost that receives tunnel traffic
+  - apps.yaml: Source of truth — add `cloudflared` as a dependency for exposed apps
 """
 
 from typing import Any, Dict, Optional

@@ -81,6 +81,7 @@ k8s.storage.v1.StorageClass(
         "vers=3.0",  # Explicit version to avoid 'Invalid argument' errors
     ],
     parameters={
+        # Use the main account for the global StorageClass
         "source": "//u554589.your-storagebox.de/backup",
         "csi.storage.k8s.io/node-stage-secret-name": "hetzner-storage-creds",
         "csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",

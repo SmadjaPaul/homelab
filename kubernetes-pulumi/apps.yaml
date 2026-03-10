@@ -78,83 +78,400 @@ identities:
     - name: "admins"
       is_superuser: true
     - name: "users"
-101:
 
 apps:
+  # =============================================================================
+  # V2 PRODUCTIVITY & AI STACK
+  # =============================================================================
+
+  - name: opencloud
+    category: public
+    tier: standard
+    namespace: productivity
+    port: 9200
+    hostname: cloud.smadja.dev
+    mode: public
+    auth: true
+    clusters: [oci]
+    homepage:
+      description: File Storage (OpenCloud)
+      icon: nextcloud
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    provisioning:
+      method: oidc
+    helm:
+      chart: app-template
+      repo: https://bjw-s-labs.github.io/helm-charts
+      version: 3.2.1
+      values:
+        controllers:
+          main:
+            initContainers:
+              init:
+                image:
+                  repository: docker.io/owncloud/ocis
+                  tag: latest
+                command: ["/bin/sh", "-c"]
+                args:
+                  - |
+                    ocis init --force-overwrite --admin-password admin
+                env:
+                  - name: OCIS_INSECURE
+                    value: "true"
+                  - name: OCIS_CONFIG_DIR
+                    value: "/var/lib/ocis"
+            containers:
+              main:
+                image:
+                  repository: docker.io/owncloud/ocis
+                  tag: latest
+                env:
+                  - name: OCIS_URL
+                    value: "https://cloud.smadja.dev"
+                  - name: OCIS_INSECURE
+                    value: "true"
+                  - name: OCIS_LOG_LEVEL
+                    value: "info"
+                  - name: PROXY_TLS
+                    value: "false"
+                  - name: OCIS_CONFIG_DIR
+                    value: "/var/lib/ocis"
+                  - name: OCIS_INITIAL_ADMIN_PASSWORD
+                    value: "admin"
+                  - name: OCIS_SYSTEM_USER_ID
+                    value: "9781896d-0ae9-425b-b9d9-29ed5b0d0611"
+                  - name: STORAGE_USERS_MOUNT_ID
+                    value: "aed010ea-7871-460d-8528-76ad5198083c"
+                  - name: STORAGE_METADATA_MOUNT_ID
+                    value: "1997926e-9ef7-49f2-8ef9-8a9d15024bba"
+                  - name: STORAGE_SHARING_MOUNT_ID
+                    value: "e46e8529-1067-425d-a083-d34338d1a100"
+        service:
+          main:
+            controller: main
+            ports:
+              http:
+                port: 9200
+    storage:
+      - name: opencloud-data
+        size: "20Gi"
+        storage_class: "hetzner-smb"
+        mount_path: "/var/lib/ocis"
+    secrets:
+      - name: opencloud-oidc
+        keys:
+          PROXY_OIDC_CLIENT_SECRET: OPENCLOUD_OIDC_CLIENT_SECRET
+    auto_secrets:
+      opencloud-system:
+        OCIS_JWT_SECRET: 64
+        OCIS_STORAGE_JWT_SECRET: 64
+        OCIS_TRANSFER_SECRET: 64
+        OCIS_MACHINE_AUTH_API_KEY: 64
+        OCIS_SYSTEM_USER_API_KEY: 64
+    extra_env:
+      OCIS_URL: "https://cloud.smadja.dev"
+      OCIS_INSECURE: "true"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  - name: paperless-ngx
+    category: protected
+    tier: standard
+    namespace: productivity
+    port: 8000
+    hostname: paperless.smadja.dev
+    mode: protected
+    clusters: [oci]
+    homepage:
+      description: Document Management
+      widget:
+        type: paperlessngx
+        url: https://paperless.smadja.dev
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    database:
+      local: true
+      size: "20Gi"
+      storage_class: "oci-bv"
+    extra_env:
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.smadja.dev"
+      PAPERLESS_URL: "https://paperless.smadja.dev"
+      PAPERLESS_REMOTE_USER_SET_NAME: "true"
+      PAPERLESS_REMOTE_USER_SET_EMAIL: "true"
+    provisioning:
+      method: header
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    helm:
+      chart: paperless-ngx
+      repo: https://charts.gabe565.com
+      version: 0.16.0
+      values:
+        service:
+          main:
+            enabled: true
+        redis:
+          enabled: true
+          image:
+            registry: docker.io
+            repository: library/redis
+            tag: 7.4.2
+          master:
+            image:
+              registry: docker.io
+              repository: library/redis
+              tag: 7.4.2
+            persistence:
+              enabled: false
+          global:
+            redis:
+              password: ""
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+        persistence:
+          data:
+            enabled: true
+            accessMode: "ReadWriteOnce"
+            size: "5Gi"
+            storageClass: "local-path"
+          media:
+            enabled: true
+            accessMode: "ReadWriteOnce"
+            size: "40Gi"
+            storageClass: "hetzner-smb"
+          consume:
+            enabled: true
+            accessMode: "ReadWriteOnce"
+            size: "5Gi"
+            storageClass: "hetzner-smb"
+          export:
+            enabled: true
+            accessMode: "ReadWriteOnce"
+            size: "5Gi"
+            storageClass: "hetzner-smb"
+    test:
+      requires_extended_timeout: true
+
+
+  - name: open-webui
+    category: public
+    tier: standard
+    namespace: ai
+    port: 80
+    hostname: ai.smadja.dev
+    mode: public
+    clusters: [oci]
+    homepage:
+      description: Local LLM Interface
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    database:
+      local: true
+      size: "5Gi"
+      storage_class: "local-path"
+    provisioning:
+      method: oidc
+    secrets:
+      - name: open-webui-oidc
+        keys:
+          OAUTH_CLIENT_SECRET: OPEN_WEBUI_OIDC_CLIENT_SECRET
+    extra_env:
+      SHOW_ADMIN_DETAILS: "false"
+    helm:
+      chart: open-webui
+      repo: https://helm.openwebui.com/
+      version: 4.0.0
+      values:
+        extraEnvVars:
+          - name: SHOW_ADMIN_DETAILS
+            value: "false"
+          - name: OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: open-webui-oidc
+                key: OAUTH_CLIENT_SECRET
+        ollama:
+          image:
+            repository: docker.io/ollama/ollama
+    storage:
+      - name: data
+        size: "5Gi"
+        mount_path: "/app/backend/data"
+        storage_class: "local-path"
+      - name: pipelines
+        size: "2Gi"
+        mount_path: "/app/backend/data" # This is for the subchart, adapter will handle mapping
+        storage_class: "local-path"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    test:
+      requires_extended_timeout: true
+
+  - name: envoy-ai-gateway
+    category: internal
+    tier: critical
+    namespace: observability
+    port: 18000
+    mode: internal
+    clusters: [oci]
+    dependencies: [envoy-gateway, external-secrets]
+    disable_auto_route: true
+    helm:
+      chart: gateway-helm
+      repo: oci://docker.io/envoyproxy
+      version: v1.2.1
+      values:
+        # Configuration as code for AI Gateway will be handled in Phase 3
+        aiGateway:
+          enabled: true
+    secrets:
+      - name: ai-gate-keys
+        keys:
+          OPENAI_API_KEY: OPENAI_API_KEY
+          ANTHROPIC_API_KEY: ANTHROPIC_API_KEY
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   # =============================================================================
   # PUBLIC APPLICATIONS - Exposed via Cloudflare Tunnel
   # =============================================================================
 
-  - name: homarr
+  - name: homepage
     category: public
     tier: standard
     namespace: homelab
     port: 3000
     hostname: home.smadja.dev
-    mode: public
+    mode: protected
     clusters: [oci, local]
-    dependencies: [external-secrets, cloudflared, kube-system]
-    helm:
-      chart: homarr
-      repo: oci://ghcr.io/homarr-labs/charts
-      version: 2.0.0
-      values:
-        image:
-          tag: v1.0.0
-        service:
-          ports:
-            app:
-              port: 3000
-        livenessProbe:
-          httpGet:
-            port: 3000
-        readinessProbe:
-          httpGet:
-            port: 3000
-        persistence:
-          config:
-            enabled: true
-            name: homarr-data
-            mountPath: /data
-        envSecrets:
-          db-secret:
-            SECRET_ENCRYPTION_KEY: db-encryption-key
-        env:
-          AUTH_LOGOUT_REDIRECT_URL: "https://home.smadja.dev"
-        podSecurityContext:
-          fsGroup: 1000
-    storage:
-      - name: data
-        size: 1Gi
-        mount_path: /data
-      - name: database
-        size: 1Gi
-        mount_path: /database
-        storage_class: local-path
-    auto_secrets:
-      db-secret:
-        db-encryption-key: 64
-    auth: true
-    replicas: 1
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
     extra_env:
-      AUTH_PROVIDERS: "oidc,credentials"
-      AUTH_OIDC_CLIENT_ID: "homarr-client"
-      AUTH_OIDC_CLIENT_NAME: "Authentik SSO"
-      AUTH_OIDC_ISSUER: "https://auth.smadja.dev/application/o/homarr/"
-      AUTH_OIDC_URI: "https://auth.smadja.dev/application/o/authorize/"
-      AUTH_OIDC_AUTO_LOGIN: "true"
-      AUTH_OIDC_CLIENT_SECRET: "homarr-secret-very-secure-static-value"
+      HOMEPAGE_ALLOWED_HOSTS: "home.smadja.dev"
+      HOMEPAGE_CONFIG_DIR: "/app/config/settings"
+      LOG_TARGETS: "stdout"
+    helm:
+      chart: app-template
+      repo: https://bjw-s-labs.github.io/helm-charts
+      version: 3.2.1
+      values:
+        serviceAccount:
+          name: homepage
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  repository: ghcr.io/gethomepage/homepage
+                  tag: latest
+        persistence:
+          logs:
+            type: emptyDir
+            globalMounts:
+              - path: /app/config/logs
+        service:
+          main:
+            controller: main
+            ports:
+              http:
+                port: 3000
+    config_maps:
+      - name: homepage-config
+        mount_path: /app/config/settings
+        data:
+          settings.yaml: |
+            title: Smadja Homelab
+            background: https://images.unsplash.com/photo-1550745165-9bc0b252723f?q=80&w=2070&auto=format&fit=crop
+            cardBlur: sm
+            theme: dark
+            layout:
+              - Productivity:
+                  style: row
+                  columns: 4
+              - Media:
+                  style: row
+                  columns: 4
+              - Security:
+                  style: row
+                  columns: 4
+              - AI:
+                  style: row
+                  columns: 4
+          widgets.yaml: |
+            - logo:
+                icon: https://raw.githubusercontent.com/gethomepage/homepage/main/public/android-chrome-192x192.png
+            - datetime:
+                text_mode: format
+                format:
+                    timeStyle: short
+                    dateStyle: long
+            - kubernetes:
+                cluster: homelab
+                nodes: true
+            - resources:
+                cpu: true
+                memory: true
+                disk: /
+          kubernetes.yaml: |
+            - homelab:
+                kubeconfig: null # Uses service account
+                namespaces:
+                  - ai
+                  - music
+                  - homelab
+                  - productivity
+                  - vaultwarden
+                  - nextcloud
+                  - authentik
+          bookmarks.yaml: |
+            - Infrastructure:
+                - GitHub:
+                    - abbr: GH
+                      href: https://github.com/SmadjaPaul/homelab
+                - Pulumi:
+                    - abbr: PL
+                      href: https://app.pulumi.com
+                - Doppler:
+                    - abbr: DP
+                      href: https://dashboard.doppler.com
+                - OCI Console:
+                    - abbr: OCI
+                      href: https://cloud.oracle.com
+          docker.yaml: |
+            # Empty
+          services.yaml: |
+            # Empty (Using Auto-Discovery)
+          custom.css: |
+            /* Premium Glassmorphism Theme */
+            :root {
+              --theme-bg: #0f172a;
+              --card-bg: rgba(30, 41, 59, 0.7);
+              --card-blur: 12px;
+              --accent: #38bdf8;
+            }
+            .card {
+              backdrop-filter: blur(var(--card-blur));
+              background-color: var(--card-bg) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1) !important;
+              transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+            }
+            .card:hover {
+              transform: translateY(-4px);
+              box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+              border-color: var(--accent) !important;
+            }
+          custom.js: |
+            console.log('Homepage Premium UI Loaded');
+    auth: true
     test:
       routing: true
       expected_endpoints: [https://home.smadja.dev]
-      network_isolation: []
 
   - name: navidrome
     category: protected
@@ -164,7 +481,14 @@ apps:
     hostname: music.smadja.dev
     mode: protected
     auth: true
-    clusters: [oci, local]
+    provisioning:
+      method: header
+    homepage:
+      description: Music Streaming
+      widget:
+        type: navidrome
+        url: https://music.smadja.dev
+    clusters: [oci]
     dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
       chart: app-template
@@ -189,8 +513,6 @@ apps:
                     value: info
                   - name: ND_EXTAUTH_TRUSTEDSOURCES
                     value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-                  - name: ND_EXTAUTH_USERHEADER
-                    value: "X-authentik-username"
         podSecurityContext:
           fsGroup: 1000
         service:
@@ -234,7 +556,10 @@ apps:
     hostname: soulseek.smadja.dev
     mode: protected
     auth: true
-    clusters: [oci, local]
+    homepage:
+      description: P2P Music Sharing
+      icon: soulseek
+    clusters: [oci]
     dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
       chart: app-template
@@ -248,6 +573,9 @@ apps:
                 image:
                   repository: ghcr.io/slskd/slskd
                   tag: latest
+                env:
+                  - name: SLSKD_LOG_LEVEL
+                    value: info
         podSecurityContext:
           fsGroup: 1000
         service:
@@ -267,20 +595,74 @@ apps:
         mount_path: /music
         existing_claim: navidrome-music
         access: shared
+    provisioning:
+      method: header
     test:
       routing: true
       expected_endpoints: [https://soulseek.smadja.dev]
       network_isolation: [cnpg-system]
 
+  - name: audiobookshelf
+    category: protected
+    tier: standard
+    namespace: music
+    port: 80
+    hostname: audiobooks.smadja.dev
+    mode: protected
+    auth: true
+    provisioning:
+      method: oidc
+    clusters: [oci]
+    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    helm:
+      chart: app-template
+      repo: https://bjw-s-labs.github.io/helm-charts
+      version: 3.2.1
+      values:
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  repository: ghcr.io/advplyr/audiobookshelf
+                  tag: latest
+        service:
+          main:
+            controller: main
+            ports:
+              http:
+                port: 80
+    storage:
+      - name: config
+        size: 1Gi
+        mount_path: /config
+        storage_class: local-path
+      - name: metadata
+        size: 2Gi
+        mount_path: /metadata
+        storage_class: local-path
+      - name: audiobooks
+        size: 1Ti
+        mount_path: /audiobooks
+        existing_claim: navidrome-music
+    test:
+      routing: true
+      expected_endpoints: [https://audiobooks.smadja.dev]
+
   - name: authentik
     category: public
     tier: critical
     namespace: authentik
+    service_name: authentik-server
     port: 80
     hostname: auth.smadja.dev
     mode: public
+    homepage:
+      description: Identity Provider
     clusters: [oci, local]
     dependencies: [cnpg-system, redis, external-secrets, cloudflared, kube-system]
+    extra_env:
+      AUTHENTIK_COOKIE_DOMAIN: ".smadja.dev"
     helm:
       chart: authentik
       name: authentik-release
@@ -299,7 +681,8 @@ apps:
             tag: 7.2
           master:
             persistence:
-              storageClass: oci-bv
+              storageClass: local-path
+              size: 2Gi
             podSecurityContext:
               fsGroup: 1000
           shmSize: 256Mi
@@ -308,8 +691,9 @@ apps:
               allowInsecureImages: true
     storage:
       - name: data
-        size: 10Gi
+        size: 5Gi
         mount_path: /data
+        storage_class: local-path
     database_backup:
       enabled: true
       endpoint_url: "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
@@ -318,7 +702,8 @@ apps:
       secret_access_key: "s3-backup-creds"
     database:
       local: true
-      size: 5Gi
+      size: "20Gi"
+      storage_class: "oci-bv"
     secrets:
       - name: authentik-vars
         keys:
@@ -345,23 +730,27 @@ apps:
   # =============================================================================
 
   - name: vaultwarden
-    category: protected
+    category: public
     tier: critical
     namespace: vaultwarden
     port: 8080
     hostname: vault.smadja.dev
     mode: public
     auth: true
+    homepage:
+      description: Password Manager
     clusters: [oci]
+    provisioning:
+      method: oidc
+      name: vaultwarden-oidc-v2
+      client_id: vaultwarden-v2
     extra_env:
       ROCKET_PORT: "8080"
-      SSO_ENABLED: "true"
-      SSO_AUTHORITY: "https://auth.smadja.dev/application/o/vaultwarden/"
-      SSO_CLIENT_ID: "vaultwarden-client"
-      SSO_CLIENT_SECRET: "vaultwarden-secret-very-secure-static-value"
-      SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: "true"
-      SSO_SIGNUPS_MATCH_EMAIL: "true"
     dependencies: [cnpg-system, external-secrets, cloudflared, authentik, kube-system]
+    database:
+      local: true
+      size: "5Gi"
+      storage_class: "oci-bv"
     helm:
       chart: vaultwarden
       repo: https://charts.gabe565.com
@@ -375,14 +764,29 @@ apps:
           runAsGroup: 1000
           fsGroup: 1000
         domain: vaultwarden.smadja.dev
+        service:
+          main:
+            enabled: true
+            ports:
+              http:
+                port: 8080
+        extraEnv:
+          - name: SSO_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: vaultwarden-oidc
+                key: SSO_CLIENT_SECRET
     storage:
       - name: data
-        size: 1Gi
+        size: "1Gi"
         mount_path: /data
     secrets:
       - name: vaultwarden-vars
         keys:
           ADMIN_TOKEN: VAULTWARDEN_ADMIN_TOKEN
+      - name: vaultwarden-oidc
+        keys:
+          SSO_CLIENT_SECRET: VAULTWARDEN_OIDC_CLIENT_SECRET
     resources:
       requests:
         cpu: 100m
@@ -399,7 +803,80 @@ apps:
   # INTERNAL APPLICATIONS - No external exposure
   # =============================================================================
 
-  # (None current)
+  - name: kube-prometheus-stack
+    category: internal
+    tier: critical
+    namespace: observability
+    port: 9090
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system, external-secrets]
+    disable_auto_route: true
+    helm:
+      chart: kube-prometheus-stack
+      repo: https://prometheus-community.github.io/helm-charts
+      version: 61.3.1
+      values:
+        crds:
+          enabled: true
+        grafana:
+          enabled: false
+        alertmanager:
+          enabled: false
+        prometheus:
+          prometheusSpec:
+            externalLabels:
+              cluster: homelab-oci
+            remoteWrite:
+              - url: "${GRAFANA_CLOUD_PROM_URL}"
+                basicAuth:
+                  username:
+                    name: observability-grafana-cloud
+                    key: GRAFANA_CLOUD_PROM_USERNAME
+                  password:
+                    name: observability-grafana-cloud
+                    key: GRAFANA_CLOUD_API_KEY
+    secrets:
+      - name: observability-grafana-cloud
+        keys:
+          GRAFANA_CLOUD_PROM_URL: GRAFANA_CLOUD_PROM_URL
+          GRAFANA_CLOUD_PROM_USERNAME: GRAFANA_CLOUD_PROM_USERNAME
+          GRAFANA_CLOUD_API_KEY: GRAFANA_CLOUD_API_KEY
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+
+  - name: promtail
+    category: internal
+    tier: critical
+    namespace: observability
+    port: 3101
+    mode: internal
+    clusters: [oci, local]
+    dependencies: [kube-system, external-secrets]
+    disable_auto_route: true
+    helm:
+      chart: promtail
+      repo: https://grafana.github.io/helm-charts
+      version: 6.16.4
+      values:
+        config:
+          clients:
+            - url: "${GRAFANA_CLOUD_LOKI_URL}"
+              basic_auth:
+                username: "${GRAFANA_CLOUD_LOKI_USERNAME}"
+                password: "${GRAFANA_CLOUD_API_KEY}"
+    secrets:
+      - name: observability-loki-auth
+        keys:
+          GRAFANA_CLOUD_LOKI_URL: GRAFANA_CLOUD_LOKI_URL
+          GRAFANA_CLOUD_LOKI_USERNAME: GRAFANA_CLOUD_LOKI_USERNAME
+          GRAFANA_CLOUD_API_KEY: GRAFANA_CLOUD_API_KEY
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
 
   # =============================================================================
   # INFRASTRUCTURE COMPONENTS
@@ -440,6 +917,10 @@ apps:
         replicas: 1
         sentinel:
           enabled: false
+        persistentVolume:
+          enabled: true
+          storageClass: "local-path"
+          size: "10Gi"
 
   - name: external-secrets
     category: internal
@@ -558,9 +1039,13 @@ apps:
         serviceAccount:
           create: true
         sources:
-          - service
           - ingress
-          - gateway-httproute
+        policy: upsert-only
+        txtPrefix: "edns-"
+        domainFilters:
+          - smadja.dev
+        extraArgs:
+          - "--cloudflare-proxied"
         cloudflare:
           apiToken: ""
           proxied: true

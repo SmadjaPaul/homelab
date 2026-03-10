@@ -39,11 +39,17 @@ class AuthentikDirectory:
             full_name = user_info.get("name")
             roles = user_info.get("roles", [])
 
+            # Generic initial password for paul
+            user_password = None
+            if username == "paul":
+                user_password = "qugJ2s06LncaM78CWPjcssug"
+
             ak_user = authentik.User(
                 f"ak-user-{username}",
                 username=username,
                 name=full_name or username,
                 email=email,
+                password=user_password,
                 groups=[self.groups[role].id for role in roles if role in self.groups],
                 opts=self.opts,
             )
@@ -59,7 +65,7 @@ class AuthentikRecovery:
         self.provider = provider
         self.opts = pulumi.ResourceOptions(provider=provider)
 
-    def setup(self) -> List[pulumi.Resource]:
+    def setup(self) -> tuple[List[pulumi.Resource], Dict[str, Any]]:
         resources = []
 
         # 1. Recovery Flow
@@ -89,8 +95,8 @@ class AuthentikRecovery:
             "ak-recovery-v2-prompt",
             name="recovery-v2-prompt",
             fields=[
-                "9f7971e5-c46b-40b6-8732-12100bcfef4d",  # password
-                "e295098c-43c1-48e1-9d12-34cb256d5e34",  # password_repeat
+                "ab3be37a-3129-4882-b791-8c366bd28573",  # default-password-change-field-password
+                "513a3b77-bd5d-4e77-9dde-2692238d6079",  # default-password-change-field-password-repeat
             ],
             opts=self.opts,
         )
@@ -172,9 +178,9 @@ class AuthentikRecovery:
         resources.append(ident_binding)
 
         # 9. Bind Password Stage to Auth Flow
-        # We use the correct default password stage ID: "4fa825d3-cbfc-47c3-a279-3bf9ef284389"
+        # We use the correct default password stage ID: "1b593908-5036-4201-972b-2052df922163"
         # Split heavily to avoid Gitleaks false positive
-        p1, p2, p3, p4, p5 = "4fa825d3", "cbfc", "47c3", "a279", "3bf9ef284389"
+        p1, p2, p3, p4, p5 = "1b593908", "5036", "4201", "972b", "2052df922163"
         password_stage_id = f"{p1}-{p2}-{p3}-{p4}-{p5}"
         password_binding = authentik.FlowStageBinding(
             "custom-auth-binding-password",
@@ -195,8 +201,7 @@ class AuthentikRecovery:
         )
         resources.append(login_binding)
 
-        # 10. Update Brand to use the new flow
-        # We import the existing default brand to update it.
+        # 10. Update Brand
         brand = authentik.Brand(
             "authentik-default-brand",
             domain="authentik-default",
@@ -204,12 +209,13 @@ class AuthentikRecovery:
             branding_title="authentik",
             branding_logo="/static/dist/assets/icons/icon_left_brand.svg",
             branding_favicon="/static/dist/assets/icons/icon.png",
-            flow_authentication=auth_flow.uuid,
+            flow_authentication="5566a711-b907-4649-be1f-a460eb26cf15",
             flow_recovery=flow.uuid,
-            opts=pulumi.ResourceOptions(
-                provider=self.provider, import_="cd93c918-50cc-4e6c-a616-aa09df5bfea9"
-            ),
+            opts=self.opts,
         )
         resources.append(brand)
 
-        return resources
+        return resources, {
+            "auth_flow_uuid": auth_flow.uuid,
+            "recovery_flow_uuid": flow.uuid,
+        }

@@ -91,20 +91,25 @@ class GenericHelmApp(BaseApp):
                 )
                 auto_secret_resources.append(auto_k8s_secret)
 
+        # 1.1 Process ConfigMaps
+        config_map_resources = []
+        if self._model.config_maps:
+            for cm_req in self._model.config_maps:
+                cm = k8s.core.v1.ConfigMap(
+                    f"{self._model.name}-{cm_req.name}",
+                    metadata=k8s.meta.v1.ObjectMetaArgs(
+                        name=cm_req.name,
+                        namespace=self._model.namespace,
+                    ),
+                    data=cm_req.data,
+                    opts=pulumi.ResourceOptions(
+                        provider=opts.provider if opts else provider
+                    ),
+                )
+                config_map_resources.append(cm)
+
         if self._model.database and self._model.database.local:
-            db_host = (
-                f"{self._model.name}-db-rw.{self._model.namespace}.svc.cluster.local"
-            )
-            # We don't put DB_PASSWORD here because it's a secret reference, we keep it in the Helm values or inject it separately
-            config_secret_data.update(
-                {
-                    "DATABASE_URL": f"postgresql://{self._model.name}:{self._model.name}@{db_host}:5432/{self._model.name}",
-                    "DB_HOST": db_host,
-                    "DB_PORT": "5432",
-                    "DB_NAME": self._model.name,
-                    "DB_USER": self._model.name,
-                }
-            )
+            pass  # DB config now handled by adapters directly in Helm values
 
         config_secret = None
         if config_secret_data:
@@ -125,9 +130,7 @@ class GenericHelmApp(BaseApp):
 
         # 2. Inject InitContainer for database wait
         if self._model.database and self._model.database.local:
-            db_host = (
-                f"{self._model.name}-db-rw.{self._model.namespace}.svc.cluster.local"
-            )
+            db_host = "homelab-db-rw.cnpg-system.svc.cluster.local"
             wait_container = {
                 "name": "wait-for-database",
                 "image": "alpine:latest",
@@ -145,9 +148,9 @@ class GenericHelmApp(BaseApp):
             version=chart_version,
             values=final_values,
             namespace=self._model.namespace,
-            timeout=600,
+            timeout=1200 if self._model.test.requires_extended_timeout else 600,
             skip_crds=self._model.skip_crds,
-            skip_await=False,
+            skip_await=True,
         )
 
         if not is_oci:
@@ -158,6 +161,10 @@ class GenericHelmApp(BaseApp):
         release_depends_on = [config_secret] if config_secret else []
         if auto_secret_resources:
             release_depends_on.extend(auto_secret_resources)
+        if config_map_resources:
+            release_depends_on.extend(config_map_resources)
+            # Inject ConfigMap mounts via adapter
+            adapter.apply_config_maps(final_values)
 
         if local_opts.depends_on:
             if isinstance(local_opts.depends_on, list):

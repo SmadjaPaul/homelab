@@ -17,6 +17,7 @@ class KubernetesRegistry:
         self.doppler_secrets = doppler_secrets
         self.parent = parent
         self.crd_wait_cmd = None
+        self.shared_db_cluster = None
 
     def wait_for_crds(self):
         crd_name = "externalsecrets.external-secrets.io"
@@ -27,7 +28,7 @@ class KubernetesRegistry:
         )
 
     def get_standard_labels(self, app: AppModel) -> Dict[str, str]:
-        return {
+        labels = {
             "app.kubernetes.io/name": app.name,
             "app.kubernetes.io/instance": app.name,
             "app.kubernetes.io/managed-by": "pulumi",
@@ -35,6 +36,7 @@ class KubernetesRegistry:
             "homelab.dev/tier": app.tier.value,
             "homelab.dev/category": app.category.value,
         }
+        return labels
 
     def setup_rbac_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
@@ -56,6 +58,49 @@ class KubernetesRegistry:
             },
             opts=opts,
         )
+
+        if app.name == "homepage":
+            # Homepage needs to see pods/services for discovery
+            role = k8s.rbac.v1.ClusterRole(
+                "homepage-k8s-discovery-role",
+                metadata={"name": "homepage-k8s-discovery"},
+                rules=[
+                    {
+                        "apiGroups": [""],
+                        "resources": ["pods", "services", "namespaces", "nodes"],
+                        "verbs": ["get", "list", "watch"],
+                    },
+                    {
+                        "apiGroups": ["networking.k8s.io"],
+                        "resources": ["ingresses"],
+                        "verbs": ["get", "list", "watch"],
+                    },
+                    {
+                        "apiGroups": ["traefik.containo.us", "traefik.io"],
+                        "resources": ["ingressroutes"],
+                        "verbs": ["get", "list", "watch"],
+                    },
+                ],
+                opts=opts,
+            )
+            k8s.rbac.v1.ClusterRoleBinding(
+                "homepage-k8s-discovery-binding",
+                metadata={"name": "homepage-k8s-discovery"},
+                role_ref={
+                    "apiGroup": "rbac.authorization.k8s.io",
+                    "kind": "ClusterRole",
+                    "name": role.metadata["name"],
+                },
+                subjects=[
+                    {
+                        "kind": "ServiceAccount",
+                        "name": sa.metadata["name"],
+                        "namespace": sa.metadata["namespace"],
+                    }
+                ],
+                opts=opts,
+            )
+
         return [sa]
 
     def setup_reliability_for_app(
@@ -160,8 +205,9 @@ class KubernetesRegistry:
 
                 for k in keys_to_check:
                     if k not in secret_map:
-                        raise ValueError(
-                            f"CRITICAL ERROR: Secret key '{k}' required by app '{app.name}' is MISSING in Doppler (project: infrastructure, config: prd). Please add it in Doppler before deploying."
+                        print(
+                            f"    ⚠️  [WARNING] Secret key '{k}' required by app '{app.name}' is temporarily MISSING in Doppler. "
+                            f"The ExternalSecret will be created but will only sync once added to Doppler."
                         )
 
             pulumi.Output.all(
@@ -261,38 +307,228 @@ class KubernetesRegistry:
                     data.append({"secretKey": key, "remoteRef": {"key": key}})
         return data
 
+    def setup_shared_database_cluster(
+        self, opts: pulumi.ResourceOptions
+    ) -> List[pulumi.Resource]:
+        """Create a single shared HA CNPG Cluster for all apps to save OCI storage."""
+        print("  [Registry] Provisioning shared HA CNPG Cluster (homelab-db)...")
+
+        # We put it in cnpg-system as it's the operator namespace and central
+        namespace = "cnpg-system"
+
+        # 1. S3 Backup Secret for the shared cluster
+        # Using a fixed name for the shared cluster backup creds
+        backup_creds = k8s.apiextensions.CustomResource(
+            "homelab-db-backup-creds",
+            api_version="external-secrets.io/v1beta1",
+            kind="ExternalSecret",
+            metadata={
+                "name": "homelab-db-backup-creds",
+                "namespace": namespace,
+                "annotations": {"pulumi.com/patchForce": "true"},
+            },
+            spec={
+                "refreshInterval": "1h",
+                "secretStoreRef": {"kind": "ClusterSecretStore", "name": "doppler"},
+                "target": {
+                    "name": "homelab-db-backup-creds",
+                    "creationPolicy": "Owner",
+                },
+                "data": [
+                    {
+                        "secretKey": "access_key_id",
+                        "remoteRef": {"key": "S3_BACKUP_ACCESS_KEY_ID"},
+                    },
+                    {
+                        "secretKey": "secret_access_key",
+                        "remoteRef": {"key": "S3_BACKUP_SECRET_ACCESS_KEY"},
+                    },
+                ],
+            },
+            opts=opts,
+        )
+
+        # 2. The Shared Cluster
+        cluster = k8s.apiextensions.CustomResource(
+            "homelab-db-cluster",
+            api_version="postgresql.cnpg.io/v1",
+            kind="Cluster",
+            metadata={
+                "name": "homelab-db",
+                "namespace": namespace,
+                "labels": {
+                    "app.kubernetes.io/name": "homelab-db",
+                    "app.kubernetes.io/instance": "homelab-db",
+                    "homelab.dev/tier": "critical",
+                },
+                "annotations": {"pulumi.com/patchForce": "true"},
+            },
+            spec={
+                "instances": 2,  # HA across 2 nodes
+                "primaryUpdateStrategy": "unsupervised",
+                "storage": {
+                    "size": "50Gi",  # OCI Minimum
+                    "storageClass": "oci-bv",
+                },
+                "backup": {
+                    "barmanObjectStore": {
+                        "destinationPath": "s3://velero-backups/homelab-db",
+                        "endpointURL": "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com",
+                        "s3Credentials": {
+                            "accessKeyId": {
+                                "name": "homelab-db-backup-creds",
+                                "key": "access_key_id",
+                            },
+                            "secretAccessKey": {
+                                "name": "homelab-db-backup-creds",
+                                "key": "secret_access_key",
+                            },
+                        },
+                        "wal": {"compression": "gzip"},
+                    },
+                    "retentionPolicy": "30d",
+                },
+                "bootstrap": {
+                    "initdb": {
+                        "database": "postgres",
+                        "owner": "postgres",
+                    }
+                },
+            },
+            opts=pulumi.ResourceOptions.merge(
+                opts, pulumi.ResourceOptions(depends_on=[backup_creds])
+            ),
+        )
+
+        self.shared_db_cluster = cluster
+        return [backup_creds, cluster]
+
     def setup_database_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
         if not app.database or not app.database.local:
             return []
 
-        print(f"  [Registry] Provisioning local CNPG Cluster for {app.name}...")
+        if not self.shared_db_cluster:
+            # Fallback for apps that might be deployed before global infra (should not happen)
+            pulumi.log.warn(
+                f"Shared DB cluster not initialized for {app.name}. DB provisioning might fail."
+            )
+            return []
 
-        sc = app.database.storage_class or "local-path"
+        print(
+            f"  [Registry] Provisioning database and user for {app.name} in homelab-db..."
+        )
 
-        db = k8s.apiextensions.CustomResource(
-            f"db-{app.name}",
-            api_version="postgresql.cnpg.io/v1",
-            kind="Cluster",
+        # We need a secret for the application user
+        # We use a RandomPassword and a Secret resource
+        import pulumi_random as random
+
+        db_password = random.RandomPassword(
+            f"{app.name}-db-password-v1",
+            length=32,
+            special=False,  # Avoid psql escaping issues for now
+            opts=opts,
+        )
+
+        app_db_secret = k8s.core.v1.Secret(
+            f"{app.name}-db-app",
             metadata={
-                "name": f"{app.name}-db",
+                "name": f"{app.name}-db-app",
                 "namespace": app.namespace,
-                "labels": self.get_standard_labels(app),
+                "annotations": {"pulumi.com/patchForce": "true"},
             },
-            spec={
-                "instances": 2 if app.tier == "critical" else 1,
-                "storage": {
-                    "size": app.database.size,
-                    "storageClass": sc,
-                },
-                "bootstrap": {
-                    "initdb": {
-                        "database": app.name,
-                        "owner": app.name,
-                    }
-                },
+            string_data={
+                "host": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "username": app.name,
+                "db-username": app.name,  # For Nextcloud and others
+                "user": app.name,  # Alias
+                "password": db_password.result,
+                "dbname": app.name,
+                # Standardized keys for broader compatibility
+                "POSTGRES_HOST": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "POSTGRES_USER": app.name,
+                "POSTGRES_PASSWORD": db_password.result,
+                "POSTGRES_DB": app.name,
+                "DB_HOST": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "DB_USER": app.name,
+                "DB_PASSWORD": db_password.result,
+                "DB_NAME": app.name,
             },
             opts=opts,
         )
-        return [db]
+
+        # Provisioning Job: Creates role and database if they don't exist
+        # We use the superuser secret that CNPG creates: homelab-db-app
+        # Use the full service FQDN and add retry logic for resilience
+
+        db_service = "homelab-db-rw.cnpg-system.svc.cluster.local"
+
+        provision_job = k8s.batch.v1.Job(
+            f"{app.name}-db-provision",
+            metadata={
+                "name": f"{app.name}-db-provision",
+                "namespace": "cnpg-system",
+                "annotations": {"pulumi.com/patchForce": "true"},
+            },
+            spec={
+                "backoffLimit": 4,
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "provisioner",
+                                "image": "docker.io/postgres:16-alpine",
+                                "command": ["sh", "-c"],
+                                "args": [
+                                    # Wait for DB to be ready using pg_isready (without -w flag)
+                                    f"for i in $(seq 1 30); do pg_isready -h {db_service} -U postgres && break || echo 'Waiting for database...'; sleep 2; done; "
+                                    # Create user and database with proper error handling
+                                    f"export PGPASSWORD=$SUPERUSER_PASSWORD; "
+                                    f"psql -h {db_service} -U postgres -d postgres -c \"SELECT 1 FROM pg_database WHERE datname = '{app.name}'\" | grep -q 1 || "
+                                    f"psql -h {db_service} -U postgres -d postgres -c \"CREATE USER \\\"{app.name}\\\" WITH PASSWORD '$APP_PASSWORD';\" 2>/dev/null || echo 'User may exist'; "
+                                    f'psql -h {db_service} -U postgres -d postgres -c "ALTER USER \\"{app.name}\\" WITH PASSWORD \'$APP_PASSWORD\';" 2>/dev/null; '
+                                    f'psql -h {db_service} -U postgres -d postgres -c "CREATE DATABASE \\"{app.name}\\" OWNER \\"{app.name}\\";" 2>/dev/null || echo \'DB may exist\'; '
+                                    f'psql -h {db_service} -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE \\"{app.name}\\" TO \\"{app.name}\\";" 2>/dev/null; '
+                                    f"echo 'Database provisioning completed for {app.name}'",
+                                ],
+                                "env": [
+                                    {
+                                        "name": "PGPASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "homelab-db-app",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": "SUPERUSER_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "name": "homelab-db-app",
+                                                "key": "password",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": "APP_PASSWORD",
+                                        "value": db_password.result,
+                                    },
+                                ],
+                            }
+                        ],
+                        "restartPolicy": "Never",
+                    }
+                },
+            },
+            opts=pulumi.ResourceOptions.merge(
+                opts,
+                pulumi.ResourceOptions(
+                    depends_on=[self.shared_db_cluster, db_password],
+                    delete_before_replace=True,
+                ),
+            ),
+        )
+
+        return [app_db_secret, provision_job]

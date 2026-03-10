@@ -2,21 +2,32 @@
 
 Ce document détaille comment le trafic circule depuis l'internet jusqu'à vos services, avec une approche Zero Trust stricte.
 
-## 🌐 Flux du Trafic Public (Zero Trust)
-
-Aucun port serveur n'est ouvert publiquement sur l'IP publique Cloud (OCI) ou à domicile.
+## 🌐 Flux du Trafic (Zero Trust)
 
 ```mermaid
 graph LR
-    User((Utilisateur)) --> CF[Cloudflare DNS/WAF/Access]
+    User((Utilisateur)) --> CF[Cloudflare DNS]
     CF --> Tunnel[Cloudflare Tunnel]
     Tunnel --> Outpost[Authentik Outpost]
-    Outpost --> Ingress[Envoy Gateway]
-    Ingress --> Service[Application Pod]
+    Outpost --> App[Application Pod]
 ```
 
+### Gestion DNS (Auto-Discovery)
+
+- **external-dns** (K8s operator) surveille l'Ingress créé par l'Outpost Authentik
+- Quand un nouveau hostname apparaît dans l'Ingress, `external-dns` crée automatiquement un CNAME vers le Tunnel
+- Aucune intervention manuelle nécessaire pour le DNS
+
+### Gestion du Tunnel (Pulumi)
+
+- **TunnelManager** configure les règles d'ingress du Tunnel Cloudflare
+- Apps `protected` → trafic routé vers l'Outpost Authentik
+- Apps `public` → trafic routé directement vers le Service K8s
+
 ### Composants Clés
+
 - **Cloudflare Tunnel (`cloudflared`)** : Établit un tunnel sortant sécurisé vers l'edge de Cloudflare via HTTPS/Quic. Le trafic DNS entrant est intercepté et canalisé via ce tunnel.
+- **external-dns** : Opérateur K8s qui crée automatiquement les enregistrements DNS basés sur les Ingress. Surveillance l'Ingress de l'Outpost Authentik pour découverte automatique des hostnames.
 - **Authentik (SSO & IdP)** : Le système Authentik central gère toutes les authentifications:
   - **Forward-Auth (Proxy)**: Mure les applications n'ayant pas d'authentification native.
   - **OIDC/OAuth2**: Fournit des jetons SS0 (Single Sign-On) pour des applications modernes (Vaultwarden, Navidrome).
@@ -35,4 +46,4 @@ Lors de son intégration, l'application (ex: Vaultwarden) communique via OIDC (a
 L'administration du cluster K8s et les accès à l'API OCI sont sécurisés localement.
 L'accès HTTPS vers le tableau de bord d'Authentik est réservé au rôle Administrateur et passe par l'infrastructure Cloudflare sécurisée.
 
-*Pour diagnostiquer un problème d'accès, vérifier les logs du pod `cloudflared` dans l'espace `cloudflared` et de l'`outpost` dans `security`.*
+*Pour diagnostiquer un problème d'accès, vérifier les logs du pod `cloudflared` dans l'espace `cloudflared`, de l'`outpost` dans `authentik`, et de `external-dns` dans `external-dns`.*

@@ -99,11 +99,15 @@ def extract_images_from_helm_values(values: dict) -> set:
                 if isinstance(img, str):
                     images.add(img)
                 elif isinstance(img, dict):
-                    # Build image from repository and tag
+                    # Build image from registry, repository and tag
+                    reg = img.get("registry", "")
                     repo = img.get("repository", "")
                     tag = img.get("tag", "latest")
                     if repo:
-                        full_image = f"{repo}:{tag}"
+                        if reg:
+                            full_image = f"{reg}/{repo}:{tag}"
+                        else:
+                            full_image = f"{repo}:{tag}"
                         images.add(full_image)
             for key, value in obj.items():
                 recursive_find(value, f"{path}.{key}")

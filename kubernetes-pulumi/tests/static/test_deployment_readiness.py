@@ -62,21 +62,26 @@ class TestIngressClassValidation:
 
     def test_tunnel_mode_requires_cloudflared_dependency(self):
         """
-        Test that apps using tunnel mode (cloudflare-tunnel) have cloudflared in dependencies.
+        Test that apps using PUBLIC mode (cloudflare-tunnel) have cloudflared in dependencies.
 
         Without cloudflared deployed, Ingress with cloudflare-tunnel will fail with:
         'Ingress .status.loadBalancer field was not updated with a hostname/IP address'
+
+        Note: All apps with hostnames (both PUBLIC and PROTECTED) need cloudflared.
+        Traffic flow: User -> Cloudflare -> cloudflared -> (Authentik) -> App
         """
         loader = AppLoader()
         apps = loader.load()
 
         errors = []
         for app in apps:
-            if app.mode == ExposureMode.PROTECTED:  # Tunnel mode
+            # All apps with hostnames use cloudflared tunnel
+            # PROTECTED apps additionally go through Authentik after cloudflared
+            if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
                 has_cloudflared_dep = "cloudflared" in app.dependencies
                 if not has_cloudflared_dep:
                     errors.append(
-                        f"App '{app.name}' uses PROTECTED mode (cloudflare-tunnel) "
+                        f"App '{app.name}' uses {app.mode.value} mode with a hostname "
                         f"but doesn't have 'cloudflared' in dependencies. "
                         f"Current dependencies: {app.dependencies}"
                     )
@@ -96,6 +101,9 @@ class TestRequiredOperators:
         Test that apps specify their required operators as dependencies.
 
         This prevents 'No matching service found' and timeout errors.
+
+        Note: All traffic (both PUBLIC and PROTECTED) goes through cloudflared tunnel.
+        PROTECTED apps then go through Authentik for authentication.
         """
         loader = AppLoader()
         apps = loader.load()
@@ -108,8 +116,8 @@ class TestRequiredOperators:
 
             if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
                 if getattr(app, "hostname", None):
-                    # For both Public and Protected modes using hostnames,
-                    # we now route traffic through Cloudflare Tunnel.
+                    # All traffic goes through cloudflared tunnel first
+                    # Then: PUBLIC -> direct to app, PROTECTED -> authentik -> app
                     if "cloudflared" not in app.dependencies:
                         errors.append(
                             f"App '{app.name}' uses mode {app.mode.value} with a hostname "

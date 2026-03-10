@@ -1,10 +1,15 @@
 """
-App loader - loads and parses apps.yaml configuration.
+App loader — loads and parses apps.yaml configuration.
 
-This module provides:
-- Loading apps.yaml configuration with Pydantic validation
-- Filtering apps by cluster
-- Topological sort for dependency ordering
+Provides:
+- Loading apps.yaml with Pydantic validation into `AppModel` objects
+- Filtering apps by cluster (`load_for_cluster`)
+- Topological sort for dependency ordering (`get_deployment_order`)
+
+RELATED FILES:
+  - apps.yaml: The file this loader reads (source of truth for all apps)
+  - shared/utils/schemas.py: `AppModel`, `S3BucketConfig` — Pydantic models
+  - k8s-apps/__main__.py: Calls `AppLoader.load_for_cluster()` to get the app list
 """
 
 from __future__ import annotations
@@ -74,22 +79,23 @@ class DependencyGraph:
             raise ValueError(f"Cyclic dependencies detected: {cycles}")
 
         in_degree = {node: 0 for node in self.nodes}
-        for node in self.nodes:
+        for node in sorted(self.nodes):
             for dep in self.graph.get(node, []):
                 in_degree[node] += 1
 
-        queue = [node for node in self.nodes if in_degree[node] == 0]
+        queue = sorted([node for node in self.nodes if in_degree[node] == 0])
         result = []
 
         while queue:
             node = queue.pop(0)
             result.append(node)
 
-            for other in self.nodes:
+            for other in sorted(self.nodes):
                 if node in self.graph.get(other, []):
                     in_degree[other] -= 1
                     if in_degree[other] == 0:
                         queue.append(other)
+                        queue.sort()  # Keep queue stable
 
         if len(result) != len(self.nodes):
             raise ValueError("Graph has a cycle")

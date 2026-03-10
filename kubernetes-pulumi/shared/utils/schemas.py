@@ -48,6 +48,14 @@ class SecretRequirement(BaseModel):
     remote_key: Optional[str] = None  # If different from name
 
 
+class ConfigMapRequirement(BaseModel):
+    """Defines a ConfigMap requirement for an application (e.g. for config files)."""
+
+    name: str
+    data: Dict[str, str]
+    mount_path: Optional[str] = None
+
+
 class StorageTier(str, Enum):
     EPHEMERAL = "ephemeral"  # Transient data, no backup
     PERSISTENT = "persistent"  # Critical data, 3-2-1 eligible
@@ -127,10 +135,66 @@ class DatabaseConfig(BaseModel):
     storage_class: Optional[str] = None
 
 
+class ProvisioningMethod(str, Enum):
+    """How the app handles user identity from Authentik."""
+
+    OIDC = (
+        "oidc"  # App does its own OIDC flow with Authentik (inside the proxy boundary)
+    )
+    HEADER = "header"  # App reads X-Authentik-* headers injected by the proxy
+    NONE = "none"  # No auto-provisioning (internal/infrastructure apps)
+
+
+class ProvisioningConfig(BaseModel):
+    """Configuration for automatic user provisioning via Authentik."""
+
+    method: ProvisioningMethod = ProvisioningMethod.NONE
+    auto_create: bool = Field(
+        True, description="Auto-create user accounts on first login"
+    )
+    group_sync: bool = Field(
+        False, description="Sync Authentik groups to the application"
+    )
+    name: Optional[str] = Field(
+        None, description="Custom Authentik provider name to avoid naming conflicts"
+    )
+    redirect_uris: List[str] = Field(
+        default_factory=list,
+        description="Custom OIDC redirect URIs (overrides convention-based defaults)",
+    )
+    scopes: List[str] = Field(
+        default_factory=lambda: ["openid", "profile", "email"],
+        description="OIDC scopes to request",
+    )
+    client_id: Optional[str] = Field(
+        None, description="Override auto-generated client_id"
+    )
+    client_secret_key: Optional[str] = Field(
+        None,
+        description="Doppler key name for the client secret (auto-generated if not set)",
+    )
+
+
+class HomepageConfig(BaseModel):
+    """Configuration for Homepage dashboard integration."""
+
+    enabled: bool = True
+    icon: Optional[str] = None
+    widget: Optional[Dict[str, Any]] = (
+        None  # e.g., {"type": "nextcloud", "url": "...", "key": "..."}
+    )
+    group: Optional[str] = None
+    weight: int = 0
+    description: Optional[str] = None
+
+
 class AppModel(BaseModel):
     """Unified configuration for a single application."""
 
     name: str = Field(..., description="Internal name of the application")
+    service_name: Optional[str] = Field(
+        None, description="Kubernetes service name (defaults to name)"
+    )
     namespace: str = Field("default", description="Kubernetes namespace")
     port: int = Field(80, description="Service port")
     hostname: Optional[str] = Field(None, description="Exposed hostname")
@@ -143,10 +207,15 @@ class AppModel(BaseModel):
     clusters: List[str] = Field(default_factory=lambda: ["oci", "local"])
     dependencies: List[str] = Field(default_factory=list)
     auth: bool = Field(False, description="Enable authentication proxy (Authentik)")
+    provisioning: Optional[ProvisioningConfig] = Field(
+        None, description="Auto-provisioning configuration (OIDC/Header)"
+    )
     auth_groups: List[str] = Field(default_factory=list)
+    homepage: Optional[HomepageConfig] = Field(default_factory=HomepageConfig)
     storage: List[StorageConfig] = Field(default_factory=list)
     database: Optional[DatabaseConfig] = None
     secrets: List[SecretRequirement] = Field(default_factory=list)
+    config_maps: List[ConfigMapRequirement] = Field(default_factory=list)
     values: Dict[str, Any] = Field(
         default_factory=dict, description="Custom Helm values (legacy/fallback)"
     )

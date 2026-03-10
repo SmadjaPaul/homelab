@@ -1,4 +1,4 @@
-# Deployment Guide
+# Deployment Guide (V2.0)
 
 This guide details how to initialize and maintain the Homelab V1.0 infrastructure.
 
