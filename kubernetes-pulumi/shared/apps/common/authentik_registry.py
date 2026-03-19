@@ -18,6 +18,7 @@ import json
 import pulumiverse_doppler as doppler
 from shared.utils.schemas import AppModel, ExposureMode, ProvisioningMethod
 from shared.apps.common.authentik_mgmt import AuthentikDirectory, AuthentikRecovery
+from shared.constants import AUTHENTIK_NAMESPACE, AUTHENTIK_OUTPOST_NAME
 
 
 class AuthentikRegistry:
@@ -36,126 +37,72 @@ class AuthentikRegistry:
         self.authentik_groups = {}
         self.proxy_provider_ids = []
         self.public_hostnames = []
+        # Flow IDs resolved dynamically via _lookup_flows()
+        self.flow_authorization = None
+        self.flow_invalidation = None
 
-    def setup_identities(self, authentik_provider: pulumi.ProviderResource):
-        # Handle both dict and Pydantic model
-        identities = self.config.get("identities")
-        print(f"  [Registry] identities raw type: {type(identities)}")
-        if not identities:
-            print("  [Registry] No identities block found in config.")
-            return
-
-        users = identities.get("users", [])
-        groups = identities.get("groups", [])
-
-        print(
-            f"  [Registry] setup_identities found {len(users)} users and {len(groups)} groups."
-        )
-        if not users and not groups:
-            print(
-                f"  [Registry] Identities config empty or invalid. Users exist? {users is not None}, Groups exist? {groups is not None}"
-            )
-            return
-
-        try:
-            import pulumi_authentik as authentik
-        except ImportError:
-            print(
-                "  [Registry] Warning: pulumi-authentik is not installed. Skipping SSO identities setup."
-            )
-            return
-
-        print("  [Registry] Provisioning Authentik Groups and Users...")
-        self.authentik_groups = {}
-        for group in groups if isinstance(groups, list) else (groups or []):
-            name = group["name"] if isinstance(group, dict) else group.name
-            is_superuser = (
-                group.get("is_superuser", False)
-                if isinstance(group, dict)
-                else group.is_superuser
-            )
-            self.authentik_groups[name] = authentik.Group(
-                f"auth-group-{name}",
-                name=name,
-                is_superuser=is_superuser,
-                opts=pulumi.ResourceOptions(
-                    parent=self.parent, provider=authentik_provider
-                ),
-            )
-
-        for user in users if users else []:
-            u_name = user["name"] if isinstance(user, dict) else user.name
-            u_display_name = (
-                (user.get("display_name") or u_name)
-                if isinstance(user, dict)
-                else (user.display_name or user.name)
-            )
-            u_email = user.get("email") if isinstance(user, dict) else user.email
-            u_groups = user.get("groups", []) if isinstance(user, dict) else user.groups
-            u_attributes = (
-                user.get("attributes", {})
-                if isinstance(user, dict)
-                else user.attributes
-            )
-
-            group_ids = [
-                self.authentik_groups[g].id
-                for g in u_groups
-                if g in self.authentik_groups
-            ]
-            import json
-
-            user_opts = pulumi.ResourceOptions(
-                parent=self.parent, provider=authentik_provider
-            )
-
-            authentik.User(
-                f"ak-user-{u_name}",
-                username=u_name,
-                name=u_display_name,
-                email=u_email,
-                groups=group_ids,
-                attributes=json.dumps(u_attributes),
-                opts=user_opts,
-            )
+        # Initialize OIDC scope attributes to avoid AttributeError if lookups fail
+        self._oidc_scope_openid = None
+        self._oidc_scope_email = None
+        self._oidc_scope_profile = None
+        self._signing_keypair = None
 
     def configure_authentik_directory(
         self, authentik_provider: pulumi.ProviderResource, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
         print("  [Registry] Provisioning Authentik User Directory...")
 
-        # NOTE: We use subprocess here intentionally.
-        # `doppler_secrets` in config is a pulumi.Output[dict] which cannot be consumed
-        # synchronously inside a regular Python method. Using Output.get(key, default)
-        # triggers Pulumi's Output.get() which only accepts 1 argument and raises an error.
-        # The subprocess call is a deliberate escape hatch for this startup-time data fetch.
-        import subprocess
+        # Prefer AUTH0_USERS env var (injected by stack_manager.py) over subprocess
+        import os
 
-        try:
-            res = subprocess.check_output(
-                [
-                    "doppler",
-                    "secrets",
-                    "get",
-                    "AUTH0_USERS",
-                    "--plain",
-                    "--project",
-                    "infrastructure",
-                    "--config",
-                    "prd",
-                ],
-                stderr=subprocess.DEVNULL,
-            )
-            users_data = json.loads(res)
-        except Exception as e:
-            print(f"  [Registry] Warning: Could not fetch users from Doppler: {e}")
-            users_data = {}
+        users_json = os.environ.get("AUTH0_USERS")
+        if users_json:
+            users_data = json.loads(users_json)
+        else:
+            # Fallback: subprocess (when running pulumi up directly)
+            import subprocess
+
+            try:
+                res = subprocess.check_output(
+                    [
+                        "doppler",
+                        "secrets",
+                        "get",
+                        "AUTH0_USERS",
+                        "--plain",
+                        "--project",
+                        "infrastructure",
+                        "--config",
+                        "prd",
+                    ],
+                    stderr=subprocess.DEVNULL,
+                )
+                users_data = json.loads(res)
+            except Exception as e:
+                print(f"  [Registry] Warning: Could not fetch users from Doppler: {e}")
+                users_data = {}
 
         pulumi.ResourceOptions.merge(opts, pulumi.ResourceOptions(parent=self.parent))
         directory = AuthentikDirectory(users_data, authentik_provider)
         recovery = AuthentikRecovery(authentik_provider)
         resources, self.flow_ids = recovery.setup()
         return directory.provision() + resources
+
+    def _lookup_flows(self, authentik_provider: pulumi.ProviderResource):
+        """Resolve flow UUIDs dynamically by slug instead of hardcoding."""
+        import pulumi_authentik as authentik
+        from shared.constants import FLOW_AUTHORIZATION_SLUG, FLOW_INVALIDATION_SLUG
+
+        auth_flow = authentik.get_flow_output(
+            slug=FLOW_AUTHORIZATION_SLUG,
+            opts=pulumi.InvokeOptions(provider=authentik_provider),
+        )
+        inv_flow = authentik.get_flow_output(
+            slug=FLOW_INVALIDATION_SLUG,
+            opts=pulumi.InvokeOptions(provider=authentik_provider),
+        )
+        self.flow_authorization = auth_flow.id
+        self.flow_invalidation = inv_flow.id
 
     def _get_redirect_uris(self, app: AppModel) -> List[Dict[str, str]]:
         """Determine redirect URIs based on app config or convention."""
@@ -167,13 +114,19 @@ class AuthentikRegistry:
 
         # Conventions for apps that don't specify redirect URIs
         convention = {
-            "opencloud": ["/oidc-callback.html"],
             "vaultwarden": ["/identity/connect/oidc-signin"],
             "audiobookshelf": [
                 "/auth/openid/callback",
                 "/auth/openid/mobile-redirect",
             ],
             "open-webui": ["/oauth/oidc/callback"],
+            "immich": [
+                "/auth/login",
+                "/user-settings",
+                "app.immich:///oauth-callback",
+            ],
+            "nextcloud": ["/apps/user_oidc/code"],
+            "romm": ["/api/oauth2/openid/callback"],
         }
 
         hostname = app.hostname
@@ -189,7 +142,9 @@ class AuthentikRegistry:
         opts: pulumi.ResourceOptions,
     ) -> List[pulumi.Resource]:
         """Phase 2: Provision Authentik Proxy or OAuth2 Providers and Applications for all apps."""
+        print(f"  [Registry] configure_authentik_layer starting with {len(apps)} apps")
         resources = []
+        self._lookup_flows(authentik_provider)
         resources.extend(self.configure_authentik_directory(authentik_provider, opts))
 
         try:
@@ -200,54 +155,105 @@ class AuthentikRegistry:
             )
             return []
 
-        # Standard flows - Using fixed default UUIDs for stability
-        # Note: Authentik Provider expects UUIDs, not slugs. These are the default flow UUIDs.
-        flow_authorization = "306d2f7d-4b4c-4bbe-81bb-dccebe9b3264"  # default-provider-authorization-implicit-consent
-        flow_invalidation = (
-            "ad1278c4-fb2b-4a91-b063-a24aab34f7bb"  # default-invalidation-flow
-        )
+        # Standard flows - use class attributes
 
         base_opts = pulumi.ResourceOptions.merge(
             opts,
             pulumi.ResourceOptions(provider=authentik_provider, parent=self.parent),
         )
 
-        # Standard Proxy Mappings (reverted to ScopeMapping because ProxyPropertyMapping is missing in this provider)
-        mapping_username = authentik.ScopeMapping(
-            "auth-mapping-username",
-            name="homelab-proxy-mapping-username",
-            scope_name="username",
-            expression="return user.username",
-            opts=base_opts,
-        )
-        mapping_email = authentik.ScopeMapping(
-            "auth-mapping-email",
-            name="homelab-proxy-mapping-email",
-            scope_name="email",
-            expression="return user.email",
-            opts=base_opts,
-        )
-        mapping_name = authentik.ScopeMapping(
-            "auth-mapping-name",
-            name="homelab-proxy-mapping-name",
-            scope_name="name",
-            expression="return user.name",
-            opts=base_opts,
-        )
-        mapping_uid = authentik.ScopeMapping(
-            "auth-mapping-uid",
-            name="homelab-proxy-mapping-uid",
-            scope_name="uid",
-            expression="return user.pk",
-            opts=base_opts,
-        )
-        mapping_groups = authentik.ScopeMapping(
-            "auth-mapping-groups",
-            name="homelab-proxy-mapping-groups",
-            scope_name="groups",
-            expression='return ",".join([g.name for g in user.ak_groups.all()])',
-            opts=base_opts,
-        )
+        try:
+            # Look up Authentik's built-in self-signed certificate for JWT signing.
+            # This ensures OIDC access tokens include a 'kid' header that apps (e.g. OCIS)
+            # can verify against the JWKS endpoint.
+            self._signing_keypair = authentik.get_certificate_key_pair_output(
+                name="authentik Self-signed Certificate",
+                opts=pulumi.InvokeOptions(provider=authentik_provider),
+            )
+            if not self._signing_keypair:
+                pulumi.log.error(
+                    "  [Registry] CRITICAL: Could not find 'authentik Self-signed Certificate' for OIDC signing!"
+                )
+
+            # Look up built-in OIDC scope mappings for token claims
+            self._oidc_scope_openid = (
+                authentik.get_property_mapping_provider_scope_output(
+                    managed="goauthentik.io/providers/oauth2/scope-openid",
+                    opts=pulumi.InvokeOptions(provider=authentik_provider),
+                )
+            )
+            self._oidc_scope_email = (
+                authentik.get_property_mapping_provider_scope_output(
+                    managed="goauthentik.io/providers/oauth2/scope-email",
+                    opts=pulumi.InvokeOptions(provider=authentik_provider),
+                )
+            )
+            self._oidc_scope_profile = (
+                authentik.get_property_mapping_provider_scope_output(
+                    managed="goauthentik.io/providers/oauth2/scope-profile",
+                    opts=pulumi.InvokeOptions(provider=authentik_provider),
+                )
+            )
+
+            # Standard Proxy Mappings (reverted to ScopeMapping because ProxyPropertyMapping is missing in this provider)
+            mapping_username = authentik.ScopeMapping(
+                "auth-mapping-username",
+                name="homelab-proxy-mapping-username",
+                scope_name="username",
+                expression="return user.username",
+                opts=base_opts,
+            )
+            mapping_email = authentik.ScopeMapping(
+                "auth-mapping-email",
+                name="homelab-proxy-mapping-email",
+                scope_name="email",
+                expression='return user.email or f"{user.username}@homelab.internal"',
+                opts=base_opts,
+            )
+            mapping_name = authentik.ScopeMapping(
+                "auth-mapping-name",
+                name="homelab-proxy-mapping-name",
+                scope_name="name",
+                expression="return user.name or user.username",
+                opts=base_opts,
+            )
+            mapping_uid = authentik.ScopeMapping(
+                "auth-mapping-uid",
+                name="homelab-proxy-mapping-uid",
+                scope_name="uid",
+                expression="return user.pk",
+                opts=base_opts,
+            )
+            mapping_groups = authentik.ScopeMapping(
+                "auth-mapping-groups",
+                name="homelab-proxy-mapping-groups",
+                scope_name="groups",
+                expression='return ",".join([g.name for g in user.ak_groups.all()])',
+                opts=base_opts,
+            )
+            # Vaultwarden requires email_verified=True in the OIDC token.
+            # Without this, Vaultwarden rejects the login.
+            mapping_vaultwarden_email = authentik.ScopeMapping(
+                "auth-mapping-vaultwarden-email",
+                name="Vaultwarden Email Scope",
+                scope_name="email",
+                expression="return {'email': request.user.email, 'email_verified': True}",
+                opts=base_opts,
+            )
+            resources.extend(
+                [
+                    mapping_username,
+                    mapping_email,
+                    mapping_name,
+                    mapping_uid,
+                    mapping_groups,
+                    mapping_vaultwarden_email,
+                ]
+            )
+        except Exception as e:
+            print(f"  [Registry] ERROR during Authentik layer initialization: {e}")
+            # We continue to the loop anyway to see if we can provision apps
+            pass
 
         self.proxy_provider_ids = []
 
@@ -269,11 +275,12 @@ class AuthentikRegistry:
                 main_provider = authentik.ProviderProxy(
                     f"proxy-provider-{app.name}",
                     name=f"proxy-provider-{app.name}",
-                    internal_host=f"http://{app.name}.{app.namespace}.svc.cluster.local:{app.port}",
+                    internal_host=f"http://{app.service_name or app.name}.{app.namespace}.svc.cluster.local:{app.port}",
                     external_host=f"https://{hostname}",
                     mode="proxy",
-                    authorization_flow=flow_authorization,
-                    invalidation_flow=flow_invalidation,
+                    intercept_header_auth=False,
+                    authorization_flow=self.flow_authorization,
+                    invalidation_flow=self.flow_invalidation,
                     property_mappings=[
                         mapping_username.id,
                         mapping_email.id,
@@ -284,9 +291,7 @@ class AuthentikRegistry:
                     cookie_domain=self.domain.apply(lambda d: f".{d}"),
                     opts=pulumi.ResourceOptions.merge(
                         base_opts,
-                        pulumi.ResourceOptions(
-                            ignore_changes=["property_mappings", "cookie_domain"],
-                        ),
+                        pulumi.ResourceOptions(),
                     ),
                 )
                 self.proxy_provider_ids.append(main_provider.id)
@@ -309,33 +314,67 @@ class AuthentikRegistry:
             # or as a sidecar provider (PROTECTED dual-layer).
             if app.provisioning and app.provisioning.method == ProvisioningMethod.OIDC:
                 redirect_uris = self._get_redirect_uris(app)
-                client_id = app.provisioning.client_id or f"{app.name}-client"
+                client_id = app.provisioning.client_id or f"{app.name}-oidc"
+
+                # Standard scopes lookup with fallback
+                property_mappings = []
+                if self._oidc_scope_openid:
+                    property_mappings.append(self._oidc_scope_openid.id)
+                if self._oidc_scope_email:
+                    property_mappings.append(self._oidc_scope_email.id)
+                if self._oidc_scope_profile:
+                    property_mappings.append(self._oidc_scope_profile.id)
+
+                # Vaultwarden-specific: add email_verified scope + offline_access
+                oidc_extra_kwargs = {}
+                if app.name == "vaultwarden":
+                    property_mappings.append(mapping_vaultwarden_email.id)
+                    # offline_access scope for session refresh
+                    try:
+                        offline_scope = authentik.get_property_mapping_provider_scope_output(
+                            managed="goauthentik.io/providers/oauth2/scope-offline_access",
+                            opts=pulumi.InvokeOptions(provider=authentik_provider),
+                        )
+                        property_mappings.append(offline_scope.id)
+                    except Exception:
+                        pass
+                    # Access token must be > 5 minutes (Vaultwarden requirement)
+                    oidc_extra_kwargs["access_token_validity"] = "minutes=10"
+
+                oidc_kwargs = dict(
+                    name=app.provisioning.name or f"{app.name}-oidc",
+                    client_id=client_id,
+                    authorization_flow=self.flow_authorization,
+                    invalidation_flow=self.flow_invalidation,
+                    allowed_redirect_uris=redirect_uris,
+                    signing_key=self._signing_keypair.id
+                    if self._signing_keypair
+                    else None,
+                    property_mappings=property_mappings,
+                    opts=base_opts,
+                    **oidc_extra_kwargs,
+                )
 
                 oidc_provider = authentik.ProviderOauth2(
                     f"oidc-provider-{app.name}",
-                    name=app.provisioning.name or f"{app.name}-oidc",
-                    client_id=client_id,
-                    authorization_flow=flow_authorization,
-                    invalidation_flow=flow_invalidation,
-                    allowed_redirect_uris=redirect_uris,
-                    opts=base_opts,
+                    **oidc_kwargs,
                 )
                 resources.append(oidc_provider)
 
-                # OIDC Sidecar Application (Hidden from dashboard, used for Discovery)
-                # This fixes "Impossible de résoudre l'application" errors.
-                # If app is PROTECTED, we use suffix -oidc to avoid slug conflict.
                 oidc_slug = f"{app.name}-oidc"
+                is_public = app.mode == ExposureMode.PUBLIC
                 resources.append(
                     authentik.Application(
                         f"auth-app-{app.name}-oidc",
                         name=f"{app.name.capitalize()} (OIDC)",
                         slug=oidc_slug,
                         protocol_provider=oidc_provider.id,
-                        # Hide from dashboard unless it's the main entry point
+                        # Hide from dashboard unless it's the main entry point (PUBLIC mode)
+                        # The 'blank://blank' URL pattern is recognized as 'hidden' or 'unclickable'
                         meta_launch_url=f"https://{hostname}"
-                        if app.mode == ExposureMode.PUBLIC
-                        else None,
+                        if is_public
+                        else "blank://blank",
+                        open_in_new_tab=is_public,
                         opts=base_opts,
                     )
                 )
@@ -406,30 +445,104 @@ class AuthentikRegistry:
                     "kubernetes_ingress_annotations": {
                         "external-dns.alpha.kubernetes.io/target": f"{args[1]}.cfargotunnel.com",
                         "external-dns.alpha.kubernetes.io/cloudflare-proxied": "true",
+                        "nginx.ingress.kubernetes.io/proxy-buffer-size": "16k",
+                        "nginx.ingress.kubernetes.io/proxy-buffers-number": "4",
+                        "nginx.ingress.kubernetes.io/proxy-busy-buffers-size": "32k",
                     },
                 }
             )
         )
 
+        # --- LDAP Outpost ---
+        ldap_provider = authentik.ProviderLdap(
+            "ldap-provider-homelab",
+            name="homelab-ldap-provider",
+            base_dn="dc=authentik,dc=cluster,dc=local",
+            bind_flow=self.flow_authorization,
+            unbind_flow=self.flow_invalidation,
+            opts=base_opts,
+        )
+        resources.append(ldap_provider)
+
+        ldap_app = authentik.Application(
+            "auth-app-ldap",
+            name="LDAP Directory",
+            slug="ldap",
+            protocol_provider=ldap_provider.id,
+            meta_launch_url="blank://blank",
+            opts=base_opts,
+        )
+        resources.append(ldap_app)
+
+        ldap_outpost = authentik.Outpost(
+            "authentik-ldap-outpost",
+            # Type must be 'ldap' for LDAP providers
+            name="authentik-ldap-outpost",
+            type="ldap",
+            service_connection=svc_conn.id,
+            protocol_providers=[ldap_provider.id],
+            config=outpost_config,
+            opts=pulumi.ResourceOptions.merge(
+                base_opts, pulumi.ResourceOptions(depends_on=[svc_conn, ldap_provider])
+            ),
+        )
+        resources.append(ldap_outpost)
+
         outpost = authentik.Outpost(
             "authentik-embedded-outpost",
-            name="authentik-embedded-outpost",
+            name=AUTHENTIK_OUTPOST_NAME,
             type="proxy",
             service_connection=svc_conn.id,
             protocol_providers=self.proxy_provider_ids,
             config=outpost_config,
-            opts=base_opts,
+            opts=pulumi.ResourceOptions.merge(
+                base_opts, pulumi.ResourceOptions(depends_on=[svc_conn])
+            ),
         )
         resources.append(svc_conn)
         resources.append(outpost)
+
+        # Fix Authentik 2026.2.1: outpost service gets wrong selector
+        # (includes app.kubernetes.io/component: server which pods don't have).
+        # We create a CUSTOM service in Pulumi with the correct selector.
+        import pulumi_kubernetes as k8s
+
+        # Minimal selector that matches the outpost pods
+        outpost_svc_selector = {
+            "app": "authentik-outpost",
+            "goauthentik.io/outpost-name": AUTHENTIK_OUTPOST_NAME,
+            "goauthentik.io/outpost-type": "proxy",
+        }
+
+        outpost_svc = k8s.core.v1.Service(
+            "ak-outpost-svc-custom",
+            metadata=k8s.meta.v1.ObjectMetaArgs(
+                name="ak-outpost-custom",
+                namespace=AUTHENTIK_NAMESPACE,
+            ),
+            spec=k8s.core.v1.ServiceSpecArgs(
+                selector=outpost_svc_selector,
+                ports=[
+                    k8s.core.v1.ServicePortArgs(
+                        name="http", port=9000, target_port=9000, protocol="TCP"
+                    ),
+                    k8s.core.v1.ServicePortArgs(
+                        name="http-metrics", port=9300, target_port=9300, protocol="TCP"
+                    ),
+                    k8s.core.v1.ServicePortArgs(
+                        name="https", port=9443, target_port=9443, protocol="TCP"
+                    ),
+                ],
+            ),
+            opts=pulumi.ResourceOptions(parent=self.parent, depends_on=[outpost]),
+        )
+        resources.append(outpost_svc)
 
         # Create a dedicated Ingress for auth.smadja.dev so external-dns creates a CNAME.
         # The Outpost Ingress only covers protected-app hostnames. auth.smadja.dev
         # (mode: public) would otherwise have no DNS record.
         # NOTE: Resources must NOT be created inside .apply() callbacks — use Output values
         # directly as resource properties instead (Pulumi resolves them automatically).
-        import pulumi_kubernetes as k8s
-
         tunnel_target = self.tunnel_id.apply(lambda tid: f"{tid}.cfargotunnel.com")
 
         # Collect all public hostnames that need DNS but aren't in the Outpost Ingress.

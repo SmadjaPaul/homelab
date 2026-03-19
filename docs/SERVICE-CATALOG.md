@@ -1,58 +1,48 @@
-# Catalogue des Services Homelab V2.0
+# Service Catalog (auto-generated from apps.yaml)
 
-Ce document recense les services gérés par **Pulumi** sur l'infrastructure.
+> Last updated: 2026-03-24 — Edit `apps.yaml`, then run `scripts/update-context.py`
 
-## 🚀 Services Déployés (Actifs)
+## Protected Apps (Authentik SSO)
 
-### Gateway & Identity (OCI - OKE - 2 Nodes)
+| Name | Namespace | URL | Helm Chart | Mode |
+|------|-----------|-----|------------|------|
+| **nextcloud** | `productivity` | - | `nextcloud` | protected |
+| **paperless-ngx** | `productivity` | - | `paperless-ngx` | protected |
+| **immich** | `photography` | - | `immich` | protected |
+| **romm** | `gaming` | - | `romm` | protected |
+| **homepage** | `homelab` | - | `app-template` | protected |
+| **navidrome** | `music` | - | `app-template` | protected |
+| **slskd** | `music` | - | `app-template` | protected |
+| **audiobookshelf** | `music` | - | `app-template` | protected |
 
-| Service | Usage | Namespace | URL | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **Envoy Gateway** | Ingress Controller HTTPS | `envoy-gateway` | - | ✅ |
-| **Cloudflared** | Tunnel Edge Zero Trust | `cloudflared` | - | ✅ |
-| **Authentik** | Identity Provider (IdP) & SSO | `authentik` | [auth.smadja.dev](https://auth.smadja.dev) | ✅ |
-| **Vaultwarden** | Mots de passe (OIDC Auto-Provision) | `vaultwarden` | [vault.smadja.dev](https://vault.smadja.dev) | ✅ |
+## Public Apps
 
-### Workloads & Data (OCI - OKE)
+| Name | Namespace | URL | Helm Chart | Mode |
+|------|-----------|-----|------------|------|
+| **open-webui** | `ai` | - | `open-webui` | public |
+| **authentik** | `authentik` | - | `authentik` | public |
+| **vaultwarden** | `vaultwarden` | - | `vaultwarden` | public |
 
-| Service | Usage | Namespace | URL | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **Homepage** | Dashboard d'accueil | `homelab` | [home.smadja.dev](https://home.smadja.dev) | ✅ |
-| **Navidrome** | Serveur de Streaming Audio | `music` | [music.smadja.dev](https://music.smadja.dev) | ✅ |
-| **Soulseek** | Partage P2P (slskd) | `music` | [soulseek.smadja.dev](https://soulseek.smadja.dev) | ✅ |
-| **Audiobookshelf** | Livres Audio | `audiobooks` | [audiobooks.smadja.dev](https://audiobooks.smadja.dev) | ✅ |
-| **Nextcloud** | Cloud & Fichiers | `productivity` | [cloud.smadja.dev](https://cloud.smadja.dev) | ⏳ (Setup) |
-| **Paperless-ngx** | Gestion de Documents | `productivity` | [paperless.smadja.dev](https://paperless.smadja.dev) | ⏳ (SSO Partial) |
-| **Open-WebUI** | Interface IA / LLM | `ai` | [ai.smadja.dev](https://ai.smadja.dev) | ✅ |
-| **Envoy AI Gateway** | Proxy & Securité LLM | `observability` | - | ✅ |
+## Internal / Infrastructure Apps
 
-### Infrastructure
+| Name | Namespace | URL | Helm Chart | Mode |
+|------|-----------|-----|------------|------|
+| **envoy-ai-gateway** | `observability` | - | `gateway-helm` | internal |
+| **kube-prometheus-stack** | `observability` | - | `kube-prometheus-stack` | internal |
+| **promtail** | `observability` | - | `promtail` | internal |
+| **cnpg-system** | `cnpg-system` | - | `cloudnative-pg` | internal |
+| **redis** | `storage` | - | `redis-ha` | internal |
+| **external-secrets** | `external-secrets` | - | `external-secrets` | internal |
+| **cert-manager** | `cert-manager` | - | `cert-manager` | internal |
+| **envoy-gateway** | `envoy-gateway` | - | `gateway-helm` | internal |
+| **cloudflared** | `cloudflared` | - | `cloudflare-tunnel-remote` | internal |
+| **external-dns** | `external-dns` | - | `external-dns` | internal |
+| **local-path-provisioner** | `kube-system` | - | `local-path-provisioner` | internal |
+| **csi-driver-smb** | `kube-system` | - | `csi-driver-smb` | internal |
 
-| Service | Usage | Namespace | Status |
-| :--- | :--- | :--- | :--- |
-| **CloudNativePG** | Clusters PostgreSQL K8s | `cnpg-system` | ✅ |
-| **Prometheus/Loki** | Stack Observabilité | `observability` | ✅ |
-| **External Secrets** | Gestion Secrets (Doppler) | `external-secrets` | ✅ |
+## S3 Buckets
 
----
-
-## 💾 Stockage & Quotas (Optimisé V2)
-
-- **OCI Block Storage (Consolidé)**: Un unique cluster HA **homelab-db** de **2 x 50GB** (100GB total) pour toutes les bases de données applicatives. Respecte la limite "Always Free" de 200GB (incluant les volumes de boot).
-- **Local Path CSI**: Utilisé pour les données éphémères ou haute performance (Redis, Caches, Temp).
-- **SMB CSI (Hetzner Storage Box)**: Pour les gros volumes de données persistantes (Nextcloud Data, Navidrome Music, Paperless Documents).
-- **OCI Object Storage**: Buckets S3 pour les backups automatiques de `homelab-db`.
-
----
-
-## 🔮 Roadmap Services (Wishlist)
-
-- **Immich**: Photos (Prochaine étape majeure).
-- **Home Assistant**: Domotique.
-- **cal.com**: prise de rendezvous auto.
-- **Add guard home**: add blocker.
-- **SearXGN**: search engine.
-
----
-
-> **Note**: Ce catalogue doit correspondre à `apps.yaml`. En cas de doute, `apps.yaml` est la source de vérité.
+| Name | Provider | Purpose | Tier |
+|------|----------|---------|------|
+| `velero-backups` | oci | backup | InfrequentAccess |
+| `homelab-db-backups` | oci | backup | InfrequentAccess |

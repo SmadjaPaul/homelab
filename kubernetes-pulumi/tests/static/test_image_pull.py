@@ -10,13 +10,8 @@ This prevents ImagePullBackOff errors due to:
 
 import subprocess
 import pytest
-import yaml
 from typing import Tuple
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from conftest import get_apps_config
 
 
 def parse_image(image_str: str) -> Tuple[str, str, str]:

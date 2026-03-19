@@ -3,11 +3,7 @@ import subprocess
 import os
 import pytest
 import requests
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from shared.apps.loader import load_apps
 
 
 def registry_check_image_exists(image_str):
@@ -124,21 +120,20 @@ def test_image_tags_exist():
     Validates that all images referenced in our deployment manifests actually exist
     in their respective container registries. This prevents ImagePullBackOff errors.
     """
-    config = get_apps_config()
-    apps = config.get("apps", [])
+    apps = load_apps("oci")
 
     errors = []
 
-    for app_config in apps:
-        app_name = app_config.get("name")
-        if "helm" not in app_config:
+    for app in apps:
+        app_name = app.name
+        if not app.helm:
             continue
 
-        helm_conf = app_config["helm"]
-        repo = helm_conf.get("repo", "")
-        chart = helm_conf.get("chart", "")
-        version = helm_conf.get("version", "")
-        values = helm_conf.get("values", {})
+        helm_conf = app.helm
+        repo = helm_conf.repo or ""
+        chart = helm_conf.chart or ""
+        version = helm_conf.version or ""
+        values = helm_conf.values or {}
 
         # Determine Chart Name and Repo processing
         if not repo:

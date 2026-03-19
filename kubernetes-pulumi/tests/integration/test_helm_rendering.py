@@ -33,11 +33,15 @@ def test_helm_app_transformations():
     model = AppModel(
         name="test-app",
         namespace="default",
-        mode=ExposureMode.INTERNAL,
         category=AppCategory.INTERNAL,
         tier=AppTier.STANDARD,
+        network={
+            "mode": ExposureMode.INTERNAL,
+        },
         helm={"chart": "bitnami/nginx", "version": "15.0.0"},
-        database={"local": True},
+        persistence={
+            "database": {"local": True},
+        },
     )
 
     # 2. Instantiate the app logic
@@ -59,8 +63,8 @@ def test_helm_app_transformations():
     # Verify that local DB info was injected into Helm values for fallback support
     assert "env" in final_values
     env_names = [e["name"] for e in final_values["env"]]
-    assert "DATABASE_URL" in env_names
-    assert "DB_HOST" in env_names
+    assert "POSTGRES_HOST" in env_names
+    assert "POSTGRES_DB" in env_names
 
 
 def test_authentik_database_secret_values():
@@ -69,13 +73,17 @@ def test_authentik_database_secret_values():
     model = AppModel(
         name="authentik",
         namespace="authentik",
-        mode=ExposureMode.INTERNAL,
         category=AppCategory.INTERNAL,
         tier=AppTier.STANDARD,
+        network={
+            "mode": ExposureMode.INTERNAL,
+        },
         helm={
             "chart": "authentik/authentik",
         },
-        database={"local": True},
+        persistence={
+            "database": {"local": True},
+        },
     )
 
     from shared.apps.impl.authentik import create_app

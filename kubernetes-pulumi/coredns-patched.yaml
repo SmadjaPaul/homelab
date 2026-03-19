@@ -1,0 +1,60 @@
+apiVersion: v1
+data:
+  Corefile: |-
+    # Handles cluster DNS
+    cluster.local in-addr.arpa ip6.arpa {
+      errors
+      log
+      health {
+        lameduck 5s
+      }
+      ready
+      kubernetes cluster.local in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+      }
+      prometheus :9153
+      forward . 169.254.169.254 8.8.8.8
+      cache 30
+      loop
+      reload
+      loadbalance
+    }
+    # Handles OCI DNS.
+    oraclevcn.com oraclecloud.com oracleiaas.com {
+      errors
+      log
+      health {
+        lameduck 5s
+      }
+      ready
+      prometheus :9153
+      forward . 169.254.169.254 8.8.8.8
+      cache 30
+      loop
+      reload
+      loadbalance
+    }
+    # Fallback DNS
+    .:53 {
+      errors
+      log
+      health {
+        lameduck 5s
+      }
+      ready
+      prometheus :9153
+      forward . 169.254.169.254 8.8.8.8
+      cache 30
+      loop
+      reload
+      loadbalance
+    }
+    import custom/*.server
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2026-03-03T18:34:55Z"
+  name: coredns
+  namespace: kube-system
+  resourceVersion: "634"
+  uid: 8add63a2-e791-4a59-a3b2-f1b1d2bc0bca

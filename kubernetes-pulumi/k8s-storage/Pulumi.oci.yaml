@@ -8,3 +8,4 @@ config:
   homelab-k8s-storage:ociNamespace: axnvxxurxefp
   homelab-k8s-storage:ociRegion: eu-paris-1
   homelab-k8s-storage:ociCompartmentId: ocid1.tenancy.oc1..aaaaaaaamwy5a55i2ljjxildejy42z2zshzs3edjbevyl27q4iv52sqqaqna
+  oci:region: eu-paris-1

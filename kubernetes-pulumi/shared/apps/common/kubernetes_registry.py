@@ -44,6 +44,11 @@ class KubernetesRegistry:
         labels = self.get_standard_labels(app)
         labels["app.kubernetes.io/managed-by"] = "Helm"
 
+        # Disable SA token automount by default
+        # homepage needs K8s API access for service discovery
+        # authentik needs K8s API access to manage outpost secrets (embedded outpost)
+        needs_api_access = app.name in ("homepage", "authentik")
+
         sa = k8s.core.v1.ServiceAccount(
             f"sa-{app.name}",
             metadata={
@@ -56,6 +61,7 @@ class KubernetesRegistry:
                     "pulumi.com/patchForce": "true",
                 },
             },
+            automount_service_account_token=needs_api_access,
             opts=opts,
         )
 
@@ -106,7 +112,12 @@ class KubernetesRegistry:
     def setup_reliability_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        if app.replicas > 1:
+        # Create PDB for critical apps even with 1 replica
+        # minAvailable: 0 allows drain but documents the app as critical
+        if app.tier.value == "critical" or app.resources.replicas > 1:
+            min_available = max(
+                0, app.resources.replicas - 1
+            )  # 0 for single replica, N-1 for multi
             pdb = k8s.policy.v1.PodDisruptionBudget(
                 f"pdb-{app.name}",
                 metadata={
@@ -115,7 +126,7 @@ class KubernetesRegistry:
                     "labels": self.get_standard_labels(app),
                 },
                 spec={
-                    "maxUnavailable": 1,
+                    "minAvailable": min_available,
                     "selector": {"matchLabels": {"app.kubernetes.io/name": app.name}},
                 },
                 opts=opts,
@@ -126,7 +137,7 @@ class KubernetesRegistry:
     def setup_monitoring_for_app(
         self, app: AppModel, deployed_apps: Dict[str, Any], opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        if not getattr(app, "monitoring", True):
+        if not app.test.test_monitoring:
             return []
 
         if (
@@ -235,6 +246,28 @@ class KubernetesRegistry:
                 opts=local_opts,
             )
             secrets.append(es)
+
+            # Wait for the ExternalSecret to sync the K8s Secret before apps use it.
+            # This prevents pods from starting with missing secrets.
+            wait_cmd = command.local.Command(
+                f"wait-es-{app.name}-{req.name}",
+                create=(
+                    f"kubectl wait externalsecret/{req.name} "
+                    f"--for=condition=SecretSynced "
+                    f"-n {app.namespace} "
+                    f"--timeout=120s "
+                    f"2>/dev/null || echo 'ExternalSecret {req.name} not yet synced, continuing...'"
+                ),
+                opts=pulumi.ResourceOptions.merge(
+                    opts,
+                    pulumi.ResourceOptions(
+                        depends_on=[es],
+                        parent=self.parent,
+                    ),
+                ),
+            )
+            secrets.append(wait_cmd)
+
         return secrets
 
     def setup_docker_secrets(
@@ -337,11 +370,11 @@ class KubernetesRegistry:
                 "data": [
                     {
                         "secretKey": "access_key_id",
-                        "remoteRef": {"key": "S3_BACKUP_ACCESS_KEY_ID"},
+                        "remoteRef": {"key": "OCI_S3_ACCESS_KEY"},
                     },
                     {
                         "secretKey": "secret_access_key",
-                        "remoteRef": {"key": "S3_BACKUP_SECRET_ACCESS_KEY"},
+                        "remoteRef": {"key": "OCI_S3_SECRET_KEY"},
                     },
                 ],
             },
@@ -364,7 +397,7 @@ class KubernetesRegistry:
                 "annotations": {"pulumi.com/patchForce": "true"},
             },
             spec={
-                "instances": 2,  # HA across 2 nodes
+                "instances": 1,  # Reduced from 2 to free OCI Block Storage quota
                 "primaryUpdateStrategy": "unsupervised",
                 "storage": {
                     "size": "50Gi",  # OCI Minimum
@@ -403,10 +436,124 @@ class KubernetesRegistry:
         self.shared_db_cluster = cluster
         return [backup_creds, cluster]
 
+    def setup_pod_cleanup_cronjob(
+        self, opts: pulumi.ResourceOptions
+    ) -> List[pulumi.Resource]:
+        """Create a CronJob that deletes evicted/failed pods every 5 minutes.
+
+        Prevents eviction cascades that cause DiskPressure by cleaning up
+        failed pods before they accumulate.
+        """
+        print("  [Registry] Provisioning pod-cleanup CronJob in kube-system...")
+
+        namespace = "kube-system"
+        name = "pod-cleanup"
+
+        sa = k8s.core.v1.ServiceAccount(
+            "pod-cleanup-sa",
+            metadata={
+                "name": name,
+                "namespace": namespace,
+            },
+            opts=opts,
+        )
+
+        role = k8s.rbac.v1.ClusterRole(
+            "pod-cleanup-role",
+            metadata={"name": name},
+            rules=[
+                {
+                    "apiGroups": [""],
+                    "resources": ["pods"],
+                    "verbs": ["get", "list", "delete"],
+                }
+            ],
+            opts=opts,
+        )
+
+        binding = k8s.rbac.v1.ClusterRoleBinding(
+            "pod-cleanup-binding",
+            metadata={"name": name},
+            role_ref={
+                "apiGroup": "rbac.authorization.k8s.io",
+                "kind": "ClusterRole",
+                "name": role.metadata["name"],
+            },
+            subjects=[
+                {
+                    "kind": "ServiceAccount",
+                    "name": sa.metadata["name"],
+                    "namespace": namespace,
+                }
+            ],
+            opts=pulumi.ResourceOptions.merge(
+                opts, pulumi.ResourceOptions(depends_on=[sa, role])
+            ),
+        )
+
+        cronjob = k8s.batch.v1.CronJob(
+            "pod-cleanup-cronjob",
+            metadata={
+                "name": name,
+                "namespace": namespace,
+            },
+            spec={
+                "schedule": "*/5 * * * *",
+                "successfulJobsHistoryLimit": 1,
+                "failedJobsHistoryLimit": 1,
+                "jobTemplate": {
+                    "spec": {
+                        "template": {
+                            "spec": {
+                                "serviceAccountName": name,
+                                "restartPolicy": "OnFailure",
+                                "tolerations": [
+                                    {
+                                        "key": "node.kubernetes.io/disk-pressure",
+                                        "operator": "Exists",
+                                        "effect": "NoSchedule",
+                                    }
+                                ],
+                                "containers": [
+                                    {
+                                        "name": name,
+                                        "image": "registry.k8s.io/kubectl:v1.32.3",
+                                        "command": [
+                                            "kubectl",
+                                            "delete",
+                                            "pods",
+                                            "--all-namespaces",
+                                            "--field-selector=status.phase==Failed",
+                                            "--grace-period=0",
+                                        ],
+                                        "resources": {
+                                            "limits": {
+                                                "cpu": "100m",
+                                                "memory": "64Mi",
+                                            },
+                                            "requests": {
+                                                "cpu": "50m",
+                                                "memory": "32Mi",
+                                            },
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    }
+                },
+            },
+            opts=pulumi.ResourceOptions.merge(
+                opts, pulumi.ResourceOptions(depends_on=[sa, role, binding])
+            ),
+        )
+
+        return [sa, role, binding, cronjob]
+
     def setup_database_for_app(
         self, app: AppModel, opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
-        if not app.database or not app.database.local:
+        if not app.persistence.database or not app.persistence.database.local:
             return []
 
         if not self.shared_db_cluster:
@@ -431,6 +578,8 @@ class KubernetesRegistry:
             opts=opts,
         )
 
+        db_service = "homelab-db-rw.cnpg-system.svc.cluster.local"
+
         app_db_secret = k8s.core.v1.Secret(
             f"{app.name}-db-app",
             metadata={
@@ -439,21 +588,27 @@ class KubernetesRegistry:
                 "annotations": {"pulumi.com/patchForce": "true"},
             },
             string_data={
-                "host": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "host": db_service,
                 "username": app.name,
                 "db-username": app.name,  # For Nextcloud and others
                 "user": app.name,  # Alias
                 "password": db_password.result,
                 "dbname": app.name,
                 # Standardized keys for broader compatibility
-                "POSTGRES_HOST": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "POSTGRES_HOST": db_service,
                 "POSTGRES_USER": app.name,
                 "POSTGRES_PASSWORD": db_password.result,
                 "POSTGRES_DB": app.name,
-                "DB_HOST": "homelab-db-rw.cnpg-system.svc.cluster.local",
+                "DB_HOST": db_service,
                 "DB_USER": app.name,
                 "DB_PASSWORD": db_password.result,
                 "DB_NAME": app.name,
+                "uri": pulumi.Output.format(
+                    "postgresql://{0}:{1}@{2}:5432/{0}",
+                    app.name,
+                    db_password.result,
+                    db_service,
+                ),
             },
             opts=opts,
         )
@@ -461,8 +616,6 @@ class KubernetesRegistry:
         # Provisioning Job: Creates role and database if they don't exist
         # We use the superuser secret that CNPG creates: homelab-db-app
         # Use the full service FQDN and add retry logic for resilience
-
-        db_service = "homelab-db-rw.cnpg-system.svc.cluster.local"
 
         provision_job = k8s.batch.v1.Job(
             f"{app.name}-db-provision",
@@ -485,11 +638,12 @@ class KubernetesRegistry:
                                     f"for i in $(seq 1 30); do pg_isready -h {db_service} -U postgres && break || echo 'Waiting for database...'; sleep 2; done; "
                                     # Create user and database with proper error handling
                                     f"export PGPASSWORD=$SUPERUSER_PASSWORD; "
-                                    f"psql -h {db_service} -U postgres -d postgres -c \"SELECT 1 FROM pg_database WHERE datname = '{app.name}'\" | grep -q 1 || "
-                                    f"psql -h {db_service} -U postgres -d postgres -c \"CREATE USER \\\"{app.name}\\\" WITH PASSWORD '$APP_PASSWORD';\" 2>/dev/null || echo 'User may exist'; "
-                                    f'psql -h {db_service} -U postgres -d postgres -c "ALTER USER \\"{app.name}\\" WITH PASSWORD \'$APP_PASSWORD\';" 2>/dev/null; '
-                                    f'psql -h {db_service} -U postgres -d postgres -c "CREATE DATABASE \\"{app.name}\\" OWNER \\"{app.name}\\";" 2>/dev/null || echo \'DB may exist\'; '
-                                    f'psql -h {db_service} -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE \\"{app.name}\\" TO \\"{app.name}\\";" 2>/dev/null; '
+                                    f"export PGHOST={db_service}; "
+                                    f"export APP_USER={app.name}; "
+                                    f"export DATABASE_NAME={app.name}; "
+                                    f"""psql -h $PGHOST -U postgres -d postgres -c "DO \\$\\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = '$APP_USER') THEN CREATE USER \\"$APP_USER\\" WITH PASSWORD '$APP_PASSWORD'; ELSE ALTER USER \\"$APP_USER\\" WITH PASSWORD '$APP_PASSWORD'; END IF; END \\$\\$;"; """
+                                    f"""psql -h $PGHOST -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$DATABASE_NAME'" | grep -q 1 || psql -h $PGHOST -U postgres -d postgres -c "CREATE DATABASE \\"$DATABASE_NAME\\" OWNER \\"$APP_USER\\";"; """
+                                    f"""psql -h $PGHOST -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE \\"$DATABASE_NAME\\" TO \\"$APP_USER\\";"; """
                                     f"echo 'Database provisioning completed for {app.name}'",
                                 ],
                                 "env": [

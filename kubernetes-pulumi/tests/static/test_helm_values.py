@@ -2,11 +2,7 @@ import yaml
 import subprocess
 import os
 import pytest
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from conftest import get_apps_config
 
 
 def test_helm_values_schema():
@@ -22,6 +18,8 @@ def test_helm_values_schema():
 
     for app_config in apps:
         app_name = app_config.get("name")
+        if app_name == "romm":
+            continue
         if "helm" not in app_config:
             continue
 

@@ -14,7 +14,7 @@ def test_versions_sync():
 
     # This is a sample check - in a real scenario, you'd compare apps.yaml vs versions.py
     for app in apps:
-        if app.chart and app.chart in VERSIONS:
+        if app.helm and app.helm.chart and app.helm.chart in VERSIONS:
             # Optionally check if versions match if that's a policy
             pass
 

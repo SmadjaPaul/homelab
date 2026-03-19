@@ -1,30 +1,56 @@
-<!-- Context: security_auth | Priority: critical | Version: 1.1 | Updated: 2026-03-06 -->
+<!-- Context: security_auth | Priority: critical | Version: 2.0 | Updated: 2026-03-13 -->
 
 # Security, Access, & Zero Trust
 
-## Architecture
+## Architecture (Zero Trust)
+
 ```
-Internet → Cloudflare Edge → Cloudflare Tunnel (cloudflared)
-                    ↓
-        Authentik Embedded Outpost (port 9000)
-                    ↓
-   [Session Validation / IDP Redirection]
-                    ↓
-             backend applications
+Internet → Cloudflare DNS → Cloudflare Tunnel (cloudflared)
+                                         ↓
+                              Authentik Embedded Outpost
+                                         ↓
+                           [Session Validation / IDP Redirect]
+                                         ↓
+                              Protected Apps or Direct (public)
 ```
 
-## Authentik (Identity Provider & Proxy)
-- **Authentik** is the central directory for users and authentication.
-- Configured via Pulumi in `kubernetes-pulumi/shared/apps/common/authentik_registry.py`.
-- Features OIDC Auto-Provisioning for apps like Navidrome, Homarr, and Vaultwarden.
-- Acts as a Forward Auth Proxy for all internal "protected" apps.
+- **Zero Open Ports**: No inbound ports on router. All traffic through Cloudflare Tunnel.
+- **external-dns**: Auto-creates DNS CNAMEs from Authentik Ingress.
 
-## Cloudflare Tunnels (Zero Trust)
-- **Zero Inbound Ports**: The homelab has absolutely no open ports on the router. All traffic is tunneled through `cloudflared`.
-- Dynamic DNS routing is orchestrated via `ZeroTrustTunnelCloudflaredConfig` in the Pulumi `k8s-apps` stack.
-- Exposed services bypass Cloudflare Access (which is disabled) and are natively protected by Authentik Outposts instead.
+## Authentik (IdP & SSO)
+
+- Central user directory and authentication.
+- **Proxy Mode**: Forward Auth for apps without native auth.
+- **OIDC/OAuth2**: Auto-provisioning for modern apps (Vaultwarden, Navidrome, Nextcloud).
+- **Embedded Outpost**: Runs in K8s (ak-outpost-* pods, port 9000).
+
+## Protected vs Public Apps
+
+| Mode | Traffic Flow |
+|------|--------------|
+| **protected** | User → Cloudflare Tunnel → Authentik Outpost → App |
+| **public** | User → Cloudflare Tunnel → Direct to K8s Service |
 
 ## Network Isolation
-- **NetworkPolicies**: Restrict pod egress strictly using `NetworkPolicyBuilder`.
-- Databases like CloudNativePG are isolated and require strict whitelisted policies by app.
-- **Doppler**: Source of truth for secrets, avoiding any plain-text commits. Synchronized via `External Secrets Operator`.
+
+- **NetworkPolicies**: Restrict pod egress via `NetworkPolicyBuilder`.
+- **Database Isolation**: CloudNativePG requires strict whitelisted policies.
+- **Doppler**: Single source of truth for secrets.
+
+## Services with Auth
+
+| Service | Auth Method | URL |
+|---------|------------|-----|
+| **Authentik** | Native | auth.smadja.dev |
+| **Vaultwarden** | OIDC Auto-Provision | vault.smadja.dev |
+| **Navidrome** | OIDC Auto-Provision | music.smadja.dev |
+| **Homepage** | Protected Proxy | home.smadja.dev |
+| **Nextcloud** | OIDC Auto-Provision | cloud.smadja.dev |
+| **Open-WebUI** | OIDC Auto-Provision | ai.smadja.dev |
+
+## Debugging Access Issues
+
+Check logs in these namespaces:
+- `cloudflared` - Tunnel connectivity
+- `authentik` - Outpost, authentication
+- `external-dns` - DNS records

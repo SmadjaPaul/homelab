@@ -1,0 +1,119 @@
+[
+  {
+    "mount_point": "/Mes Photos",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/immich/library/$user",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Envoyer à Paperless",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/paperless/consume/$user",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Partagé/Musique",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/shared/music",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false,
+      "read_only": true
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Partagé/Films",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/shared/movies",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false,
+      "read_only": true
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Partagé/Livres",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/shared/books",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false,
+      "read_only": true
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Partagé/Livres Audio",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/shared/audiobooks",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false,
+      "read_only": true
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  },
+  {
+    "mount_point": "/Partagé/ROMs",
+    "storage": "\\OC\\Files\\Storage\\SMB",
+    "authentication_type": "password::password",
+    "configuration": {
+      "host": "u554589.your-storagebox.de",
+      "share": "/romm/library",
+      "user": "u554589",
+      "password": "dd8zQN8k$!Bss#Fc2y"
+    },
+    "options": {
+      "enable_sharing": false,
+      "read_only": true
+    },
+    "applicable_users": [],
+    "applicable_groups": []
+  }
+]

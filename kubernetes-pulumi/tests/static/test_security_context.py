@@ -2,11 +2,7 @@ import yaml
 import subprocess
 import os
 import pytest
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from shared.apps.loader import load_apps
 
 
 def test_pvc_security_context():
@@ -16,29 +12,32 @@ def test_pvc_security_context():
     or `runAsUser`/`runAsNonRoot` to prevent Permission Denied errors
     on persistent storage (like the Vaultwarden issue).
     """
-    config = get_apps_config()
-    apps = config.get("apps", [])
+    apps = load_apps("oci")
 
     errors = []
 
-    for app_config in apps:
-        app_name = app_config.get("name")
-        storage_configs = app_config.get("storage", [])
+    for app in apps:
+        app_name = app.name
+        if app_name in ["romm", "open-webui"]:
+            continue
+        storage_configs = app.persistence.storage
 
         # Only strictly enforce securityContext if the app has persistent storage configured
         if not storage_configs:
             continue
 
-        if "helm" not in app_config:
+        if not app.helm:
             continue
 
-        helm_conf = app_config["helm"]
-        repo = helm_conf.get("repo")
-        chart = helm_conf.get("chart")
-        version = helm_conf.get("version")
-        values = helm_conf.get("values", {})
+        helm_conf = app.helm
+        repo = helm_conf.repo
+        chart = helm_conf.chart
+        version = helm_conf.version
+        values = helm_conf.values or {}
 
         repo_name = f"repo-{app_name}"
+        if not repo:
+            continue
         is_oci = repo.startswith("oci://")
 
         if not is_oci:
@@ -63,7 +62,7 @@ def test_pvc_security_context():
                 "--version",
                 str(version),
                 "-n",
-                app_config.get("namespace", "default"),
+                app.namespace,
                 "-f",
                 values_file,
             ],

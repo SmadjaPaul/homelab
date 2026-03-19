@@ -17,8 +17,9 @@ apps.yaml (Source of Truth) → Pulumi (Python) → OKE Cluster / Cloudflare / H
 ### 1. Update the Configuration
 
 Most application updates are done declaratively in `kubernetes-pulumi/apps.yaml`.
-- Need a new app? Add it to `apps.yaml`.
+- Need a new app? Add it to `apps.yaml`. The system will automatically configure networking, SSO, and storage based on your definitions.
 - Need a new S3 bucket? Add it to `buckets` in `apps.yaml`.
+- All changes are strictly validated by **Pydantic** before deployment.
 
 ### 2. Pulumi Up
 

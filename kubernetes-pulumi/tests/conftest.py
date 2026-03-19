@@ -5,6 +5,7 @@ Automatically discovers apps from apps.yaml for dynamic test generation.
 
 import os
 import sys
+import yaml
 import pytest
 from pathlib import Path
 from typing import List
@@ -34,6 +35,39 @@ except ImportError as e:
     print(f"Warning: Loader or Schemas not available for test discovery: {e}")
 
 # --- Configuration ---
+
+
+def get_apps_yaml_path() -> Path:
+    """
+    Find apps.yaml relative to PROJECT_ROOT.
+    Searches in order:
+    1. Current working directory
+    2. PROJECT_ROOT (kubernetes-pulumi/)
+    3. Parent of PROJECT_ROOT (repo root)
+    """
+    search_paths = [
+        Path.cwd() / "apps.yaml",
+        PROJECT_ROOT / "apps.yaml",
+        PROJECT_ROOT.parent / "apps.yaml",
+    ]
+
+    for path in search_paths:
+        if path.exists():
+            return path
+
+    # Provide helpful error message
+    searched = [str(p) for p in search_paths]
+    raise FileNotFoundError(
+        f"apps.yaml not found. Searched in: {', '.join(searched)}\n"
+        f"Current working directory: {Path.cwd()}"
+    )
+
+
+def get_apps_config() -> dict:
+    """Load apps.yaml configuration with robust path finding."""
+    apps_path = get_apps_yaml_path()
+    with open(apps_path, "r") as f:
+        return yaml.safe_load(f)
 
 
 def get_cluster() -> str:
@@ -72,7 +106,9 @@ def apps_with_routing(all_apps: List[AppModel]) -> List[AppModel]:
     return [
         app
         for app in all_apps
-        if app.test.test_routing and app.hostname and app.mode != ExposureMode.INTERNAL
+        if app.test.test_routing
+        and app.network.hostname
+        and app.network.mode != ExposureMode.INTERNAL
     ]
 
 
@@ -109,8 +145,8 @@ def pytest_generate_tests(metafunc):
                 app
                 for app in apps
                 if app.test.test_routing
-                and app.hostname
-                and app.mode != ExposureMode.INTERNAL
+                and app.network.hostname
+                and app.network.mode != ExposureMode.INTERNAL
             ]
         elif "secrets" in test_module or "secrets" in test_func_name:
             filtered_apps = [

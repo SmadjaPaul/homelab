@@ -49,56 +49,23 @@ class StorageRegistry:
         deployed_apps: Optional[Dict[str, Any]] = None,
         opts: Optional[pulumi.ResourceOptions] = None,
     ) -> List[pulumi.Resource]:
+        """Mark hetzner-smb as ready.
+
+        The bootstrap secret `hetzner-storage-creds` is now created as a native
+        K8s Secret in k8s-storage (not via ExternalSecret) to avoid circular
+        dependencies during fresh deployments.
+        """
         if self._hetzner_smb_ready:
             return []
 
-        deps = []
-        if (
-            deployed_apps
-            and "external-secrets" in deployed_apps
-            and isinstance(deployed_apps["external-secrets"], pulumi.Resource)
-        ):
-            deps.append(deployed_apps["external-secrets"])
-
-        local_opts = (
-            opts
-            if opts
-            else pulumi.ResourceOptions(provider=self.provider, parent=self.parent)
-        )
-        if deps:
-            local_opts = pulumi.ResourceOptions.merge(
-                local_opts, pulumi.ResourceOptions(depends_on=deps)
-            )
-
-        es = k8s.apiextensions.CustomResource(
-            "hetzner-storage-creds-global",
-            api_version="external-secrets.io/v1beta1",
-            kind="ExternalSecret",
-            metadata={
-                "name": "hetzner-storage-creds",
-                "namespace": "kube-system",
-                "annotations": {"pulumi.com/patchForce": "true"},
-            },
-            spec={
-                "refreshInterval": "1h",
-                "secretStoreRef": {
-                    "kind": "ClusterSecretStore",
-                    "name": "doppler",
-                },
-                "target": {"name": "hetzner-storage-creds", "creationPolicy": "Owner"},
-                "dataFrom": [{"extract": {"key": "HETZNER_STORAGE_BOX_1"}}],
-            },
-            opts=local_opts,
-        )
-
         self._hetzner_smb_ready = True
-        return [es]
+        return []
 
     def setup_storage_for_app(
         self, app: AppModel, deployed_apps: Dict[str, Any], opts: pulumi.ResourceOptions
     ) -> List[pulumi.Resource]:
         resources = []
-        for idx, storage in enumerate(app.storage):
+        for idx, storage in enumerate(app.persistence.storage):
             if getattr(storage, "existing_claim", None):
                 pulumi.Output.from_input(app.name).apply(
                     lambda name, e=storage.existing_claim: print(

@@ -108,7 +108,7 @@ class GenericHelmApp(BaseApp):
                 )
                 config_map_resources.append(cm)
 
-        if self._model.database and self._model.database.local:
+        if self._model.persistence.database and self._model.persistence.database.local:
             pass  # DB config now handled by adapters directly in Helm values
 
         config_secret = None
@@ -129,15 +129,15 @@ class GenericHelmApp(BaseApp):
             adapter.inject_config_secret(final_values, secret_ref)
 
         # 2. Inject InitContainer for database wait
-        if self._model.database and self._model.database.local:
+        if self._model.persistence.database and self._model.persistence.database.local:
             db_host = "homelab-db-rw.cnpg-system.svc.cluster.local"
             wait_container = {
                 "name": "wait-for-database",
-                "image": "alpine:latest",
+                "image": "alpine:3.21",
                 "command": [
                     "sh",
                     "-c",
-                    f"apk add --no-cache postgresql-client && until pg_isready -h {db_host} -p 5432; do echo waiting for database; sleep 2; done;",
+                    f"until nc -z {db_host} 5432; do echo waiting for database; sleep 2; done;",
                 ],
             }
             adapter.inject_init_container_for_db(final_values, wait_container)

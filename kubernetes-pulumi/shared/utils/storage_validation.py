@@ -11,10 +11,10 @@ def validate_storage_quota(apps):
     quota_limit_gb = 100  # Adjusted for 2 nodes * 50GB boot volumes
 
     for app in apps:
-        if not app.storage:
+        if not app.persistence.storage:
             continue
 
-        for storage in app.storage:
+        for storage in app.persistence.storage:
             if storage.storage_class == "oci-bv":
                 # Extract numeric value from size string (e.g., '10Gi' -> 10)
                 try:

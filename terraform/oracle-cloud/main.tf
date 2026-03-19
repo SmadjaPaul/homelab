@@ -129,17 +129,18 @@ module "network" {
 module "oke" {
   source = "./modules/oke"
 
-  compartment_id     = var.compartment_id
-  cluster_name       = "homelab-k8s"
-  vcn_id             = module.network.vcn_id
-  lb_subnet_id       = module.network.public_subnet_id
-  worker_subnet_id   = module.network.private_subnet_id
-  kubernetes_version = var.kubernetes_version
-  region             = var.region
-  node_ocpus         = 2
-  node_memory        = 12
-  node_count         = 2
-  ssh_public_key     = var.ssh_public_key
+  compartment_id          = var.compartment_id
+  cluster_name            = "homelab-k8s"
+  vcn_id                  = module.network.vcn_id
+  lb_subnet_id            = module.network.public_subnet_id
+  worker_subnet_id        = module.network.private_subnet_id
+  kubernetes_version      = "v1.35.0"
+  region                  = var.region
+  node_ocpus              = 4
+  node_memory             = 24
+  node_count              = 1
+  boot_volume_size_in_gbs = 100
+  ssh_public_key          = var.ssh_public_key
 
   tags = {
     Environment = "homelab"

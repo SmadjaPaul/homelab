@@ -28,8 +28,71 @@ BASE_DIR = Path(__file__).parent.parent
 STACKS = ["k8s-core", "k8s-storage", "k8s-apps"]
 
 
+def check_and_fix_pending_operations(stack_dir: Path, stack_name: str):
+    """Detect pending operations in Pulumi state and auto-recover.
+
+    Pending operations occur when a previous `pulumi up` was interrupted.
+    This function cancels pending operations and refreshes state to recover.
+    """
+    # Check for pending operations by inspecting stack export
+    try:
+        result = subprocess.run(
+            ["pulumi", "stack", "export"],
+            cwd=stack_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return
+
+        import json
+
+        state = json.loads(result.stdout)
+        deployment = state.get("deployment", {})
+        pending = deployment.get("pending_operations", [])
+
+        if not pending:
+            return
+
+        print(f"\n⚠ Found {len(pending)} pending operation(s) in {stack_dir.name}:")
+        for op in pending:
+            op_type = op.get("type", "unknown")
+            resource = op.get("resource", {}).get("urn", "unknown")
+            print(f"  - {op_type}: {resource.split('::')[-1]}")
+
+        print("  Auto-recovering: cancelling and refreshing state...")
+
+        # Cancel pending operations
+        subprocess.run(
+            ["pulumi", "cancel", "--yes"],
+            cwd=stack_dir,
+            capture_output=True,
+        )
+
+        # Refresh state to reconcile with actual cluster state
+        subprocess.run(
+            ["pulumi", "refresh", "--non-interactive", "--yes"],
+            cwd=stack_dir,
+            env={
+                **os.environ,
+                "PYTHONPATH": str(BASE_DIR) + ":" + str(BASE_DIR.parent),
+            },
+            timeout=300,
+        )
+        print("  ✓ State recovered successfully")
+
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+        print(f"  ⚠ Could not auto-recover state: {e}")
+        print("  You may need to run 'pulumi cancel' and 'pulumi refresh' manually.")
+
+
 def run_pulumi(stack_dir: Path, args: list, env: dict = None):
-    """Run a pulumi command in a specific stack directory."""
+    """Run a pulumi command in a specific stack directory.
+
+    Args:
+        env: Extra environment variables to merge into os.environ.
+    """
     # Find pulumi binary - check venv first, then PATH
     venv_pulumi = stack_dir / ".venv" / "bin" / "pulumi"
 
@@ -42,12 +105,14 @@ def run_pulumi(stack_dir: Path, args: list, env: dict = None):
     print(f"Running: {' '.join(cmd)} in {stack_dir}")
     print(f"{'=' * 60}")
 
+    # Build env: start from os.environ, merge extra vars if provided
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
     # Add base directory and shared to PYTHONPATH so shared module can be imported
-    env = env or os.environ.copy()
-    # Also add parent directory for 'shared' module
-    env["PYTHONPATH"] = str(BASE_DIR) + ":" + str(BASE_DIR.parent)
+    run_env["PYTHONPATH"] = str(BASE_DIR) + ":" + str(BASE_DIR.parent)
 
-    result = subprocess.run(cmd, cwd=stack_dir, env=env)
+    result = subprocess.run(cmd, cwd=stack_dir, env=run_env)
     return result.returncode
 
 
@@ -177,15 +242,60 @@ def cmd_up(args):
         # Select stack
         run_pulumi(stack_dir, ["stack", "select", stack_name])
 
+        # Auto-recover from interrupted deployments
+        check_and_fix_pending_operations(stack_dir, stack_name)
+
         # Preview first
         if args.preview:
             run_pulumi(stack_dir, ["preview", "--non-interactive"])
 
         # Deploy
         if not args.preview_only:
-            run_pulumi(
-                stack_dir, ["up", "--skip-preview", "--non-interactive", "--yes"]
-            )
+            # Pre-deploy: port-forward + env injection for k8s-apps
+            port_forward_proc = None
+            extra_env = {}
+            if stack == "k8s-apps":
+                from authentik_lifecycle import (
+                    start_port_forward,
+                    stop_port_forward,
+                    post_deploy_reconcile,
+                )
+
+                port_forward_proc = start_port_forward()
+
+                # Inject AUTH0_USERS to avoid subprocess in authentik_registry.py
+                try:
+                    users = subprocess.check_output(
+                        [
+                            "doppler",
+                            "secrets",
+                            "get",
+                            "AUTH0_USERS",
+                            "--plain",
+                            "--project",
+                            "infrastructure",
+                            "--config",
+                            "prd",
+                        ],
+                        stderr=subprocess.DEVNULL,
+                    ).decode()
+                    extra_env["AUTH0_USERS"] = users
+                except Exception:
+                    pass
+
+            try:
+                run_pulumi(
+                    stack_dir,
+                    ["up", "--skip-preview", "--non-interactive", "--yes"],
+                    env=extra_env if extra_env else None,
+                )
+            finally:
+                if stack == "k8s-apps" and port_forward_proc:
+                    stop_port_forward(port_forward_proc)
+
+            # Post-deploy: outpost reconciliation for k8s-apps
+            if stack == "k8s-apps":
+                post_deploy_reconcile()
 
     return 0
 

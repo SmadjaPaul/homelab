@@ -1,0 +1,100 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: newt
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: newt
+  interval: 30m
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+    controllers:
+      newt:
+        annotations:
+          secret.reloader.stakater.com/reload: newt-secret
+        replicas: 2
+        initContainers:
+          newt-sidecar:
+            image:
+              repository: ghcr.io/home-operations/newt-sidecar
+              tag: 0.2.0
+            env:
+              NEWTSC_SITE_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: newt-secret
+                    key: NEWTSC_SITE_NICEID
+              NEWTSC_DENY_COUNTRIES: RU,CN,KP,IR,BY,IL
+              NEWTSC_GATEWAY_NAME: envoy-external
+              NEWTSC_TARGET_HOSTNAME: envoy-external.network.svc.cluster.local
+            restartPolicy: Always
+            resources:
+              limits:
+                memory: 128Mi
+        containers:
+          app:
+            image:
+              repository: ghcr.io/fosrl/newt
+              tag: 1.10.3
+            env:
+              PANGOLIN_ENDPOINT:
+                valueFrom:
+                  secretKeyRef:
+                    name: newt-secret
+                    key: NEWT_SERVER_URL
+              NEWT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: newt-secret
+                    key: NEWT_ID
+              NEWT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: newt-secret
+                    key: NEWT_SECRET
+              BLUEPRINT_FILE: /etc/newt/blueprint.yaml
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 384Mi
+    rbac:
+      roles:
+        newt:
+          type: ClusterRole
+          rules:
+            - apiGroups:
+                - gateway.networking.k8s.io
+              resources:
+                - httproutes
+              verbs:
+                - get
+                - watch
+                - list
+      bindings:
+        newt:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: newt
+          subjects:
+            - identifier: newt
+    serviceAccount:
+      newt: {}
+    persistence:
+      blueprint:
+        type: emptyDir
+        globalMounts:
+          - path: /etc/newt

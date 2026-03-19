@@ -1,0 +1,34 @@
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: ghcr.io/immich-app/immich-server
+          tag: v2.0.0
+        env:
+          REDIS_HOSTNAME: "redis.storage.svc.cluster.local"
+          REDIS_PORT: "6379"
+          DB_HOSTNAME: "homelab-db-rw.cnpg-system.svc.cluster.local"
+          DB_DATABASE_NAME: "immich"
+          DB_USERNAME: "immich"
+          DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-app
+                key: password
+        envFrom:
+          - secretRef:
+              name: immich-db-app
+immich:
+  persistence:
+    library:
+      existingClaim: immich-library
+valkey:
+  enabled: false
+server:
+  enabled: true
+machine-learning:
+  enabled: true
+  image:
+    repository: ghcr.io/immich-app/immich-machine-learning
+    tag: v2.0.0

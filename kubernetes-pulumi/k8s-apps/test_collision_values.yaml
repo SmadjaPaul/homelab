@@ -1,0 +1,5 @@
+fullnameOverride: immich
+immich:
+  persistence:
+    library:
+      existingClaim: immich-library

@@ -74,22 +74,23 @@ def test_pvc_naming_consistency():
     The test validates that the PVC naming pattern is consistent.
     Only checks persistence keys that MATCH the storage name (case-insensitive).
     """
-    from shared.apps.loader import AppLoader
+    from shared.apps.loader import load_apps
 
-    loader = AppLoader()
-    apps = loader.load()
+    apps = load_apps("oci")
 
     errors = []
 
     for app in apps:
-        if not app.helm or not app.storage:
+        if not app.helm or not app.persistence.storage:
             continue
 
         helm_values = app.helm.values or {}
         persistence = helm_values.get("persistence", {})
 
         # Build a map of storage name -> expected PVC name
-        storage_pvc_map = {s.name: f"{app.name}-{s.name}" for s in app.storage}
+        storage_pvc_map = {
+            s.name: f"{app.name}-{s.name}" for s in app.persistence.storage
+        }
 
         # Check each persistence key
         for pvc_key, val in persistence.items():

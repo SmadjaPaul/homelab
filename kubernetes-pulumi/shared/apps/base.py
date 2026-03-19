@@ -14,7 +14,7 @@ from typing import Any, Optional
 import pulumi_kubernetes as k8s
 import pulumi
 
-from shared.utils.schemas import AppModel
+from shared.utils.schemas import AppModel, ExposureMode
 
 
 class BaseApp(ABC):
@@ -43,6 +43,9 @@ class BaseApp(ABC):
         Handles app-specific resources and network policies.
         Assumes namespace already exists.
         """
+        print(
+            f"  [BaseApp] Deploying {self._model.name} (test_network_policy={self._model.test.test_network_policy})"
+        )
         result = {}
 
         def apply_standard_labels(args: pulumi.ResourceTransformationArgs):
@@ -51,6 +54,12 @@ class BaseApp(ABC):
                 if meta is None:
                     meta = {}
                     args.props["metadata"] = meta
+
+                # ObjectMetaArgs or Output — skip, can't mutate typed args
+                if not isinstance(meta, dict):
+                    return pulumi.ResourceTransformationResult(
+                        props=args.props, opts=args.opts
+                    )
 
                 if "labels" not in meta or meta["labels"] is None:
                     meta["labels"] = {}
@@ -71,20 +80,7 @@ class BaseApp(ABC):
 
         if self._model.test.test_network_policy:
             builder = NetworkPolicyBuilder(provider)
-            policies = builder.build(self)
-
-            # Allow external internet access if explicitly configured in apps.yaml
-            if self._model.allow_external:
-                include_internal = self._model.name == "cloudflared"
-                policies.append(
-                    builder.allow_external(
-                        self._model.name,
-                        self._model.namespace,
-                        include_internal=include_internal,
-                    )
-                )
-
-            result["network_policies"] = policies
+            result["network_policies"] = builder.build(self)
 
         result["model"] = self._model
         return result
@@ -141,16 +137,12 @@ class NetworkPolicyBuilder:
     def build(self, app: BaseApp) -> list:
         """
         Build NetworkPolicies for an app.
-
-        Creates:
-        1. Deny-all ingress/egress
-        2. Allow DNS (kube-system)
-        3. Allow egress to dependencies
         """
         policies = []
-        namespace = app.get_namespace()
-        app_name = app.get_name()
-        dependencies = app.get_dependencies()
+        model = app._model
+        namespace = model.namespace
+        app_name = model.name
+        dependencies = model.dependencies
 
         # 1. Deny all ingress and egress (default-deny)
         deny_all = k8s.networking.v1.NetworkPolicy(
@@ -231,10 +223,15 @@ class NetworkPolicyBuilder:
         )
         policies.append(allow_dns)
 
-        # 3. Allow egress to dependencies
-        for dep in dependencies:
+        # 4. Allow egress to dependencies
+        effective_deps = set(dependencies)
+        if model.auth.enabled or model.auth.sso:
+            effective_deps.add("authentik")
+
+        for dep in effective_deps:
+            full_name = f"{app_name}-allow-{dep}"
             allow_dep = k8s.networking.v1.NetworkPolicy(
-                f"{app_name}-allow-{dep}",
+                full_name,
                 metadata=k8s.meta.v1.ObjectMetaArgs(
                     name=f"{app_name}-allow-{dep}",
                     namespace=namespace,
@@ -258,8 +255,8 @@ class NetworkPolicyBuilder:
             )
             policies.append(allow_dep)
 
-        # 3.5 Allow egress to local CNPG database
-        if getattr(app._model, "database", None) and app._model.database.local:
+        # 5. Allow egress to local CNPG database
+        if model.persistence.database and model.persistence.database.local:
             allow_db = k8s.networking.v1.NetworkPolicy(
                 f"{app_name}-allow-db",
                 metadata=k8s.meta.v1.ObjectMetaArgs(
@@ -293,16 +290,13 @@ class NetworkPolicyBuilder:
             )
             policies.append(allow_db)
 
-        # 4. Allow ingress from Cloudflare Tunnel or Authentik Outpost
-        # For public apps, traffic comes directly from cloudflared
-        # For protected apps, traffic comes from the authentik outpost
-        if getattr(app._model, "hostname", None):
-            mode = app._model.mode.value
-            if mode in ("public", "protected"):
+        # 6. Allow ingress from Cloudflare Tunnel or Authentik Outpost
+        if model.network.hostname:
+            mode = model.network.mode
+            if mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
                 ingress_sources = []
 
-                if mode == "public":
-                    # Public apps: traffic from cloudflared
+                if mode == ExposureMode.PUBLIC:
                     ingress_sources.append(
                         k8s.networking.v1.NetworkPolicyPeerArgs(
                             namespace_selector=k8s.meta.v1.LabelSelectorArgs(
@@ -312,8 +306,7 @@ class NetworkPolicyBuilder:
                             ),
                         )
                     )
-                elif mode == "protected":
-                    # Protected apps: traffic from authentik outpost
+                elif mode == ExposureMode.PROTECTED:
                     ingress_sources.append(
                         k8s.networking.v1.NetworkPolicyPeerArgs(
                             namespace_selector=k8s.meta.v1.LabelSelectorArgs(
@@ -326,7 +319,7 @@ class NetworkPolicyBuilder:
                                     k8s.meta.v1.LabelSelectorRequirementArgs(
                                         key="app.kubernetes.io/name",
                                         operator="In",
-                                        values=["authentik-outpost"],
+                                        values=["authentik-outpost-proxy"],
                                     )
                                 ]
                             ),
@@ -351,6 +344,17 @@ class NetworkPolicyBuilder:
                     opts=pulumi.ResourceOptions(provider=self.provider),
                 )
                 policies.append(allow_tunnel_ingress)
+
+        # 8. Allow external internet access
+        if model.network.allow_external:
+            include_internal = app_name == "cloudflared"
+            policies.append(
+                self.allow_external(
+                    app_name,
+                    namespace,
+                    include_internal=include_internal,
+                )
+            )
 
         return policies
 

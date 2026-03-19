@@ -22,6 +22,8 @@ from shared.apps.loader import AppLoader
 from shared.storage.s3_manager import S3Manager
 from shared.utils.cluster import get_kubeconfig, create_provider
 from shared.utils.schemas import HomelabStackConfig
+from shared.apps.common.storagebox_orchestrator import StorageBoxOrchestrator
+
 
 # Get project root
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,37 +61,34 @@ core_namespace_list.apply(
 # =============================================================================
 print("\nPhase 1: Setting up Storage Classes...")
 
-# Explicitly define hetzner-smb StorageClass (managed by this stack)
-# Using vers=3.0 to resolve mount error(22) "Invalid argument"
+# Load storagebox configuration from apps.yaml
+raw_config = loader.get_full_config()
+storage_box_id = raw_config.get("hcloud_storage_box_id", 537179)
+storage_box_hostname = raw_config.get(
+    "hcloud_storage_box_hostname", "u554589.your-storagebox.de"
+)
+storagebox_config = loader.load_storagebox_config()
+
+if storagebox_config:
+    StorageBoxOrchestrator(
+        "storagebox",
+        hostname=storage_box_hostname,
+        storage_box_id=storage_box_id,
+        config=storagebox_config,
+        provider=provider,
+    )
+
+# Garder une StorageClass vide pour la compatibilité du driver
 k8s.storage.v1.StorageClass(
     "hetzner-smb-sc",
-    metadata={
-        "name": "hetzner-smb",
-    },
+    metadata={"name": "hetzner-smb"},
     provisioner="smb.csi.k8s.io",
     reclaim_policy="Retain",
     volume_binding_mode="Immediate",
-    allow_volume_expansion=True,
-    mount_options=[
-        "dir_mode=0777",
-        "file_mode=0777",
-        "uid=1000",
-        "gid=1000",
-        "noperm",
-        "mfsymlinks",
-        "cache=none",
-        "vers=3.0",  # Explicit version to avoid 'Invalid argument' errors
-    ],
-    parameters={
-        # Use the main account for the global StorageClass
-        "source": "//u554589.your-storagebox.de/backup",
-        "csi.storage.k8s.io/node-stage-secret-name": "hetzner-storage-creds",
-        "csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-        "csi.storage.k8s.io/provisioner-secret-name": "hetzner-storage-creds",
-        "csi.storage.k8s.io/provisioner-secret-namespace": "kube-system",
-    },
+    parameters={},  # Pas de source globale — chaque PV définit sa propre source
     opts=pulumi.ResourceOptions(provider=provider),
 )
+
 
 # Explicitly define oci-bv StorageClass for OKE Block Volumes
 # This resolves the 'Pending' status for PVCs using oci-bv
@@ -105,6 +104,7 @@ k8s.storage.v1.StorageClass(
     allow_volume_expansion=True,
     opts=pulumi.ResourceOptions(provider=provider),
 )
+
 
 # Get domain for config
 domain = core_domain

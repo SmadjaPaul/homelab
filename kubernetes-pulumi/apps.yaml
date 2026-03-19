@@ -47,6 +47,103 @@ version: v1
 cluster: oci
 domain: smadja.dev
 hcloud_storage_box_id: 537179
+hcloud_storage_box_hostname: u554589.your-storagebox.de
+
+storagebox:
+  accounts:
+    - name: immich
+      home_directory: immich
+      volumes:
+        - pv_name: pv-immich-library
+          pvc_name: immich-library
+          namespace: photography
+          smb_path: /library/
+          size: 2Ti
+
+    - name: paperless
+      home_directory: paperless
+      volumes:
+        - pv_name: pv-paperless-data
+          pvc_name: paperless-ngx-data
+          namespace: productivity
+          smb_path: /data/
+        - pv_name: pv-paperless-media
+          pvc_name: paperless-ngx-media
+          namespace: productivity
+          smb_path: /media/
+          size: 100Gi
+        - pv_name: pv-paperless-export
+          pvc_name: paperless-ngx-export
+          namespace: productivity
+          smb_path: /export/
+        - pv_name: pv-paperless-consume
+          pvc_name: paperless-ngx-consume
+          namespace: productivity
+          smb_path: /consume/
+
+    - name: media-ro
+      home_directory: shared
+      volumes:
+        - pv_name: pv-navidrome-music
+          pvc_name: navidrome-music
+          namespace: music
+          smb_path: /music/
+        - pv_name: pv-slskd-config
+          pvc_name: slskd-config
+          namespace: music
+          smb_path: /slskd/
+        - pv_name: pv-audiobookshelf
+          pvc_name: audiobookshelf-data
+          namespace: media
+          smb_path: /audiobooks/
+
+    - name: romm
+      home_directory: romm
+      volumes:
+        - pv_name: pv-romm-library
+          pvc_name: romm-library
+          namespace: gaming
+          smb_path: /library/
+          size: 1Ti
+        - pv_name: pv-romm-assets
+          pvc_name: romm-assets
+          namespace: gaming
+          smb_path: /assets/
+          size: 100Gi
+        - pv_name: pv-romm-resources
+          pvc_name: romm-resources
+          namespace: gaming
+          smb_path: /resources/
+          size: 100Gi
+
+    - name: authentik
+      home_directory: authentik
+      volumes:
+        - pv_name: pv-authentik-data
+          pvc_name: authentik-data
+          namespace: authentik
+          smb_path: /data/
+          size: 10Gi
+
+    - name: vaultwarden
+      home_directory: vaultwarden
+      volumes:
+        - pv_name: pv-vaultwarden-data
+          pvc_name: vaultwarden-data
+          namespace: vaultwarden
+          smb_path: /data/
+          size: 10Gi
+
+  main_account:
+    secret_name: smb-nextcloud
+    doppler_user_key: HETZNER_STORAGE_BOX_1_USER
+    doppler_pass_key: HETZNER_STORAGE_BOX_1_PASS
+    volumes:
+      - pv_name: pv-nextcloud-data
+        pvc_name: nextcloud-data
+        namespace: productivity
+        smb_path: /nextcloud/data/
+        size: 2Ti
 
 # S3-compatible bucket definitions
 buckets:
@@ -84,112 +181,168 @@ apps:
   # V2 PRODUCTIVITY & AI STACK
   # =============================================================================
 
-  - name: opencloud
-    category: public
+
+  - name: nextcloud
+    category: protected
     tier: standard
     namespace: productivity
-    port: 9200
-    hostname: cloud.smadja.dev
-    mode: public
-    auth: true
+    port: 8080
+    hostname_prefix: cloud
+    mode: protected
     clusters: [oci]
+    sso: authentik-oidc
+    requires: [postgres, redis]
+    allow_external: true
     homepage:
-      description: File Storage (OpenCloud)
+      description: File Storage & Hub
       icon: nextcloud
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
-    provisioning:
-      method: oidc
+    # Storage: le chart Nextcloud gère nativement la séparation app/data
+    # - /var/www/html (PHP)     → persistence (local-path, rapide)
+    # - /var/www/html/data      → persistence.nextcloudData (SMB Hetzner)
+    # - /var/www/html/config    → sous-dossier du PVC principal (local-path)
+    # - /var/www/html/custom_apps → sous-dossier du PVC principal (local-path)
+    database:
+      local: true
     helm:
-      chart: app-template
-      repo: https://bjw-s-labs.github.io/helm-charts
-      version: 3.2.1
+      chart: nextcloud
+      repo: https://nextcloud.github.io/helm/
+      version: "6.6.10"
       values:
-        controllers:
-          main:
-            initContainers:
-              init:
-                image:
-                  repository: docker.io/owncloud/ocis
-                  tag: latest
-                command: ["/bin/sh", "-c"]
-                args:
-                  - |
-                    ocis init --force-overwrite --admin-password admin
-                env:
-                  - name: OCIS_INSECURE
-                    value: "true"
-                  - name: OCIS_CONFIG_DIR
-                    value: "/var/lib/ocis"
-            containers:
-              main:
-                image:
-                  repository: docker.io/owncloud/ocis
-                  tag: latest
-                env:
-                  - name: OCIS_URL
-                    value: "https://cloud.smadja.dev"
-                  - name: OCIS_INSECURE
-                    value: "true"
-                  - name: OCIS_LOG_LEVEL
-                    value: "info"
-                  - name: PROXY_TLS
-                    value: "false"
-                  - name: OCIS_CONFIG_DIR
-                    value: "/var/lib/ocis"
-                  - name: OCIS_INITIAL_ADMIN_PASSWORD
-                    value: "admin"
-                  - name: OCIS_SYSTEM_USER_ID
-                    value: "9781896d-0ae9-425b-b9d9-29ed5b0d0611"
-                  - name: STORAGE_USERS_MOUNT_ID
-                    value: "aed010ea-7871-460d-8528-76ad5198083c"
-                  - name: STORAGE_METADATA_MOUNT_ID
-                    value: "1997926e-9ef7-49f2-8ef9-8a9d15024bba"
-                  - name: STORAGE_SHARING_MOUNT_ID
-                    value: "e46e8529-1067-425d-a083-d34338d1a100"
-        service:
-          main:
-            controller: main
-            ports:
-              http:
-                port: 9200
-    storage:
-      - name: opencloud-data
-        size: "20Gi"
-        storage_class: "hetzner-smb"
-        mount_path: "/var/lib/ocis"
-    secrets:
-      - name: opencloud-oidc
-        keys:
-          PROXY_OIDC_CLIENT_SECRET: OPENCLOUD_OIDC_CLIENT_SECRET
-    auto_secrets:
-      opencloud-system:
-        OCIS_JWT_SECRET: 64
-        OCIS_STORAGE_JWT_SECRET: 64
-        OCIS_TRANSFER_SECRET: 64
-        OCIS_MACHINE_AUTH_API_KEY: 64
-        OCIS_SYSTEM_USER_API_KEY: 64
-    extra_env:
-      OCIS_URL: "https://cloud.smadja.dev"
-      OCIS_INSECURE: "true"
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
+        image:
+          repository: docker.io/library/nextcloud
+          # Tag explicite pour ARM64 — évite la concaténation flavor qui peut échouer
+          tag: "30.0.10-fpm-alpine"
+        nginx:
+          enabled: true
+          image:
+            repository: docker.io/library/nginx
+            tag: alpine
+          # Short-circuit the status.php probe to bypass PHP and avoid Trusted Domain / Performance issues
+          config:
+            default.conf: |-
+              upstream php-handler {
+                  server 127.0.0.1:9000;
+              }
+              server {
+                  listen 80;
+                  location = /status.php {
+                      access_log off;
+                      return 200 '{"status":"ok"}';
+                      add_header Content-Type application/json;
+                  }
+                  location ~ \.php(?:$|/) {
+                      fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+                      set $path_info $fastcgi_path_info;
+                      try_files $fastcgi_script_name =404;
+                      include fastcgi_params;
+                      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                      fastcgi_param PATH_INFO $path_info;
+                      fastcgi_pass php-handler;
+                  }
+                  location / {
+                      root /var/www/html;
+                      index index.php index.html;
+                      try_files $uri $uri/ /index.php$request_uri;
+                  }
+              }
+          probes:
+            liveness:
+              enabled: false
+            readiness:
+              enabled: false
+            startup:
+              enabled: false
+        podSecurityContext:
+          runAsUser: 33
+          runAsGroup: 33
+          fsGroup: 33
+        nextcloud:
+          host: "cloud.smadja.dev"
+          username: admin
+          password: ""
+          datadir: /var/www/html/data
+          extraEnv:
+            - name: NEXTCLOUD_TRUSTED_DOMAINS
+              value: "cloud.smadja.dev 127.0.0.1 10.244.0.0/16 10.0.0.0/8"
+            - name: NEXTCLOUD_UPDATE
+              value: "1"
+            - name: PHP_MEMORY_LIMIT
+              value: "512M"
+            - name: PHP_UPLOAD_LIMIT
+              value: "10G"
+          configs:
+            proxy.config.php: |-
+              <?php
+              $CONFIG = array (
+                'trusted_proxies' => ['10.0.0.0/8'],
+                'overwriteprotocol' => 'https',
+                'overwrite.cli.url' => 'https://cloud.smadja.dev',
+              );
+            misc.config.php: |-
+              <?php
+              $CONFIG = array (
+                'default_phone_region' => 'FR',
+                'maintenance_window_start' => 3,
+                'check_data_directory_permissions' => false,
+              );
+        internalDatabase:
+          enabled: false
+        externalDatabase:
+          enabled: true
+          type: postgresql
+          host: "homelab-db-rw.cnpg-system.svc.cluster.local"
+          database: nextcloud
+          user: nextcloud
+          existingSecret:
+            enabled: true
+            secretName: nextcloud-db-app
+            passwordKey: password
+        redis:
+          enabled: false
+        externalCache:
+          enabled: true
+          host: "redis.storage.svc.cluster.local"
+          port: 6379
+        persistence:
+          enabled: true
+          storageClass: "local-path"
+          size: "20Gi"
+          nextcloudData:
+            enabled: true
+            existingClaim: "nextcloud-data"
+        startupProbe:
+          enabled: true
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 600
+        livenessProbe:
+          enabled: true
+          initialDelaySeconds: 10
+        readinessProbe:
+          enabled: true
+          initialDelaySeconds: 10
+    test:
+      expected_endpoints: [https://cloud.smadja.dev]
+      requires_extended_timeout: true
 
   - name: paperless-ngx
     category: protected
     tier: standard
     namespace: productivity
     port: 8000
-    hostname: paperless.smadja.dev
+    hostname_prefix: paperless
     mode: protected
     clusters: [oci]
+    env_style: map
+    db_env_prefix: PAPERLESS_DB
     homepage:
       description: Document Management
       widget:
         type: paperlessngx
         url: https://paperless.smadja.dev
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    sso: authentik-header
+    requires: [postgres]
     database:
       local: true
       size: "20Gi"
@@ -197,10 +350,10 @@ apps:
     extra_env:
       PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.smadja.dev"
       PAPERLESS_URL: "https://paperless.smadja.dev"
-      PAPERLESS_REMOTE_USER_SET_NAME: "true"
-      PAPERLESS_REMOTE_USER_SET_EMAIL: "true"
-    provisioning:
-      method: header
+      PAPERLESS_ENABLE_HTTP_REMOTE_USER_API: "true"
+      PAPERLESS_ENABLE_HTTP_REMOTE_USER: "true"
+      PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME: "HTTP_X_AUTHENTIK_USERNAME"
+      PAPERLESS_AUDIT_LOG_ENABLED: "true"
     resources:
       requests:
         cpu: 100m
@@ -235,82 +388,251 @@ apps:
                 memory: 128Mi
         persistence:
           data:
-            enabled: true
-            accessMode: "ReadWriteOnce"
-            size: "5Gi"
-            storageClass: "local-path"
+            existingClaim: "paperless-ngx-data"
           media:
-            enabled: true
-            accessMode: "ReadWriteOnce"
-            size: "40Gi"
-            storageClass: "hetzner-smb"
+            existingClaim: "paperless-ngx-media"
           consume:
-            enabled: true
-            accessMode: "ReadWriteOnce"
-            size: "5Gi"
-            storageClass: "hetzner-smb"
+            existingClaim: "paperless-ngx-consume"
           export:
-            enabled: true
-            accessMode: "ReadWriteOnce"
-            size: "5Gi"
-            storageClass: "hetzner-smb"
+            existingClaim: "paperless-ngx-export"
     test:
       requires_extended_timeout: true
-
 
   - name: open-webui
     category: public
     tier: standard
     namespace: ai
     port: 80
-    hostname: ai.smadja.dev
+    hostname_prefix: ai
     mode: public
     clusters: [oci]
+    env_key: extraEnvVars
     homepage:
       description: Local LLM Interface
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
-    database:
-      local: true
-      size: "5Gi"
-      storage_class: "local-path"
-    provisioning:
-      method: oidc
+    sso: authentik-oidc
+    requires: [postgres, redis]
     secrets:
       - name: open-webui-oidc
         keys:
           OAUTH_CLIENT_SECRET: OPEN_WEBUI_OIDC_CLIENT_SECRET
+          WEBUI_SECRET_KEY: OPEN_WEBUI_SECRET_KEY
     extra_env:
       SHOW_ADMIN_DETAILS: "false"
+      WEBUI_NAME: "Smadja Homelab"
     helm:
       chart: open-webui
       repo: https://helm.openwebui.com/
-      version: 4.0.0
+      version: 12.10.0
       values:
+        # image.tag omis → utilise l'appVersion du chart (0.8.10)
+        # Utiliser Redis centralisé (redis.storage) — subchart ARM64 incompatible désactivé
         extraEnvVars:
-          - name: SHOW_ADMIN_DETAILS
-            value: "false"
           - name: OAUTH_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
                 name: open-webui-oidc
                 key: OAUTH_CLIENT_SECRET
+          - name: WEBUI_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: open-webui-oidc
+                key: WEBUI_SECRET_KEY
+        websocket:
+          url: "redis://redis.storage.svc.cluster.local:6379/1"
+          redis:
+            enabled: false
+        persistence:
+          enabled: true
+          size: "10Gi"
+          storageClass: "local-path"
         ollama:
           image:
             repository: docker.io/ollama/ollama
-    storage:
-      - name: data
-        size: "5Gi"
-        mount_path: "/app/backend/data"
-        storage_class: "local-path"
-      - name: pipelines
-        size: "2Gi"
-        mount_path: "/app/backend/data" # This is for the subchart, adapter will handle mapping
-        storage_class: "local-path"
     resources:
       requests:
         cpu: 100m
         memory: 512Mi
     test:
+      requires_extended_timeout: true
+
+  - name: immich
+    category: protected
+    tier: standard
+    namespace: photography
+    port: 2283
+    service_name: immich-server
+    hostname_prefix: photos
+    mode: protected
+    clusters: [oci]
+    sso: authentik-oidc
+    requires: [postgres, redis]
+    storage:
+      - name: library
+        mount_path: /usr/src/app/upload
+        existing_claim: immich-library
+        type: persistentVolumeClaim
+        access: shared
+    allow_external: true
+    homepage:
+      description: Photo Management
+      icon: immich
+    database:
+      local: true
+    helm:
+      chart: immich
+      repo: https://immich-app.github.io/immich-charts
+      version: "0.10.3"
+      values:
+        fullnameOverride: null
+        # Shared env for all Immich components (bjw-s common chart)
+        controllers:
+          main:
+            containers:
+              main:
+                image:
+                  repository: ghcr.io/immich-app/immich-server
+                  tag: v2.0.0
+                env:
+                  REDIS_HOSTNAME: "redis.storage.svc.cluster.local"
+                  REDIS_PORT: "6379"
+                  DB_HOSTNAME: "homelab-db-rw.cnpg-system.svc.cluster.local"
+                  DB_DATABASE_NAME: "immich"
+                  DB_USERNAME: "immich"
+                  DB_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: immich-db-app
+                        key: password
+                envFrom:
+                  - secretRef:
+                      name: immich-db-app
+        immich:
+          persistence:
+            library:
+              existingClaim: immich-library
+        valkey:
+          enabled: false
+        server:
+          enabled: true
+        machine-learning:
+          enabled: true
+          image:
+            repository: ghcr.io/immich-app/immich-machine-learning
+            tag: v2.0.0
+          persistence:
+            cache:
+              type: persistentVolumeClaim
+              size: 20Gi
+              storageClass: local-path
+              accessMode: ReadWriteOnce
+
+    test:
+      expected_endpoints: [https://photos.smadja.dev]
+
+  - name: romm
+    category: protected
+    tier: standard
+    namespace: gaming
+    port: 8080
+    hostname_prefix: romm
+    mode: protected
+    clusters: [oci]
+    sso: authentik-oidc
+    requires: [postgres, redis]
+    allow_external: true
+    homepage:
+      description: ROM Manager
+      icon: romm
+    storage:
+      - name: library
+        size: 1Ti
+        mount_path: /romm/library
+        storage_class: hetzner-smb
+        access: shared
+      - name: assets
+        size: 100Gi
+        mount_path: /romm/assets
+        storage_class: hetzner-smb
+        access: shared
+      - name: resources
+        mount_path: /romm/resources
+        existing_claim: romm-resources
+        access: shared
+    extra_env:
+      ROMM_DB_DRIVER: "postgresql"
+      ROMM_REDIS_HOST: "redis.storage.svc.cluster.local"
+      ROMM_REDIS_PORT: "6379"
+      ROMM_PORT: "8080"
+      ROMM_BASE_URL: "https://romm.smadja.dev"
+    secrets:
+      - name: romm-secrets
+        keys:
+          ROMM_AUTH_SECRET_KEY: ROMM_AUTH_SECRET_KEY
+          ROMM_OIDC_CLIENT_SECRET: ROMM_OIDC_CLIENT_SECRET
+      - name: romm-igdb
+        keys:
+          IGDB_CLIENT_ID: IGDB_CLIENT_ID
+          IGDB_CLIENT_SECRET: IGDB_CLIENT_SECRET
+#      - name: romm-metadata
+#        keys:
+#          ROMM_MOBYGAMES_API_KEY: MOBYGAMES_API_KEY
+#          ROMM_STEAMGRIDDB_API_KEY: STEAMGRIDDB_API_KEY
+#          ROMM_SCREENSCRAPER_DEV_DEV: SCREENSCRAPER_DEV_DEV
+#          ROMM_SCREENSCRAPER_DEV_PWD: SCREENSCRAPER_DEV_PWD
+#          ROMM_SCREENSCRAPER_DEV_SOFTNAME: SCREENSCRAPER_DEV_SOFTNAME
+    database:
+      local: true
+    helm:
+      chart: romm
+      repo: https://retsamedoc.github.io/helm-charts/
+      version: "2025.3.1"
+      values:
+        image:
+          repository: ghcr.io/rommapp/romm
+          tag: 4.7.0
+        podSecurityContext:
+          fsGroup: 1000
+        podSpec:
+          enableServiceLinks: false
+        persistence:
+          library:
+            existingClaim: romm-library
+            accessMode: ReadWriteMany
+          assets:
+            existingClaim: romm-assets
+            accessMode: ReadWriteMany
+          resources:
+            existingClaim: romm-resources
+            accessMode: ReadWriteOnce
+          config:
+            enabled: true
+            storageClass: local-path
+            size: 5Gi
+            accessMode: ReadWriteOnce
+        service:
+          main:
+            ports:
+              http:
+                port: 8080
+        env:
+          DB_HOST: "homelab-db-rw.cnpg-system.svc.cluster.local"
+          DB_PORT: "5432"
+          DB_NAME: "romm"
+          DB_USER: "romm"
+          DB_PASSWD:
+            valueFrom:
+              secretKeyRef:
+                name: romm-db-app
+                key: password
+          REDIS_HOST: "redis.storage.svc.cluster.local"
+          REDIS_PORT: "6379"
+          REDIS_PASSWORD: ""
+        mariadb:
+          enabled: false
+        redis:
+          enabled: false
+    test:
+      expected_endpoints: [https://romm.smadja.dev]
       requires_extended_timeout: true
 
   - name: envoy-ai-gateway
@@ -348,10 +670,10 @@ apps:
     tier: standard
     namespace: homelab
     port: 3000
-    hostname: home.smadja.dev
+    hostname_prefix: home
     mode: protected
     clusters: [oci, local]
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
+    dependencies: [authentik]
     extra_env:
       HOMEPAGE_ALLOWED_HOSTS: "home.smadja.dev"
       HOMEPAGE_CONFIG_DIR: "/app/config/settings"
@@ -466,9 +788,12 @@ apps:
               box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
               border-color: var(--accent) !important;
             }
+          proxmox.yaml: |
+            # Not used - required to prevent read-only fs error on startup
           custom.js: |
             console.log('Homepage Premium UI Loaded');
     auth: true
+    sso: authentik-header
     test:
       routing: true
       expected_endpoints: [https://home.smadja.dev]
@@ -478,18 +803,15 @@ apps:
     tier: standard
     namespace: music
     port: 4533
-    hostname: music.smadja.dev
+    hostname_prefix: music
     mode: protected
-    auth: true
-    provisioning:
-      method: header
+    sso: authentik-header
     homepage:
       description: Music Streaming
       widget:
         type: navidrome
         url: https://music.smadja.dev
     clusters: [oci]
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
       chart: app-template
       repo: https://bjw-s-labs.github.io/helm-charts
@@ -511,6 +833,8 @@ apps:
                     value: Europe/Paris
                   - name: ND_LOG_LEVEL
                     value: info
+                  - name: ND_EXTAUTH_USERHEADER
+                    value: "X-authentik-username"
                   - name: ND_EXTAUTH_TRUSTEDSOURCES
                     value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
         podSecurityContext:
@@ -523,20 +847,17 @@ apps:
                 port: 4533
     storage:
       - name: music
-        size: 1Ti
         mount_path: /music
-        storage_class: hetzner-smb
+        existing_claim: navidrome-music
+        type: persistentVolumeClaim
         access: shared
       - name: navidrome-data
-        size: 2Gi
+        size: 5Gi
         mount_path: /data
         storage_class: local-path
+        type: persistentVolumeClaim
         access: private
-    secrets:
-      - name: hetzner-storage-creds
-        keys:
-          username: HETZNER_STORAGE_BOX_1_USER
-          password: HETZNER_STORAGE_BOX_1_PASS
+
     replicas: 1
     resources:
       requests:
@@ -553,14 +874,13 @@ apps:
     tier: ephemeral
     namespace: music
     port: 5030
-    hostname: soulseek.smadja.dev
+    hostname_prefix: soulseek
     mode: protected
-    auth: true
+    sso: authentik-header
     homepage:
       description: P2P Music Sharing
       icon: soulseek
     clusters: [oci]
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
       chart: app-template
       repo: https://bjw-s-labs.github.io/helm-charts
@@ -586,17 +906,15 @@ apps:
                 port: 5030
     storage:
       - name: config
-        size: 1Gi
         mount_path: /app/config
-        storage_class: local-path
-        access: private
+        existing_claim: slskd-config
+        type: persistentVolumeClaim
+        access: shared
       - name: music
         size: 1Ti
         mount_path: /music
         existing_claim: navidrome-music
         access: shared
-    provisioning:
-      method: header
     test:
       routing: true
       expected_endpoints: [https://soulseek.smadja.dev]
@@ -607,18 +925,17 @@ apps:
     tier: standard
     namespace: music
     port: 80
-    hostname: audiobooks.smadja.dev
+    hostname_prefix: audiobooks
     mode: protected
-    auth: true
-    provisioning:
-      method: oidc
+    sso: authentik-oidc
     clusters: [oci]
-    dependencies: [external-secrets, cloudflared, kube-system, authentik]
     helm:
       chart: app-template
       repo: https://bjw-s-labs.github.io/helm-charts
       version: 3.2.1
       values:
+        podSecurityContext:
+          fsGroup: 1000
         controllers:
           main:
             containers:
@@ -634,16 +951,19 @@ apps:
                 port: 80
     storage:
       - name: config
-        size: 1Gi
+        size: 5Gi
         mount_path: /config
+        type: persistentVolumeClaim
         storage_class: local-path
       - name: metadata
-        size: 2Gi
+        size: 10Gi
         mount_path: /metadata
+        type: persistentVolumeClaim
         storage_class: local-path
       - name: audiobooks
         size: 1Ti
         mount_path: /audiobooks
+        type: persistentVolumeClaim
         existing_claim: navidrome-music
     test:
       routing: true
@@ -655,14 +975,15 @@ apps:
     namespace: authentik
     service_name: authentik-server
     port: 80
-    hostname: auth.smadja.dev
+    hostname_prefix: auth
     mode: public
     homepage:
       description: Identity Provider
     clusters: [oci, local]
-    dependencies: [cnpg-system, redis, external-secrets, cloudflared, kube-system]
+    dependencies: [cnpg-system, redis, external-secrets]
     extra_env:
       AUTHENTIK_COOKIE_DOMAIN: ".smadja.dev"
+      AUTHENTIK_EMAIL__USE_TLS: "true"
     helm:
       chart: authentik
       name: authentik-release
@@ -681,8 +1002,7 @@ apps:
             tag: 7.2
           master:
             persistence:
-              storageClass: local-path
-              size: 2Gi
+              enabled: false
             podSecurityContext:
               fsGroup: 1000
           shmSize: 256Mi
@@ -691,9 +1011,9 @@ apps:
               allowInsecureImages: true
     storage:
       - name: data
-        size: 5Gi
         mount_path: /data
-        storage_class: local-path
+        existing_claim: authentik-data
+        access: shared
     database_backup:
       enabled: true
       endpoint_url: "https://axnvxxurxefp.compat.objectstorage.eu-paris-1.oraclecloud.com"
@@ -711,11 +1031,11 @@ apps:
           AUTHENTIK_REDIS_PASSWORD: AUTHENTIK_REDIS_PASSWORD
           AUTHENTIK_BOOTSTRAP_PASSWORD: AUTHENTIK_BOOTSTRAP_PASSWORD
           AUTHENTIK_BOOTSTRAP_TOKEN: AUTHENTIK_BOOTSTRAP_TOKEN
-          AUTHENTIK_SMTP_HOST: AUTHENTIK_SMTP_HOST
-          AUTHENTIK_SMTP_PORT: AUTHENTIK_SMTP_PORT
-          AUTHENTIK_SMTP_USERNAME: AUTHENTIK_SMTP_USERNAME
-          AUTHENTIK_SMTP_PASSWORD: AUTHENTIK_SMTP_PASSWORD
-          AUTHENTIK_SMTP_FROM: AUTHENTIK_SMTP_FROM
+          AUTHENTIK_EMAIL__HOST: AUTHENTIK_SMTP_HOST
+          AUTHENTIK_EMAIL__PORT: AUTHENTIK_SMTP_PORT
+          AUTHENTIK_EMAIL__USERNAME: AUTHENTIK_SMTP_USERNAME
+          AUTHENTIK_EMAIL__PASSWORD: AUTHENTIK_SMTP_PASSWORD
+          AUTHENTIK_EMAIL__FROM: AUTHENTIK_SMTP_FROM
       - name: s3-backup-creds
         keys:
           access_key_id: OCI_S3_ACCESS_KEY
@@ -734,21 +1054,21 @@ apps:
     tier: critical
     namespace: vaultwarden
     port: 8080
-    hostname: vault.smadja.dev
+    hostname_prefix: vault
     mode: public
-    auth: true
+    env_style: map
     homepage:
       description: Password Manager
     clusters: [oci]
-    provisioning:
-      method: oidc
-      name: vaultwarden-oidc-v2
-      client_id: vaultwarden-v2
+    sso: authentik-oidc
     extra_env:
       ROCKET_PORT: "8080"
-    dependencies: [cnpg-system, external-secrets, cloudflared, authentik, kube-system]
+      DOMAIN: "https://vault.smadja.dev"
+      SSO_ONLY: "false"                      # Keep password login as fallback
+      SSO_SIGNUPS_MATCH_EMAIL: "true"        # Link SSO to existing accounts by email
+    dependencies: [cnpg-system]
+    requires: [postgres]
     database:
-      local: true
       size: "5Gi"
       storage_class: "oci-bv"
     helm:
@@ -763,7 +1083,7 @@ apps:
           runAsUser: 1000
           runAsGroup: 1000
           fsGroup: 1000
-        domain: vaultwarden.smadja.dev
+        domain: vault.smadja.dev
         service:
           main:
             enabled: true
@@ -776,10 +1096,17 @@ apps:
               secretKeyRef:
                 name: vaultwarden-oidc
                 key: SSO_CLIENT_SECRET
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: vaultwarden-db-app
+                key: uri
     storage:
       - name: data
-        size: "1Gi"
         mount_path: /data
+        existing_claim: vaultwarden-data
+        type: pvc
+        access: shared
     secrets:
       - name: vaultwarden-vars
         keys:
@@ -961,8 +1288,7 @@ apps:
       repo: https://charts.jetstack.io
       version: v1.16.2
       values:
-        crds:
-          enabled: false
+        installCRDs: false
         serviceAccount:
           create: true
     secrets:

@@ -13,7 +13,7 @@ class MyMocks(pulumi.runtime.Mocks):
 pulumi.runtime.set_mocks(MyMocks())
 
 from shared.apps.generic import GenericHelmApp  # noqa: E402
-from shared.utils.schemas import AppModel, HelmConfig  # noqa: E402
+from shared.utils.schemas import AppModel  # noqa: E402
 
 
 @pulumi.runtime.test
@@ -24,12 +24,14 @@ def test_helm_release_depends_on_opts():
     model = AppModel(
         name="test-app",
         namespace="default",
-        helm=HelmConfig(
-            chart="my-chart",
-            repo="https://my.repo",
-            version="1.0.0",
-        ),
-        port=80,
+        helm={
+            "chart": "my-chart",
+            "repo": "https://my.repo",
+            "version": "1.0.0",
+        },
+        network={
+            "port": 80,
+        },
     )
 
     # Mock some resources that the release should depend on

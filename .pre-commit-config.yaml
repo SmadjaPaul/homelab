@@ -4,6 +4,18 @@
 
 repos:
   # =============================================================================
+  # Local - Context Sync
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: update-service-catalog
+        name: 📋 Update SERVICE-CATALOG.md from apps.yaml
+        entry: uv run --with PyYAML python scripts/update-context.py
+        language: system
+        files: ^kubernetes-pulumi/apps\.yaml$
+        pass_filenames: false
+
+  # =============================================================================
   # Security - Secret Detection
   # =============================================================================
   - repo: https://github.com/gitleaks/gitleaks
@@ -56,7 +68,7 @@ repos:
         name: 📄 Fix end of files
       - id: check-yaml
         name: ✅ Check YAML syntax
-        args: [--allow-multiple-documents]
+        args: [--allow-multiple-documents, --unsafe]
         exclude: (_bmad|.*/charts/.*|.*/crds/.*|redis/.*)
       - id: check-json
         name: ✅ Check JSON syntax
@@ -65,7 +77,7 @@ repos:
         name: 🔀 Check merge conflicts
       - id: check-added-large-files
         name: 📦 Check large files
-        args: [--maxkb=1000]
+        args: [--maxkb=2500]
       - id: detect-private-key
         name: 🔑 Detect private keys
         exclude: |

@@ -389,3 +389,70 @@ kubectl logs job/<app>-db-provision -n cnpg-system
    - `local-path` - Disque local (éphémère)
    - `oci-bv` - Block Volume OCI (persistant, min 50GB)
    - `hetzner-smb` - Hetzner Storage Box (capacité)
+
+## Pièges Opérationnels Connus
+
+### Port-forward requis pour `pulumi up` (stack k8s-apps)
+
+Le provider Pulumi Authentik se connecte à `localhost:9000`. Avant tout `pulumi up` sur la stack `k8s-apps`, il faut un port-forward actif :
+
+```bash
+kubectl port-forward svc/authentik-server 9000:80 -n authentik &
+# Vérifier que ça répond:
+curl -s http://localhost:9000/api/v3/root/config/ | head -c 50
+```
+
+Sans ce port-forward, les invokes `get_property_mapping_provider_scope_output` échouent avec `connection refused`.
+
+### Après un `pulumi up` qui recrée l'outpost Authentik
+
+Le worker Authentik ne reconcilie pas automatiquement les K8s resources de l'outpost. Il faut le faire manuellement :
+
+```bash
+kubectl exec -n authentik $(kubectl get pod -n authentik -l app.kubernetes.io/component=worker -o name | head -1) -- \
+  python -c "
+import django, os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'authentik.root.settings'
+django.setup()
+from authentik.outposts.models import Outpost
+from authentik.providers.proxy.controllers.kubernetes import ProxyKubernetesController
+outpost = Outpost.objects.get(name='authentik-embedded-outpost')
+ctrl = ProxyKubernetesController(outpost, outpost.service_connection)
+list(ctrl.up_with_logs())
+print('Done')
+"
+```
+
+Cela crée le secret K8s `ak-outpost-authentik-embedded-outpost` et redémarre le deployment de l'outpost.
+
+**Symptôme:** 502 Bad Gateway sur toutes les apps protégées, et le pod outpost log `403 Forbidden (Token invalid/expired)`.
+
+### Bug Authentik 2026.2.1 — Service selector incorrect après reconciliation
+
+Après la reconciliation de l'outpost, le Service K8s obtient un selector avec `app.kubernetes.io/component: server` que le pod ne possède pas → aucun endpoint → 502.
+
+**Fix :**
+```bash
+kubectl patch svc ak-outpost-authentik-embedded-outpost -n authentik \
+  --type=json \
+  -p '[{"op": "replace", "path": "/spec/selector", "value": {
+    "app.kubernetes.io/managed-by": "goauthentik.io",
+    "app.kubernetes.io/name": "authentik-outpost-proxy",
+    "goauthentik.io/outpost-name": "authentik-embedded-outpost",
+    "goauthentik.io/outpost-type": "proxy",
+    "goauthentik.io/outpost-uuid": "2754b643ad8c4de0bc87172f494dfef5"
+  }}]'
+```
+
+**Vérification :** `kubectl get endpoints ak-outpost-authentik-embedded-outpost -n authentik` doit afficher des IPs.
+
+### `automountServiceAccountToken` pour Authentik
+
+Pulumi force `automountServiceAccountToken: false` sur tous les ServiceAccounts par défaut (sécurité). Authentik est une exception car son worker a besoin du token K8s pour gérer les secrets d'outpost.
+
+Ce comportement est géré dans `shared/apps/common/kubernetes_registry.py` :
+```python
+needs_api_access = app.name in ("homepage", "authentik")
+```
+
+Ne pas supprimer `authentik` de cette liste.

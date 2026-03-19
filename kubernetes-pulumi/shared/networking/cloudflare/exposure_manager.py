@@ -18,7 +18,7 @@ import pulumi_cloudflare as cloudflare
 from typing import List
 
 from shared.constants import AUTHENTIK_OUTPOST_SVC
-from shared.utils.schemas import AppModel, ExposureMode
+from shared.utils.schemas import AppModel
 
 
 class TunnelManager:
@@ -35,12 +35,14 @@ class TunnelManager:
         domain: str,
         provider: cloudflare.Provider,
         parent: pulumi.ComponentResource,
+        zone_id: str = None,
     ):
         self.account_id = account_id
         self.tunnel_id = tunnel_id
         self.domain = domain
         self.cf_provider = provider
         self.parent = parent
+        self.zone_id = zone_id
 
     def setup_tunnel(self, apps: List[AppModel]) -> List[pulumi.Resource]:
         """
@@ -66,13 +68,18 @@ class TunnelManager:
                 continue
 
             # Route: protected → Authentik Outpost, public → direct service
-            if app.mode == ExposureMode.PROTECTED:
+            mode_str = str(app.mode.value if hasattr(app.mode, "value") else app.mode)
+            pulumi.log.debug(f"App {app.name} mode: {mode_str}")
+
+            if mode_str == "protected":
                 service_url = AUTHENTIK_OUTPOST_SVC
             else:
                 svc_name = app.service_name or app.name
                 service_url = (
                     f"http://{svc_name}.{app.namespace}.svc.cluster.local:{app.port}"
                 )
+
+            pulumi.log.info(f"  [Tunnel] {app.hostname} -> {service_url}")
 
             ingress_rules.append(
                 {
@@ -100,6 +107,7 @@ class TunnelManager:
             ),
             opts=local_opts,
         )
+
         resources.append(tunnel_config)
 
         return resources

@@ -75,6 +75,7 @@ class AppRegistry(pulumi.ComponentResource):
         account_id = self.config.get("cloudflare_account_id")
         tunnel_id = self.config.get("cloudflare_tunnel_id")
         cf_token = self.config.get("cloudflare_api_token")
+        zone_id = self.config.get("cloudflare_zone_id")
 
         if account_id and tunnel_id and cf_token:
             cf_provider = cloudflare.Provider(
@@ -83,7 +84,7 @@ class AppRegistry(pulumi.ComponentResource):
                 opts=pulumi.ResourceOptions(parent=self),
             )
             self.tunnel_manager = TunnelManager(
-                account_id, tunnel_id, domain, cf_provider, self
+                account_id, tunnel_id, domain, cf_provider, self, zone_id=zone_id
             )
 
         self.namespaces: Dict[str, k8s.core.v1.Namespace] = {}
@@ -120,6 +121,9 @@ class AppRegistry(pulumi.ComponentResource):
         # Initialize shared database cluster
         local_opts = pulumi.ResourceOptions(provider=self.provider, parent=self)
         self.k8s_registry.setup_shared_database_cluster(local_opts)
+
+        # Cleanup evicted/failed pods to prevent DiskPressure cascades
+        self.k8s_registry.setup_pod_cleanup_cronjob(local_opts)
 
     def register_app(
         self,

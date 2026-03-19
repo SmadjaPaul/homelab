@@ -8,8 +8,7 @@ hidden coupling and silent breakage.
 AUTHENTIK_NAMESPACE = "authentik"
 AUTHENTIK_OUTPOST_NAME = "authentik-embedded-outpost"
 AUTHENTIK_OUTPOST_SVC = (
-    f"http://ak-outpost-{AUTHENTIK_OUTPOST_NAME}"
-    f".{AUTHENTIK_NAMESPACE}.svc.cluster.local:9000"
+    f"http://ak-outpost-custom.{AUTHENTIK_NAMESPACE}.svc.cluster.local:9000"
 )
 
 # Authentik Default Flows (by slug — stable across reinstalls)

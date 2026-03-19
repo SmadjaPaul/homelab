@@ -1,0 +1,7 @@
+# We simulate what final_values would look like if apps.yaml had fullnameOverride: ~
+# Actually, if I don't pass -f for it, it uses default.
+# I want to see what happens when it's NOT in top values.
+immich:
+  persistence:
+    library:
+      existingClaim: immich-library

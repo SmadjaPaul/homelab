@@ -21,7 +21,13 @@ from typing import Optional
 import yaml
 from pydantic import ValidationError
 
-from shared.utils.schemas import AppModel, IdentitiesModel
+from shared.utils.schemas import (
+    AppModel,
+    IdentitiesModel,
+    ExposureMode,
+    StorageBoxConfig,
+)
+from shared.apps.sso_presets import resolve_sso
 
 
 class DependencyGraph:
@@ -121,6 +127,53 @@ KNOWN_NAMESPACES = {
 }
 
 
+def resolve_conventions(apps: list[AppModel], domain: str):
+    """Auto-derive hostnames and dependencies based on conventions."""
+    for app in apps:
+        # 1. Hostname auto-derivation
+        if not app.network.hostname and app.network.hostname_prefix:
+            app.network.hostname = f"{app.network.hostname_prefix}.{domain}"
+
+        # 2. Implicit dependencies
+        implicit = set()
+        if app.secrets:
+            implicit.add("external-secrets")
+
+        if app.network.hostname and app.network.mode in (
+            ExposureMode.PUBLIC,
+            ExposureMode.PROTECTED,
+        ):
+            implicit.add("cloudflared")
+            implicit.add("kube-system")
+
+        if app.persistence.database and app.persistence.database.local:
+            implicit.add("cnpg-system")
+
+        if "postgres" in app.requires:
+            if not app.persistence.database:
+                from shared.utils.schemas import DatabaseConfig
+
+                app.persistence.database = DatabaseConfig(local=True)
+            else:
+                app.persistence.database.local = True
+            implicit.add("cnpg-system")
+
+        if "redis" in app.requires:
+            implicit.add("redis")
+
+        if "s3" in app.requires:
+            # Placeholder for S3 provider abstraction
+            pass
+
+        resolve_sso(app, domain)
+
+        if app.auth.sso or app.auth.enabled or app.auth.provisioning:
+            implicit.add("authentik")
+
+        # Merge dependencies
+        app.dependencies = list(set(app.dependencies) | implicit)
+
+
 class AppLoader:
     """Loads and parses apps.yaml configuration."""
 
@@ -141,6 +194,7 @@ class AppLoader:
         """Load apps from shared.apps.yaml."""
         data = self._load_yaml()
         apps_data = data.get("apps", [])
+        domain = data.get("domain", "smadja.dev")
 
         apps = []
         for app_data in apps_data:
@@ -149,6 +203,15 @@ class AppLoader:
                 apps.append(app)
             except ValidationError as e:
                 print(f"Error validating app {app_data.get('name', 'unknown')}: {e}")
+
+        resolve_conventions(apps, domain)
+
+        # Preflight validation — warn on configuration issues
+        from shared.utils.preflight import validate_all
+
+        errors = validate_all(apps, domain)
+        for e in errors:
+            print(f"[Preflight Warning] {e}")
 
         return apps
 
@@ -167,6 +230,18 @@ class AppLoader:
             return IdentitiesModel(**identities_data)
         except ValidationError as e:
             print(f"Error validating identities: {e}")
+            return None
+
+    def load_storagebox_config(self) -> Optional[StorageBoxConfig]:
+        """Load and validate the storagebox section from apps.yaml."""
+        data = self._load_yaml()
+        storagebox_data = data.get("storagebox")
+        if not storagebox_data:
+            return None
+        try:
+            return StorageBoxConfig(**storagebox_data)
+        except Exception as e:
+            print(f"Error validating storagebox config: {e}")
             return None
 
     def load_for_cluster(self, cluster: str) -> list[AppModel]:

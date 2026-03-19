@@ -1,4 +1,4 @@
-<!-- Context: core/navigation | Priority: critical | Version: 3.0 | Updated: 2026-03-05 -->
+<!-- Context: core/navigation | Priority: critical | Version: 4.0 | Updated: 2026-03-13 -->
 
 # Homelab Context Navigation
 
@@ -8,19 +8,27 @@ Bienvenue dans le projet Homelab de Paul. Voici comment naviguer efficacement.
 
 ```
 .
-├── CLAUDE.md              # Instructions principales (~30 lignes)
-├── docs/                  # Documentation accessible
-├── .claude/               # Skills & Hooks pour agents
-│   ├── skills/            # Modes experts (code-review, debug, etc.)
-│   └── hooks/            # Guardrails (sécurité, GitOps)
-├── .opencode/context/     # Contexte spécialisé
-│   ├── navigation.md     # Ce fichier
-│   ├── infrastructure.md # Cloud, Terraform, Secrets
-│   ├── kubernetes.md     # Flux GitOps, K8s
-│   └── security_auth.md  # Auth, Zero Trust
-├── kubernetes/            # Configs K8s
-├── terraform/            # IaC
-└── scripts/               # Scripts
+├── CLAUDE.md                    # Instructions principales
+├── docs/                        # Documentation du projet
+│   ├── ARCHITECTURE.md          # Architecture Kubernetes & Pulumi (V2)
+│   ├── SERVICE-CATALOG.md       # Services déployés
+│   ├── NETWORKING.md            # Accès Zero Trust, Cloudflare Tunnel
+│   ├── STORAGE.md               # Stratégie stockage (OCI + Hetzner)
+│   ├── SECRETS.md               # Gestion secrets (Doppler)
+│   └── DEPLOYMENT.md            # Procédures de déploiement
+├── .opencode/context/           # Contexte spécialisé agents IA
+│   ├── navigation.md            # Ce fichier
+│   ├── infrastructure.md        # Cloud, Terraform, Stockage
+│   ├── kubernetes.md            # Pulumi, Apps, Flux GitOps
+│   └── security_auth.md         # Authentik, Zero Trust
+├── kubernetes-pulumi/           # Infrastructure K8s (Pulumi Python)
+│   ├── apps.yaml                # Single source of truth (apps, buckets)
+│   ├── k8s-core/                # Phase 1: Namespaces, CRDs, Operators
+│   ├── k8s-storage/             # Phase 2: Storage, Databases, S3
+│   ├── k8s-apps/                # Phase 3: Applications
+│   └── shared/                  # Code partagé (BaseApp, Adapters, Registries)
+├── terraform/                    # Infra cloud (OCI)
+└── scripts/                     # Scripts utilitaires
 ```
 
 ## Routes Rapides
@@ -28,35 +36,23 @@ Bienvenue dans le projet Homelab de Paul. Voici comment naviguer efficacement.
 | Besoin | Fichier |
 |--------|---------|
 | **Comprendre le projet** | `CLAUDE.md` |
-| **Roadmap** | `ROADMAP.md` |
-| **Code Review** | `.claude/skills/code-review.md` |
-| **Debug** | `.claude/skills/debug.md` |
-| **Release** | `.claude/skills/release.md` |
-| **Refactor** | `.claude/skills/refactor.md` |
-| **Guardrails** | `.claude/hooks/*.md` |
 | **Architecture** | `docs/ARCHITECTURE.md` |
-| **Secrets** | `docs/SECRETS.md` |
+| **Services déployés** | `docs/SERVICE-CATALOG.md` |
+| **Secrets (Doppler)** | `docs/SECRETS.md` |
 | **Réseau** | `docs/NETWORKING.md` |
+| **Stockage** | `docs/STORAGE.md` |
 
 ## Contextes Spécialisés
 
 | Domaine | Contexte |
 |---------|----------|
 | **Infra & IaC** | `.opencode/context/infrastructure.md` |
-| **Kubernetes & Flux** | `.opencode/context/kubernetes.md` |
+| **Kubernetes & Pulumi** | `.opencode/context/kubernetes.md` |
 | **Auth & Sécurité** | `.opencode/context/security_auth.md` |
-
-## Modules Sensibles (CLAUDE.md locaux)
-
-Ces dossiers ont leur propre contexte local:
-
-- `terraform/auth0/CLAUDE.md` - Config Auth0
-- `scripts/CLAUDE.md` - Scripts utilitaires
-- `kubernetes/bootstrap/CLAUDE.md` - Bootstrap cluster
 
 ## Principes
 
 1. **Prompting temporaire** → **Structure permanente**
 2. **Court, dense, efficace** - 3 choses: pourquoi, carte, règles
-3. **Guardrails déterministes** - Ce qui doit être bloqué, l'est toujours
-4. **Context local** - Instructions là où les pièges apparaissent
+3. **apps.yaml = source de vérité** - Définir les apps en YAML, pas en Python
+4. **Doppler pour les secrets** - Jamais de secrets en dur

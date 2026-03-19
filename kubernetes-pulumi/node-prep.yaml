@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-prep
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: node-prep
+  template:
+    metadata:
+      labels:
+        name: node-prep
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: node-prep
+        image: alpine
+        securityContext:
+          privileged: true
+        command: ["sh", "-c", "nsenter -t 1 -m -u -n -i -- sh -c 'yum install -y cifs-utils && modprobe cifs && sleep infinity'"]

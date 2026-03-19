@@ -3,13 +3,14 @@ Tests for Ingress and Deployment Validation
 
 These tests verify:
 1. IngressClass names match what's actually deployed
-2. Required operators are deployed before apps that depend on them
-3. PVC naming consistency between Pulumi and Helm
+2. Deployment readiness (timeouts, PVC ordering)
+
+Note: dependency validation and PVC naming are covered by
+test_deployment_validation.py and test_storage_strategy.py respectively.
 """
 
 import pytest
 from shared.apps.loader import AppLoader
-from shared.utils.schemas import ExposureMode
 
 
 class TestIngressClassValidation:
@@ -58,147 +59,6 @@ class TestIngressClassValidation:
         if unknown_classes:
             pytest.fail(
                 f"Unknown ingress classes used: {unknown_classes}. Known: {self.KNOWN_INGRESS_CLASSES}"
-            )
-
-    def test_tunnel_mode_requires_cloudflared_dependency(self):
-        """
-        Test that apps using PUBLIC mode (cloudflare-tunnel) have cloudflared in dependencies.
-
-        Without cloudflared deployed, Ingress with cloudflare-tunnel will fail with:
-        'Ingress .status.loadBalancer field was not updated with a hostname/IP address'
-
-        Note: All apps with hostnames (both PUBLIC and PROTECTED) need cloudflared.
-        Traffic flow: User -> Cloudflare -> cloudflared -> (Authentik) -> App
-        """
-        loader = AppLoader()
-        apps = loader.load()
-
-        errors = []
-        for app in apps:
-            # All apps with hostnames use cloudflared tunnel
-            # PROTECTED apps additionally go through Authentik after cloudflared
-            if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
-                has_cloudflared_dep = "cloudflared" in app.dependencies
-                if not has_cloudflared_dep:
-                    errors.append(
-                        f"App '{app.name}' uses {app.mode.value} mode with a hostname "
-                        f"but doesn't have 'cloudflared' in dependencies. "
-                        f"Current dependencies: {app.dependencies}"
-                    )
-
-        if errors:
-            pytest.fail(
-                "Apps using tunnel mode must depend on cloudflared:\n"
-                + "\n".join(f"  - {e}" for e in errors)
-            )
-
-
-class TestRequiredOperators:
-    """Test that required operators are properly configured as dependencies."""
-
-    def test_apps_depend_on_required_operators(self):
-        """
-        Test that apps specify their required operators as dependencies.
-
-        This prevents 'No matching service found' and timeout errors.
-
-        Note: All traffic (both PUBLIC and PROTECTED) goes through cloudflared tunnel.
-        PROTECTED apps then go through Authentik for authentication.
-        """
-        loader = AppLoader()
-        apps = loader.load()
-
-        errors = []
-        for app in apps:
-            # Check if app uses a feature that requires an operator
-            if app.disable_auto_route:
-                continue
-
-            if app.mode in (ExposureMode.PUBLIC, ExposureMode.PROTECTED):
-                if getattr(app, "hostname", None):
-                    # All traffic goes through cloudflared tunnel first
-                    # Then: PUBLIC -> direct to app, PROTECTED -> authentik -> app
-                    if "cloudflared" not in app.dependencies:
-                        errors.append(
-                            f"App '{app.name}' uses mode {app.mode.value} with a hostname "
-                            f"but doesn't depend on 'cloudflared'. "
-                            f"Dependencies: {app.dependencies}"
-                        )
-
-        if errors:
-            pytest.fail(
-                "Apps must declare their required operators as dependencies:\n"
-                + "\n".join(f"  - {e}" for e in errors)
-            )
-
-
-class TestHelmReleaseConsistency:
-    """Test that Helm releases and Pulumi resources are consistent."""
-
-    def test_apps_yaml_dependencies_exist(self):
-        """
-        Test that all apps listed in dependencies actually exist in apps.yaml.
-
-        This prevents silent failures where a dependency is misspelled.
-        """
-        loader = AppLoader()
-        apps = loader.load()
-        app_names = {app.name for app in apps}
-
-        errors = []
-        for app in apps:
-            for dep in app.dependencies:
-                if dep not in app_names and dep not in ["kube-system"]:
-                    errors.append(
-                        f"App '{app.name}' depends on '{dep}' but that app doesn't exist in apps.yaml"
-                    )
-
-        if errors:
-            pytest.fail(
-                "Invalid dependencies found:\n" + "\n".join(f"  - {e}" for e in errors)
-            )
-
-    def test_storage_keys_match_pvc_names(self):
-        """
-        Test that persistence keys in helm.values match the expected PVC naming pattern.
-
-        Root cause of Helm adoption failures:
-        - Pulumi creates PVC: {app}-{storage.name} (e.g., homarr-config)
-        - Helm chart expects: volumeClaimTemplate or existingClaim matching that name
-        """
-        loader = AppLoader()
-        apps = loader.load()
-
-        errors = []
-        for app in apps:
-            if not app.helm or not app.storage:
-                continue
-
-            # Build expected PVC names
-            expected_pvc_names = {f"{app.name}-{s.name}" for s in app.storage}
-
-            # Check helm values for persistence config
-            helm_values = app.helm.values or {}
-            persistence = helm_values.get("persistence", {})
-
-            for pvc_key, pvc_config in persistence.items():
-                if not isinstance(pvc_config, dict):
-                    continue
-
-                # Check volumeClaimName or existingClaim
-                claim_name = pvc_config.get("volumeClaimName") or pvc_config.get(
-                    "existingClaim"
-                )
-                if claim_name and claim_name not in expected_pvc_names:
-                    errors.append(
-                        f"App '{app.name}': PVC claim '{claim_name}' doesn't match "
-                        f"expected pattern '{app.name}-<storage>'. "
-                        f"Expected one of: {expected_pvc_names}"
-                    )
-
-        if errors:
-            pytest.fail(
-                "PVC naming inconsistencies:\n" + "\n".join(f"  - {e}" for e in errors)
             )
 
 

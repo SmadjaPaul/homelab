@@ -84,3 +84,6 @@ CLAUDE.md
 
 # Temporary/Local Pulumi data
 kubernetes-pulumi/doppler.json
+.venv/
+.venv
+kubernetes-pulumi/k8s-apps/*.json

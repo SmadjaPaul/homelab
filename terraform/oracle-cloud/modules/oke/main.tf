@@ -49,7 +49,7 @@ resource "oci_containerengine_cluster" "oke" {
 resource "oci_containerengine_node_pool" "workers" {
   compartment_id     = var.compartment_id
   cluster_id         = oci_containerengine_cluster.oke.id
-  name               = "${var.cluster_name}-workers"
+  name               = "${var.cluster_name}-workers-v2"
   kubernetes_version = var.kubernetes_version
 
   node_shape = "VM.Standard.A1.Flex"

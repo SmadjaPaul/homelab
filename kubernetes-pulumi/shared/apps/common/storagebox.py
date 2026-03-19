@@ -115,3 +115,66 @@ def setup_storagebox_automation(
         storage_box_id=storage_box_id,
         users=users,
     )
+
+
+class AppStorageBoxProvisioner(pulumi.ComponentResource):
+    """
+    Creates one StorageBoxSubaccount per app that uses hetzner-smb storage.
+    Each app gets isolated credentials → failure of one does not affect others.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        provider: k8s.Provider,
+        storage_box_id: int,
+        app_name: str,
+        home_directory: str,
+        opts: Optional[pulumi.ResourceOptions] = None,
+    ):
+        super().__init__("homelab:common:AppStorageBoxProvisioner", name, {}, opts)
+
+        self.app_name = app_name
+        self.secret_name = f"smb-{app_name}"
+
+        password = random.RandomPassword(
+            f"storagebox-app-pass-{app_name}",
+            length=16,
+            special=True,
+            override_special="!@#$%^&*()-_=+",
+            min_upper=1,
+            min_lower=1,
+            min_numeric=1,
+            min_special=1,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        sub_account = hcloud.StorageBoxSubaccount(
+            f"storagebox-app-{app_name}",
+            storage_box_id=storage_box_id,
+            home_directory=home_directory,
+            password=password.result,
+            access_settings=hcloud.StorageBoxSubaccountAccessSettingsArgs(
+                samba_enabled=True,
+                ssh_enabled=False,
+                webdav_enabled=True,
+                reachable_externally=True,
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        self.username = sub_account.username
+        self.password = password.result
+
+        k8s.core.v1.Secret(
+            f"secret-smb-{app_name}",
+            metadata={
+                "name": self.secret_name,
+                "namespace": "kube-system",
+            },
+            string_data={
+                "username": sub_account.username,
+                "password": password.result,
+            },
+            opts=pulumi.ResourceOptions(provider=provider, parent=sub_account),
+        )

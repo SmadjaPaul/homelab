@@ -1,4 +1,5 @@
 # Makefile for Homelab Kubernetes Pulumi
+export PULUMI_CONFIG_PASSPHRASE :=
 
 # Default cluster
 CLUSTER ?= oci

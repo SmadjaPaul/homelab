@@ -6,8 +6,12 @@ Ce document définit la répartition du stockage pour le Homelab afin de maximis
 
 *   **Noeuds** : 2 noeuds (2 OCPUs, 12 Go RAM chacun).
 *   **Disques de démarrage (Boot Volumes)** : 2 x 50 Go = **100 Go** (Consommés).
-*   **Quota Block Storage utilisé (Consolidé)** : **100 Go** (2 x 50 Go pour le cluster HA).
-*   **Quota OCI Total** : **200 Go** (100% utilisé).
+*   **Disque de Base de Données (Consolidé)** : **50 Go** (Volume OCI unique pour `homelab-db`).
+*   **Quota Block Storage utilisé** : **150 Go** (Boot + DB).
+*   **Marge OCI Free Tier** : **50 Go** restants (Total 200 Go).
+
+> [!IMPORTANT]
+> Pour rester sous la limite des 200 Go, nous utilisons un **cluster DB mono-instance (50 Go)** et déplaçons les petites bases de données applicatives (Vaultwarden, Open WebUI) sur le stockage `local-path` (qui utilise le disque de boot).
 
 ---
 
@@ -17,8 +21,9 @@ Pour respecter la limite de **50 Go minimum par volume OCI**, nous avons consoli
 
 | Composant | Rôle | Type de Stockage | Taille | Raison |
 | :--- | :--- | :--- | :--- | :--- |
-| **homelab-db** | Cluster PostgreSQL Partagé | `oci-bv` (HA 2-nodes) | **2 x 50 Go** | HA Requise + Minimum OCI |
-| **Applications** | DBs (Vaultwarden, Nextcloud, etc.) | - | - | Provisionnées dans `homelab-db` |
+| **homelab-db** | Cluster PostgreSQL Partagé | `oci-bv` (Single node) | **50 Go** | Persistance requise + Min OCI |
+| **Applications** | DBs (Paperless, Nextcloud, etc.) | - | - | Provisionnées dans `homelab-db` |
+| **Petites Apps** | DBs (Vaultwarden, Open-WebUI) | `local-path` | - | Économie de quota BV |
 | **Redis** | Sessions & Cache | `local-path` | - | Performance I/O locale, éphémère |
 | **Storage Box** | Données volumineuses | `hetzner-smb` | 1 To+ | Coût & Capacité |
 

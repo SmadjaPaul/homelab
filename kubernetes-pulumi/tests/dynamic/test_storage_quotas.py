@@ -106,7 +106,6 @@ def test_k8s_oci_bv_orphans():
     config.load_kube_config()
     v1 = client.CoreV1Api()
 
-    pvcs = v1.list_persistent_volume_claim_for_all_namespaces().items
     pvs = v1.list_persistent_volume().items
 
     # Group by storage class

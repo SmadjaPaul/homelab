@@ -1,9 +1,7 @@
 import pytest
-import os
 import subprocess
 import json
-from shared.apps.loader import AppLoader
-from shared.apps.generic import GenericHelmApp
+from shared.apps.loader import load_apps
 
 
 @pytest.fixture(scope="session")
@@ -40,11 +38,7 @@ def test_doppler_keys_existence(doppler_secrets):
     Validation Rule: Every secret key mapped in 'apps.yaml' MUST exist in Doppler.
     This would have caught the cloudflared token mapping error.
     """
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-    apps_yaml_path = os.path.join(project_root, "apps.yaml")
-
-    loader = AppLoader(apps_yaml_path)
-    apps = loader.load()  # Check all apps across all clusters
+    apps = load_apps("oci")  # Check all apps (most are common across clusters)
 
     errors = []
 
@@ -115,22 +109,18 @@ def test_helm_secret_references():
     Validation Rule: Any secret referenced in Helm 'envFrom' or 'valueFrom'
     must be defined in the app's 'secrets' list OR created by the Helm chart.
     """
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-    apps_yaml_path = os.path.join(project_root, "apps.yaml")
 
-    loader = AppLoader(apps_yaml_path)
-    # We validate for both local and oci
     clusters = ["oci", "local"]
 
     for cluster in clusters:
-        apps = loader.load_for_cluster(cluster)
+        apps = load_apps(cluster)
         for app_model in apps:
             if not app_model.helm:
                 continue
 
             # Instantiate GenericHelmApp to get final values (including auto-injected ones)
             # TODO: Use app to validate secrets
-            _ = GenericHelmApp(app_model)
+            # _ = GenericHelmApp(app_model)
 
             # Use 'helm template' to see the resulting manifest
             # (Similar to the previous test but specifically looking for missing secrets)

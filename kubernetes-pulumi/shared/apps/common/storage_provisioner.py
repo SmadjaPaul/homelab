@@ -98,52 +98,30 @@ class HetznerSMBProvisioner(BaseStorageProvisioner):
         **kwargs,
     ) -> List[pulumi.Resource]:
         pvc_name = f"{app.name}-{storage.name}"
-        labels = self._get_standard_labels(app)
-        if storage.backup_321:
-            labels["homelab.dev/backup"] = "321"
+        static_pv_name = f"pv-{app.name}-{storage.name}"
 
-        # Smb secret logic
-        resources = []
-        storagebox_manager = kwargs.get("storagebox_manager")
-        setup_global_smb = kwargs.get("setup_global_smb_callback")
-
-        if storage.access == StorageAccess.PRIVATE_SMB and storagebox_manager:
-            smb_secret_name = storagebox_manager.get_secret_name_for_user(app.owner)
-            if not smb_secret_name:
-                pulumi.log.warn(
-                    f"App {app.name} requests private SMB for owner {app.owner}, but no StorageBox sub-account found for this user."
-                )
-                if setup_global_smb:
-                    resources.extend(setup_global_smb())
-                smb_secret_name = "hetzner-storage-creds"
-        else:
-            if setup_global_smb:
-                resources.extend(setup_global_smb())
-            smb_secret_name = "hetzner-storage-creds"
-
-        # Add Helm annotations to enable Helm adoption
-        annotations = {
-            "meta.helm.sh/release-name": app.name,
-            "meta.helm.sh/release-namespace": app.namespace,
-        }
-
+        # Si un PV statique est déclaré dans k8s-storage, créer uniquement le PVC
+        # qui pointe vers ce PV (volumeName). Pas de StorageClass dynamique.
         pvc = k8s.core.v1.PersistentVolumeClaim(
             f"pvc-{app.name}-{idx}",
             metadata={
                 "name": pvc_name,
                 "namespace": app.namespace,
-                "labels": labels,
-                "annotations": annotations,
+                "labels": self._get_standard_labels(app),
+                "annotations": {
+                    "meta.helm.sh/release-name": app.name,
+                    "meta.helm.sh/release-namespace": app.namespace,
+                },
             },
             spec={
-                "accessModes": self._get_access_modes(storage),
+                "accessModes": ["ReadWriteMany"],
+                "storageClassName": "hetzner-smb",
+                "volumeName": static_pv_name,  # ← lien vers le PV statique
                 "resources": {"requests": {"storage": storage.size}},
-                "storageClassName": storage.storage_class,
             },
             opts=pulumi.ResourceOptions(provider=provider, parent=parent),
         )
-        resources.append(pvc)
-        return resources
+        return [pvc]
 
 
 class StorageProvisionerFactory:

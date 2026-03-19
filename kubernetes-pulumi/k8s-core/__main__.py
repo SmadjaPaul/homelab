@@ -14,6 +14,7 @@ Stack Outputs (exported for other stacks via StackReference):
 
 import os
 import pulumi
+import pulumi_command as command
 from shared.apps.loader import AppLoader
 from shared.apps.factory import AppFactory
 import pulumi_kubernetes as k8s
@@ -59,6 +60,25 @@ for ns_name in unique_namespaces:
 
 print(f"  Created namespaces: {namespace_list}")
 
+# PriorityClasses for app tier management
+k8s.scheduling.v1.PriorityClass(
+    "homelab-critical",
+    metadata=k8s.meta.v1.ObjectMetaArgs(name="homelab-critical"),
+    value=1000,
+    global_default=False,
+    description="Critical homelab apps (authentik, vaultwarden)",
+    opts=pulumi.ResourceOptions(provider=provider),
+)
+
+k8s.scheduling.v1.PriorityClass(
+    "homelab-standard",
+    metadata=k8s.meta.v1.ObjectMetaArgs(name="homelab-standard"),
+    value=500,
+    global_default=False,
+    description="Standard homelab apps",
+    opts=pulumi.ResourceOptions(provider=provider),
+)
+
 # 2. Core Operators Deployment
 print("Phase 2: Deploying Core Operators...")
 core_apps = ["external-secrets", "cert-manager", "envoy-gateway", "external-dns"]
@@ -99,6 +119,146 @@ for app_name in core_apps:
         except Exception as e:
             operator_status[app_name] = f"error: {str(e)}"
             print(f"  {app_name}: ERROR - {e}")
+
+# =============================================================================
+# NODE PREPARATION - Install cifs-utils for SMB mounts
+# =============================================================================
+print("Phase 3: Node preparation (cifs-utils)...")
+
+k8s.apps.v1.DaemonSet(
+    "node-prep-cifs",
+    metadata=k8s.meta.v1.ObjectMetaArgs(
+        name="node-prep-cifs",
+        namespace="kube-system",
+        labels={"app.kubernetes.io/name": "node-prep-cifs"},
+    ),
+    spec=k8s.apps.v1.DaemonSetSpecArgs(
+        selector=k8s.meta.v1.LabelSelectorArgs(
+            match_labels={"app.kubernetes.io/name": "node-prep-cifs"},
+        ),
+        update_strategy=k8s.apps.v1.DaemonSetUpdateStrategyArgs(
+            type="RollingUpdate",
+        ),
+        template=k8s.core.v1.PodTemplateSpecArgs(
+            metadata=k8s.meta.v1.ObjectMetaArgs(
+                labels={"app.kubernetes.io/name": "node-prep-cifs"},
+            ),
+            spec=k8s.core.v1.PodSpecArgs(
+                host_network=True,
+                host_pid=True,
+                tolerations=[
+                    k8s.core.v1.TolerationArgs(operator="Exists"),
+                ],
+                init_containers=[
+                    k8s.core.v1.ContainerArgs(
+                        name="install-cifs",
+                        image="docker.io/library/alpine:3.20",
+                        command=[
+                            "nsenter",
+                            "--target",
+                            "1",
+                            "--mount",
+                            "--uts",
+                            "--ipc",
+                            "--net",
+                            "--",
+                            "sh",
+                            "-c",
+                        ],
+                        args=[
+                            "if ! command -v mount.cifs >/dev/null 2>&1; then "
+                            "echo 'Installing cifs-utils...'; "
+                            "yum install -y cifs-utils 2>/dev/null || dnf install -y cifs-utils 2>/dev/null || apt-get update && apt-get install -y cifs-utils 2>/dev/null || echo 'WARN: could not install cifs-utils'; "
+                            "else echo 'cifs-utils already installed'; fi"
+                        ],
+                        security_context=k8s.core.v1.SecurityContextArgs(
+                            privileged=True,
+                        ),
+                        resources=k8s.core.v1.ResourceRequirementsArgs(
+                            limits={"cpu": "100m", "memory": "128Mi"},
+                            requests={"cpu": "50m", "memory": "64Mi"},
+                        ),
+                    ),
+                ],
+                containers=[
+                    k8s.core.v1.ContainerArgs(
+                        name="pause",
+                        image="registry.k8s.io/pause:3.10",
+                        resources=k8s.core.v1.ResourceRequirementsArgs(
+                            limits={"cpu": "10m", "memory": "16Mi"},
+                            requests={"cpu": "1m", "memory": "4Mi"},
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    ),
+    opts=pulumi.ResourceOptions(provider=provider),
+)
+print("  node-prep-cifs DaemonSet deployed")
+
+# =============================================================================
+# HAIRPIN DNS FIX - CoreDNS rewrite rule for auth.smadja.dev
+# =============================================================================
+# Pods that call OIDC callbacks (Vaultwarden, OwnCloud, etc.) need to resolve
+# auth.smadja.dev to the internal Authentik service, not the Cloudflare tunnel.
+# This eliminates the need for hardcoded hostAliases in every pod.
+print("Phase 4: Patching CoreDNS for hairpin DNS...")
+
+_coredns_patch_script = r"""
+python3 -c "
+import subprocess, json, sys
+try:
+    cm_output = subprocess.check_output(
+        ['kubectl', 'get', 'configmap', 'coredns', '-n', 'kube-system', '-o', 'json'],
+        stderr=subprocess.DEVNULL
+    )
+    cm = json.loads(cm_output)
+except Exception as e:
+    print(f'CoreDNS ConfigMap not found or error: {e}')
+    sys.exit(0)
+
+corefile = cm.get('data', {}).get('Corefile', '')
+rule = '    rewrite name auth.smadja.dev authentik-server.authentik.svc.cluster.local'
+if rule in corefile:
+    print('CoreDNS hairpin rule already present')
+    sys.exit(0)
+
+lines = corefile.split('\n')
+inserted = False
+for i, line in enumerate(lines):
+    if line.strip() == 'ready':
+        lines.insert(i + 1, rule)
+        inserted = True
+        break
+
+if not inserted:
+    print('Could not find ready directive in CoreDNS Corefile, skipping patch')
+    sys.exit(0)
+
+new_corefile = '\n'.join(lines)
+patch_data = json.dumps({'data': {'Corefile': new_corefile}})
+subprocess.run(
+    ['kubectl', 'patch', 'configmap', 'coredns', '-n', 'kube-system',
+     '--type', 'merge', '--patch', patch_data],
+    check=True
+)
+subprocess.run(
+    ['kubectl', 'rollout', 'restart', 'deployment/coredns', '-n', 'kube-system'],
+    check=True
+)
+print('CoreDNS hairpin DNS rule applied and CoreDNS restarted')
+"
+"""
+
+command.local.Command(
+    "coredns-hairpin-patch",
+    create=_coredns_patch_script,
+    # Re-run only when this script changes (hash embedded in triggers)
+    triggers=[1],
+    opts=pulumi.ResourceOptions(),
+)
+print("  CoreDNS hairpin patch applied")
 
 # =============================================================================
 # EXPORTS - Available via StackReference for other stacks

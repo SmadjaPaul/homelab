@@ -8,6 +8,11 @@ from pydantic import BaseModel, Field, model_validator
 from enum import Enum
 
 
+class EnvStyle(str, Enum):
+    LIST = "list"  # [{"name":"K","value":"V"}] — default
+    MAP = "map"  # {"K":"V"} — gabe565 charts
+
+
 class S3Provider(str, Enum):
     OCI = "oci"  # Oracle Cloud Object Storage (Always Free tier available)
     CLOUDFLARE = "cloudflare"  # Cloudflare R2 (zero egress cost)
@@ -72,6 +77,10 @@ class StorageConfig(BaseModel):
     mount_path: str = Field("/data")
     existing_claim: Optional[str] = None
     storage_class: Optional[str] = None
+    type: Optional[str] = Field(
+        None,
+        description="Helm persistence type (e.g. pvc, persistentVolumeClaim, emptyDir)",
+    )
     backup_321: bool = Field(False, description="Flag for 3-2-1 backup strategy")
     external_source: Optional[str] = None  # e.g. "s3://bucket-name" or "nfs://nas/path"
 
@@ -107,6 +116,7 @@ class TestConfig(BaseModel):
     test_routing: bool = True
     test_secrets: bool = True
     test_health: bool = True
+    test_monitoring: bool = True
     test_network_policy: bool = True
     requires_extended_timeout: bool = Field(
         default=False,
@@ -116,23 +126,6 @@ class TestConfig(BaseModel):
     required_secrets: List[str] = Field(default_factory=list)
     excluded_secrets: List[str] = Field(default_factory=list)
     network_isolation: List[str] = Field(default_factory=list)
-
-
-class HelmConfig(BaseModel):
-    """Helm chart configuration."""
-
-    chart: str
-    repo: Optional[str] = None
-    version: Optional[str] = None
-    values: Dict[str, Any] = Field(default_factory=dict)
-
-
-class DatabaseConfig(BaseModel):
-    """Configuration for local database (CNPG)."""
-
-    local: bool = False
-    size: str = "1Gi"
-    storage_class: Optional[str] = None
 
 
 class ProvisioningMethod(str, Enum):
@@ -175,6 +168,14 @@ class ProvisioningConfig(BaseModel):
     )
 
 
+class DatabaseConfig(BaseModel):
+    """Configuration for local database (CNPG)."""
+
+    local: bool = False
+    size: str = "1Gi"
+    storage_class: Optional[str] = None
+
+
 class HomepageConfig(BaseModel):
     """Configuration for Homepage dashboard integration."""
 
@@ -188,6 +189,78 @@ class HomepageConfig(BaseModel):
     description: Optional[str] = None
 
 
+class AppNetworkConfig(BaseModel):
+    """Network-related configuration."""
+
+    port: int = Field(80, description="Service port")
+    hostname: Optional[str] = Field(None, description="Exposed hostname")
+    hostname_prefix: Optional[str] = Field(
+        None, description="Prefix for hostname auto-derivation ({prefix}.{domain})"
+    )
+    mode: ExposureMode = Field(ExposureMode.INTERNAL)
+    allow_external: bool = Field(
+        False, description="Allow external internet access (egress to 0.0.0.0/0)"
+    )
+    disable_auto_route: bool = Field(
+        False, description="Disable automatic Route/Ingress generation"
+    )
+    monitoring: bool = Field(
+        True, description="Enable automatic ServiceMonitor generation"
+    )
+
+
+class AppAuthConfig(BaseModel):
+    """Authentication and provisioning configuration."""
+
+    enabled: bool = Field(False, description="Enable authentication proxy (Authentik)")
+    sso: Optional[Literal["authentik-oidc", "authentik-header"]] = Field(
+        None, description="SSO preset to apply"
+    )
+    provisioning: Optional[ProvisioningConfig] = Field(
+        None, description="Auto-provisioning configuration (OIDC/Header)"
+    )
+    groups: List[str] = Field(
+        default_factory=list, description="Authentik groups allowed"
+    )
+
+
+class AppPersistenceConfig(BaseModel):
+    """Storage and database configuration."""
+
+    storage: List[StorageConfig] = Field(default_factory=list)
+    database: Optional[DatabaseConfig] = None
+    backup: BackupDestination = Field(default_factory=BackupDestination)
+
+
+class AppHelmConfig(BaseModel):
+    """Helm-specific configuration."""
+
+    chart: str = Field(..., description="Helm chart name")
+    repo: Optional[str] = Field(None, description="Helm repository URL")
+    version: Optional[str] = Field(None, description="Helm chart version")
+    values: Dict[str, Any] = Field(
+        default_factory=dict, description="Custom Helm values"
+    )
+    values_file: Optional[str] = Field(None, description="Path to external values file")
+    env_style: EnvStyle = Field(
+        EnvStyle.LIST, description="Format for environment variables"
+    )
+    env_key: str = Field("env", description="Helm values key for environment variables")
+    db_env_prefix: Optional[str] = Field(
+        None, description="Prefix for database environment variables"
+    )
+
+
+class AppResourceConfig(BaseModel):
+    """Resource allocation and kubernetes-level settings."""
+
+    replicas: int = Field(1, description="Number of replicas (affects PDB generation)")
+    resources: ResourceRequirements = Field(default_factory=ResourceRequirements)
+    termination_grace_period: int = Field(
+        30, description="Termination grace period in seconds"
+    )
+
+
 class AppModel(BaseModel):
     """Unified configuration for a single application."""
 
@@ -196,46 +269,22 @@ class AppModel(BaseModel):
         None, description="Kubernetes service name (defaults to name)"
     )
     namespace: str = Field("default", description="Kubernetes namespace")
-    port: int = Field(80, description="Service port")
-    hostname: Optional[str] = Field(None, description="Exposed hostname")
-    owner: Optional[str] = Field(
-        None, description="Optional owner (user name) for private storage"
-    )
-    mode: ExposureMode = Field(ExposureMode.INTERNAL)
     category: AppCategory = Field(AppCategory.INTERNAL)
     tier: AppTier = Field(AppTier.STANDARD)
     clusters: List[str] = Field(default_factory=lambda: ["oci", "local"])
+
+    # Grouped configs
+    network: AppNetworkConfig = Field(default_factory=AppNetworkConfig)
+    auth: AppAuthConfig = Field(default_factory=AppAuthConfig)
+    persistence: AppPersistenceConfig = Field(default_factory=AppPersistenceConfig)
+    helm: Optional[AppHelmConfig] = None
+    resources: AppResourceConfig = Field(default_factory=AppResourceConfig)
+
+    # Global cross-cutting concerns
     dependencies: List[str] = Field(default_factory=list)
-    auth: bool = Field(False, description="Enable authentication proxy (Authentik)")
-    provisioning: Optional[ProvisioningConfig] = Field(
-        None, description="Auto-provisioning configuration (OIDC/Header)"
-    )
-    auth_groups: List[str] = Field(default_factory=list)
-    homepage: Optional[HomepageConfig] = Field(default_factory=HomepageConfig)
-    storage: List[StorageConfig] = Field(default_factory=list)
-    database: Optional[DatabaseConfig] = None
+    requires: List[Literal["postgres", "redis", "s3"]] = Field(default_factory=list)
     secrets: List[SecretRequirement] = Field(default_factory=list)
     config_maps: List[ConfigMapRequirement] = Field(default_factory=list)
-    values: Dict[str, Any] = Field(
-        default_factory=dict, description="Custom Helm values (legacy/fallback)"
-    )
-    values_file: Optional[str] = Field(None, description="Path to external values file")
-    helm: Optional[HelmConfig] = None
-    chart: Optional[str] = Field(
-        None, description="Helm chart name (legacy, use helm.chart instead)"
-    )
-    repo: Optional[str] = Field(None, description="Helm repository URL (legacy)")
-    version: Optional[str] = Field(None, description="Helm chart version (legacy)")
-
-    disable_auto_route: bool = Field(
-        False, description="Disable automatic Route/Ingress generation"
-    )
-    allow_external: bool = Field(
-        False, description="Allow external internet access (egress to 0.0.0.0/0)"
-    )
-    inject_secrets: bool = Field(
-        True, description="Automatically inject defined secrets and imagePullSecrets"
-    )
     auto_secrets: Dict[str, Dict[str, int]] = Field(
         default_factory=dict,
         description="Auto-generate local passwords (SecretName -> {EnvVarName -> Length})",
@@ -243,25 +292,169 @@ class AppModel(BaseModel):
     extra_env: Dict[str, str] = Field(
         default_factory=dict, description="Additional environment variables to inject"
     )
-    skip_crds: bool = Field(
-        False, description="Skip CRD installation in Helm charts (managed externally)"
-    )
-    monitoring: bool = Field(
-        True, description="Enable automatic ServiceMonitor generation"
-    )
-    replicas: int = Field(1, description="Number of replicas (affects PDB generation)")
-    resources: ResourceRequirements = Field(default_factory=ResourceRequirements)
-    termination_grace_period: int = Field(
-        30, description="Termination grace period in seconds"
-    )
+    homepage: Optional[HomepageConfig] = Field(default_factory=HomepageConfig)
     test: TestConfig = Field(default_factory=TestConfig)
-    database_backup: BackupDestination = Field(default_factory=BackupDestination)
+
+    # Global Helm settings
+    skip_crds: bool = Field(
+        False, description="Skip CRD installation for this Helm release"
+    )
+    skip_await: bool = Field(
+        False, description="Skip waiting for resources to be ready"
+    )
+
+    # Legacy compatibility fields (to be aliased or migrated)
+    chart: Optional[str] = None
+    repo: Optional[str] = None
+    version: Optional[str] = None
+    values: Dict[str, Any] = Field(default_factory=dict)
+
+    # ── Dynamic delegation ────────────────────────────────────────────
+    # Any attribute not found on AppModel is looked up, in order, on
+    # network → auth → persistence → resources sub-configs.
+    # This keeps backward compat (app.hostname, app.port, app.mode …)
+    # without manually adding @property for every nested field.
+
+    def __getattr__(self, name: str):
+        # Pydantic internals: avoid infinite recursion during init
+        if name.startswith("_") or name in ("model_fields", "model_computed_fields"):
+            raise AttributeError(name)
+        for sub in ("network", "auth", "persistence", "resources"):
+            try:
+                obj = object.__getattribute__(self, sub)
+            except AttributeError:
+                continue
+            # Check if the sub-config's Pydantic model has this field
+            if name in type(obj).model_fields:
+                return getattr(obj, name)
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_fields(cls, data: Any) -> Any:
+        """Migrate flat legacy fields to structured sub-configs."""
+        if not isinstance(data, dict):
+            return data
+
+        # Network migration
+        network = data.get("network", {})
+        if not isinstance(network, dict):
+            network = {}
+        for field in [
+            "port",
+            "hostname",
+            "hostname_prefix",
+            "mode",
+            "allow_external",
+            "disable_auto_route",
+            "monitoring",
+        ]:
+            if field in data and field not in network:
+                network[field] = data.pop(field)
+        if network:
+            data["network"] = network
+
+        # Auth migration
+        auth_raw = data.get("auth", {})
+        auth: Dict[str, Any]
+        if isinstance(auth_raw, bool):
+            auth = {"enabled": auth_raw}
+        elif isinstance(auth_raw, dict):
+            auth = auth_raw
+        else:
+            auth = {}
+
+        for field in ["sso", "auth_groups", "provisioning"]:
+            effective_field = "groups" if field == "auth_groups" else field
+            if field in data and effective_field not in auth:
+                auth[effective_field] = data.pop(field)
+        if auth:
+            data["auth"] = auth
+
+        # Persistence migration
+        persistence_raw = data.get("persistence", {})
+        persistence: Dict[str, Any]
+        if isinstance(persistence_raw, dict):
+            persistence = persistence_raw
+        else:
+            persistence = {}
+
+        for field in ["storage", "database", "database_backup"]:
+            effective_field = "backup" if field == "database_backup" else field
+            if field in data and effective_field not in persistence:
+                persistence[field] = data.pop(field)
+        if persistence:
+            data["persistence"] = persistence
+
+        # Resources migration
+        resources_config = data.get("resources", {})
+        if not isinstance(resources_config, dict):
+            resources_config = {}
+
+        # If 'resources' in data is the K8s ResourceRequirements, it will have requests/limits
+        # We need to distinguish between that and AppResourceConfig
+        k8s_resources = None
+        if "requests" in resources_config or "limits" in resources_config:
+            k8s_resources = resources_config
+            resources_config = {}
+
+        if "replicas" in data:
+            resources_config["replicas"] = data.pop("replicas")
+        if "termination_grace_period" in data:
+            resources_config["termination_grace_period"] = data.pop(
+                "termination_grace_period"
+            )
+
+        if k8s_resources:
+            resources_config["resources"] = k8s_resources
+        elif "resources" in data:
+            val = data.pop("resources")
+            if isinstance(val, dict) and ("requests" in val or "limits" in val):
+                resources_config["resources"] = val
+
+        if resources_config:
+            data["resources"] = resources_config
+
+        # Helm migration: Merge top-level fields into helm dict
+        helm = data.get("helm", {})
+        if not isinstance(helm, dict):
+            helm = {}
+
+        # Pull top-level fields into helm dict if they aren't already there
+        if "chart" in data and "chart" not in helm:
+            helm["chart"] = data.pop("chart")
+        if "repo" in data and "repo" not in helm:
+            helm["repo"] = data.pop("repo")
+        if "version" in data and "version" not in helm:
+            helm["version"] = data.pop("version")
+
+        # Legacy fields to move if helm block was empty
+        legacy_mapped_fields = {
+            "values": "values",
+            "values_file": "values_file",
+            "env_style": "env_style",
+            "env_key": "env_key",
+            "db_env_prefix": "db_env_prefix",
+        }
+        for old_key, new_key in legacy_mapped_fields.items():
+            if old_key in data and new_key not in helm:
+                helm[new_key] = data.pop(old_key)
+
+        # Top-level Helm flags
+        for field in ["skip_crds", "skip_await"]:
+            if field in data:
+                # We keep these at the top level of AppModel for now as they are cross-cutting
+                pass
+        if helm:
+            data["helm"] = helm
+
+        return data
 
     @model_validator(mode="after")
     def auto_enable_auth_for_protected(self) -> "AppModel":
         """Automatically enable auth proxy when mode is protected."""
-        if self.mode == ExposureMode.PROTECTED and not self.auth:
-            self.auth = True
+        if self.network.mode == ExposureMode.PROTECTED and not self.auth.enabled:
+            self.auth.enabled = True
         return self
 
     @model_validator(mode="after")
@@ -273,23 +466,19 @@ class AppModel(BaseModel):
 
         def check_values(d: Any):
             if isinstance(d, dict):
-                # Check if this dict has both 'registry' and 'repository' keys
                 registry = d.get("registry", "")
                 repository = d.get("repository", "")
 
                 if repository and isinstance(repository, str):
-                    # If registry is explicitly set, the image is properly qualified
                     if registry and isinstance(registry, str):
-                        return  # Valid: registry + repository
+                        return
 
-                    # Otherwise validate the repository format
                     if "/" not in repository:
                         raise ValueError(
-                            f"Image repository '{repository}' in app '{self.name}' must be fully qualified (e.g., docker.io/library/nginx)"
+                            f"Image repository '{repository}' in app '{self.name}' must be fully qualified"
                         )
 
-                    parts = repository.split("/")
-                    reg = parts[0]
+                    reg = repository.split("/")[0]
                     if "." not in reg and reg not in [
                         "localhost",
                         "docker.io",
@@ -298,10 +487,9 @@ class AppModel(BaseModel):
                         "registry.hub.docker.com",
                     ]:
                         raise ValueError(
-                            f"Image repository '{repository}' in app '{self.name}' must start with a valid registry (e.g., docker.io/...)"
+                            f"Image repository '{repository}' in app '{self.name}' must start with a valid registry"
                         )
 
-                # Recursively check nested values
                 for k, v in d.items():
                     if k not in ["registry", "repository"]:
                         check_values(v)
@@ -309,10 +497,7 @@ class AppModel(BaseModel):
                 for item in d:
                     check_values(item)
 
-        if not self.helm or not self.helm.values:
-            return self
-
-        check_values(self.helm.values)
+        check_values(helm.values)
         return self
 
 
@@ -348,9 +533,6 @@ class IdentitiesModel(BaseModel):
 class S3BucketConfig(BaseModel):
     """
     Defines an S3-compatible bucket to be managed by Pulumi.
-
-    The 'provider' field selects which cloud backend will host this bucket.
-    Credentials are always fetched from Doppler via the indicated secret keys.
     """
 
     name: str = Field(..., description="Bucket name")
@@ -367,21 +549,51 @@ class S3BucketConfig(BaseModel):
     export_as: Optional[str] = Field(
         None, description="Stack output key to expose the endpoint URL"
     )
-    # Provider-specific credentials (Doppler key names)
     access_key_secret: str = Field(
         "OCI_S3_ACCESS_KEY", description="Doppler key for S3 Access Key ID"
     )
     secret_key_secret: str = Field(
         "OCI_S3_SECRET_KEY", description="Doppler key for S3 Secret Key"
     )
-    # Endpoint override (for GENERIC provider or custom OCI namespace)
     endpoint_url: Optional[str] = Field(
         None, description="Override endpoint (required for provider=generic)"
     )
     tags: Dict[str, str] = Field(default_factory=dict)
-    protect: bool = Field(
-        True, description="Prevent accidental bucket deletion (recommended for backups)"
-    )
+    protect: bool = Field(True, description="Prevent accidental bucket deletion")
+
+
+class StorageBoxVolume(BaseModel):
+    """A single PV/PVC pair to provision on the Hetzner Storage Box."""
+
+    pv_name: str
+    pvc_name: str
+    namespace: str
+    smb_path: str
+    size: str = "500Gi"
+
+
+class StorageBoxAccount(BaseModel):
+    """A sub-account on the Hetzner Storage Box (isolated credentials)."""
+
+    name: str
+    home_directory: str
+    volumes: List[StorageBoxVolume]
+
+
+class StorageBoxMainAccount(BaseModel):
+    """The main Storage Box account (credentials from Doppler/ExternalSecret)."""
+
+    secret_name: str
+    doppler_user_key: str
+    doppler_pass_key: str
+    volumes: List[StorageBoxVolume]
+
+
+class StorageBoxConfig(BaseModel):
+    """Configuration for the Hetzner Storage Box (sub-accounts + volumes)."""
+
+    accounts: List[StorageBoxAccount] = Field(default_factory=list)
+    main_account: Optional[StorageBoxMainAccount] = None
 
 
 class HomelabStackConfig(BaseModel):

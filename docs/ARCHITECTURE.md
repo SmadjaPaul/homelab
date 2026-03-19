@@ -55,19 +55,17 @@ The system is split into three modular Pulumi stacks for clear separation of con
 
 ### 1. `AppModel` (`shared/utils/schemas.py`)
 
-Unified configuration model for all applications:
+Unified configuration model for all applications, validated strictly via **Pydantic**:
 
-| Field | Description |
+| Field Group | Description |
 |-------|-------------|
-| `name`, `namespace` | Identity |
-| `port`, `hostname`, `mode` | Network exposure |
-| `category`, `tier` | Classification |
-| `clusters`, `dependencies` | Deployment targeting |
-| `helm` | Chart configuration (`chart`, `repo`, `version`, `values`, `values_file`) |
-| `storage[]` | Persistent volumes (see `StorageConfig`) |
-| `secrets[]` | Doppler → Kubernetes secret mappings (see `SecretRequirement`) |
-| `database_backup` | S3-compatible backup target (see `BackupDestination`) |
-| `test` | Test configuration (`expected_endpoints`, `network_isolation`, etc.) |
+| **`network`** | Port, hostname, mode (`public`|`protected`|`internal`), monitoring |
+| **`auth`** | `sso` preset (`authentik-oidc`|`authentik-header`), provisioning config |
+| **`persistence`** | `storage[]` volumes, `database` (CNPG/Shared), `backup` |
+| **`helm`** | Chart, repo, version, values, `env_style`, `db_env_prefix` |
+| **`resources`** | `replicas`, `requests`, `limits`, `termination_grace_period` |
+| **`secrets[]`** | Doppler → Kubernetes secret mappings |
+| **`test`** | Test configuration (`expected_endpoints`, `network_isolation`, etc.) |
 
 ### 2. `S3BucketConfig` (`shared/utils/schemas.py`)
 
@@ -306,19 +304,21 @@ ValueError: CRITICAL ERROR: Secret key 'OCI_S3_ACCESS_KEY' required by app 'auth
   category: public        # public | protected | internal | database
   tier: standard          # critical | standard | ephemeral
   namespace: homelab
-  port: 8080
-  hostname: myapp.smadja.dev
-  mode: public
   clusters: [oci, local]
   dependencies: [external-secrets, envoy-gateway, kube-system]
+  network:
+    port: 8080
+    host_prefix: myapp    # creates myapp.smadja.dev
+    mode: public
   helm:
     chart: myapp
     repo: https://charts.example.com
     version: 1.0.0
-  storage:
-    - name: data
-      size: 10Gi
-      mount_path: /data
+  persistence:
+    storage:
+      - name: data
+        size: 10Gi
+        mount_path: /data
   secrets:
     - name: myapp-creds
       keys:

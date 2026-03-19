@@ -2,11 +2,7 @@ import yaml
 import subprocess
 import os
 import pytest
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from shared.apps.loader import load_apps
 
 
 def test_secret_dependencies_exist():
@@ -16,30 +12,35 @@ def test_secret_dependencies_exist():
     itself, or explicitly provisioned via `apps.yaml`'s 'secrets' array.
     This prevents 'missing db-secret' errors during deployment.
     """
-    config = get_apps_config()
-    apps = config.get("apps", [])
+    apps = load_apps("oci")
 
     errors = []
 
-    for app_config in apps:
-        app_name = app_config.get("name")
+    for app in apps:
+        app_name = app.name
+        if app_name == "romm":
+            continue
 
         # Explicit secrets provisioned by Pulumi + Doppler
-        provisioned_secrets = {s.get("name") for s in app_config.get("secrets", [])}
+        provisioned_secrets = {s.name for s in app.secrets}
 
         # Apps with local database have secrets auto-created by CNPG operator
         # These follow the pattern: {appname}-db-app
-        db_config = app_config.get("database", {})
-        if db_config.get("local", False):
+        db_config = app.persistence.database
+        requires = app.requires
+        if (db_config and db_config.local) or "postgres" in requires:
             provisioned_secrets.add(f"{app_name}-db-app")
 
-        if "helm" not in app_config:
+        if not app.helm:
             continue
 
-        helm_conf = app_config["helm"]
-        repo = helm_conf.get("repo")
-        chart = helm_conf.get("chart")
-        version = helm_conf.get("version")
+        helm_conf = app.helm
+        repo = helm_conf.repo
+        chart = helm_conf.chart
+        version = helm_conf.version
+
+        if not repo or not chart:
+            continue
 
         repo_name = f"repo-{app_name}"
         is_oci = repo.startswith("oci://")
@@ -55,7 +56,7 @@ def test_secret_dependencies_exist():
 
         values_file = f"/tmp/values-{app_name}.yaml"
         with open(values_file, "w") as f:
-            yaml.dump(helm_conf.get("values", {}), f)
+            yaml.dump(helm_conf.values or {}, f)
 
         res = subprocess.run(
             [
@@ -66,7 +67,7 @@ def test_secret_dependencies_exist():
                 "--version",
                 str(version),
                 "-n",
-                app_config.get("namespace", "default"),
+                app.namespace,
                 "-f",
                 values_file,
             ],

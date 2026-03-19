@@ -1,11 +1,7 @@
 import yaml
 import subprocess
 import pytest
-
-
-def get_apps_config():
-    with open("apps.yaml", "r") as f:
-        return yaml.safe_load(f)
+from conftest import get_apps_config
 
 
 def test_expected_resources_generated(tmp_path):
