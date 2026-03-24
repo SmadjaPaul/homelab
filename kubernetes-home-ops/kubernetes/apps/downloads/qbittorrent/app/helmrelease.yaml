@@ -74,7 +74,7 @@ spec:
       bittorrent:
         type: LoadBalancer
         annotations:
-          lbipam.cilium.io/ips: 10.1.6.61
+          lbipam.cilium.io/ips: 192.168.68.61
         externalTrafficPolicy: Local
         ports:
           bittorrent-tcp:

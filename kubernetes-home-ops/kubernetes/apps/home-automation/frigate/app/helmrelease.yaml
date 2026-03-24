@@ -60,7 +60,7 @@ spec:
       frigate:
         type: LoadBalancer
         annotations:
-          lbipam.cilium.io/ips: 10.1.6.64
+          lbipam.cilium.io/ips: 192.168.68.64
         ports:
           http:
             appProtocol: kubernetes.io/ws
