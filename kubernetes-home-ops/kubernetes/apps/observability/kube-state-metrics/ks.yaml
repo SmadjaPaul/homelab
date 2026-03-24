@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: kube-state-metrics
   interval: 1h
-  path: ./kubernetes/apps/observability/kube-state-metrics/app
+  path: ./kubernetes-home-ops/kubernetes/apps/observability/kube-state-metrics/app
   prune: true
   sourceRef:
     kind: GitRepository
