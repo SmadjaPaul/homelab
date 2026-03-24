@@ -86,7 +86,7 @@ spec:
     route:
       app:
         hostnames:
-          - emby.bjw-s.dev
+          - emby.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

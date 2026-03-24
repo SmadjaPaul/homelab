@@ -20,3 +20,4 @@ ignore: |
   secrets/*.enc.yaml
   _bmad*/
   redis/
+  kubernetes-home-ops/

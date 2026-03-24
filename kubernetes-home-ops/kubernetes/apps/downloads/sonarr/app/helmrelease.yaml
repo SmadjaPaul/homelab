@@ -95,7 +95,7 @@ spec:
     route:
       app:
         hostnames:
-          - sonarr.bjw-s.dev
+          - sonarr.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

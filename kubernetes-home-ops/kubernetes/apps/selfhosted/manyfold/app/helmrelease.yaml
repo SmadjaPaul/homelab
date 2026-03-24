@@ -165,7 +165,7 @@ spec:
     route:
       app:
         hostnames:
-          - manyfold.bjw-s.dev
+          - manyfold.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

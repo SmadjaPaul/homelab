@@ -113,7 +113,7 @@ spec:
     route:
       app:
         hostnames:
-          - kopia.bjw-s.dev
+          - kopia.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

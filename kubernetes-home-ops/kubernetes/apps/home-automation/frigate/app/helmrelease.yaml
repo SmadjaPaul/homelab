@@ -102,7 +102,7 @@ spec:
     route:
       frigate:
         hostnames:
-          - frigate.bjw-s.dev
+          - frigate.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network
@@ -112,7 +112,7 @@ spec:
                 port: http
       go2rtc:
         hostnames:
-          - frigate-go2rtc.bjw-s.dev
+          - frigate-go2rtc.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

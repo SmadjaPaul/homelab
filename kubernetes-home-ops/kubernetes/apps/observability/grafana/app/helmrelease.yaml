@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -171,7 +171,7 @@ spec:
       GF_NEWS_NEWS_FEED_ENABLED: false
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: natel-discrete-panel,pr0ps-trackmap-panel,panodata-map-panel
       GF_SECURITY_COOKIE_SAMESITE: grafana
-      GF_SERVER_ROOT_URL: https://grafana.bjw-s.dev
+      GF_SERVER_ROOT_URL: https://grafana.smadja.dev
 
     imageRenderer:
       enabled: true
@@ -202,7 +202,7 @@ spec:
       main:
         enabled: true
         hostnames:
-          - grafana.bjw-s.dev
+          - grafana.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

@@ -78,7 +78,7 @@ spec:
     route:
       app:
         hostnames:
-          - atuin.bjw-s.dev
+          - atuin.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

@@ -82,7 +82,7 @@ spec:
     route:
       app:
         hostnames:
-          - qui.bjw-s.dev
+          - qui.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

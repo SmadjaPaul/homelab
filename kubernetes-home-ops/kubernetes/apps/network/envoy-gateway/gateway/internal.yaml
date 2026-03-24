@@ -1,11 +1,11 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/gateway.networking.k8s.io/gateway_v1.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/gateway.networking.k8s.io/gateway_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: envoy-internal
   annotations:
-    external-dns.alpha.kubernetes.io/target: &hostname ingress-int.bjw-s.dev
+    external-dns.alpha.kubernetes.io/target: &hostname ingress-int.smadja.dev
 spec:
   gatewayClassName: envoy
   infrastructure:
@@ -28,4 +28,4 @@ spec:
       tls:
         certificateRefs:
           - kind: Secret
-            name: bjw-s-dev-tls
+            name: smadja.dev-tls

@@ -99,7 +99,7 @@ spec:
     route:
       app:
         hostnames:
-          - qbittorrent.bjw-s.dev
+          - qbittorrent.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

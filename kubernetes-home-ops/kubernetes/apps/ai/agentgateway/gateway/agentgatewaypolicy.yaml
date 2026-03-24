@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/agentgateway.dev/agentgatewaypolicy_v1alpha1.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/agentgateway.dev/agentgatewaypolicy_v1alpha1.json
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
 metadata:

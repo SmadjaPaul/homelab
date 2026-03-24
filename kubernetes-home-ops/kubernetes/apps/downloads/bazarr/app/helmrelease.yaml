@@ -80,7 +80,7 @@ spec:
     route:
       app:
         hostnames:
-          - bazarr.bjw-s.dev
+          - bazarr.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

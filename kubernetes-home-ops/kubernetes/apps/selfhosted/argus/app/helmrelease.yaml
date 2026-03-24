@@ -80,7 +80,7 @@ spec:
     route:
       app:
         hostnames:
-          - argus.bjw-s.dev
+          - argus.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

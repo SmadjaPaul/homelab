@@ -148,7 +148,7 @@ spec:
     route:
       app:
         hostnames:
-          - esphome.bjw-s.dev
+          - esphome.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network
@@ -157,7 +157,7 @@ spec:
               - identifier: app
       code-server:
         hostnames:
-          - esphome-code.bjw-s.dev
+          - esphome-code.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

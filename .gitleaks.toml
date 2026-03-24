@@ -24,4 +24,5 @@ paths = [
   '''scripts/update-oci-vault-ssh-key\.sh$''',
   '''\.github/actions/setup-ssh-key/action\.yml$''',
   # Terraform: secret_key = var.xxx (variable reference, not literal secret),
+  '''kubernetes-home-ops/kubernetes/talos/.*''',
 ]

@@ -49,7 +49,7 @@ spec:
                   secretKeyRef:
                     name: karakeep-secret
                     key: encryption_key
-              NEXTAUTH_URL: https://karakeep.bjw-s.dev
+              NEXTAUTH_URL: https://karakeep.smadja.dev
               DISABLE_NEW_RELEASE_CHECK: true
               COREPACK_INTEGRITY_KEYS: 0
             probes:
@@ -172,7 +172,7 @@ spec:
     route:
       app:
         hostnames:
-          - karakeep.bjw-s.dev
+          - karakeep.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

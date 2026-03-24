@@ -3,10 +3,10 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: idm-bjw-s-dev
+  name: idm-smadja.dev
 spec:
   dnsNames:
-    - idm.bjw-s.dev
+    - idm.smadja.dev
   duration: 160h
   issuerRef:
     kind: ClusterIssuer
@@ -15,6 +15,6 @@ spec:
     algorithm: ECDSA
     size: 256
     rotationPolicy: Always
-  secretName: idm-bjw-s-dev-tls
+  secretName: idm-smadja.dev-tls
   usages:
     - digital signature

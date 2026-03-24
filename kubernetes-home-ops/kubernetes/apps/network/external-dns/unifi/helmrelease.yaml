@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -13,7 +13,7 @@ spec:
     fullnameOverride: externaldns-unifi
     logLevel: &logLevel info
     domainFilters:
-      - bjw-s.dev
+      - smadja.dev
     podAnnotations:
       secret.reloader.stakater.com/reload: externaldns-unifi-secret
     policy: sync

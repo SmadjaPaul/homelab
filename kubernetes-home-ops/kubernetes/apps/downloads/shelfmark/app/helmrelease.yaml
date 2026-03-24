@@ -94,7 +94,7 @@ spec:
     route:
       app:
         hostnames:
-          - shelfmark.bjw-s.dev
+          - shelfmark.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

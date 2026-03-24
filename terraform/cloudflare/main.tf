@@ -95,6 +95,53 @@ resource "doppler_secret" "tunnel_token" {
 }
 
 # -----------------------------------------------------------------------------
+# Home-Ops Tunnel - for the new Proxmox cluster
+# -----------------------------------------------------------------------------
+module "home_ops_tunnel" {
+  source = "./modules/tunnel"
+  count  = var.enable_tunnel ? 1 : 0
+
+  depends_on = [module.global_config]
+
+  account_id           = module.global_config.cloudflare_account_id
+  tunnel_name          = "home-ops-tunnel"
+  tunnel_secret        = "" # Let it generate a new one
+  tunnel_id            = "" # Let it create a new one
+  domain               = module.global_config.domain
+  proxmox_local_ip     = var.proxmox_local_ip
+  enable_tunnel_config = false # Config managed via Flux
+  regenerate           = true
+}
+
+resource "doppler_secret" "home_ops_tunnel_id" {
+  count   = var.enable_tunnel ? 1 : 0
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "HOME_OPS_CLOUDFLARE_TUNNEL_ID"
+  value   = module.home_ops_tunnel[0].tunnel_id
+}
+
+resource "doppler_secret" "home_ops_tunnel_secret" {
+  count   = var.enable_tunnel ? 1 : 0
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "HOME_OPS_CLOUDFLARE_TUNNEL_SECRET"
+  value   = module.home_ops_tunnel[0].tunnel_token
+}
+
+resource "doppler_secret" "home_ops_tunnel_token" {
+  count   = var.enable_tunnel ? 1 : 0
+  project = var.doppler_project
+  config  = var.doppler_environment
+  name    = "HOME_OPS_CLOUDFLARE_TUNNEL_TOKEN"
+  value = jsonencode({
+    AccountTag   = module.global_config.cloudflare_account_id
+    TunnelID     = module.home_ops_tunnel[0].tunnel_id
+    TunnelSecret = module.home_ops_tunnel[0].tunnel_token
+  })
+}
+
+# -----------------------------------------------------------------------------
 # DNS (root, www, email/MX, SPF/DMARC - infrastructure only)
 # Application DNS managed by external-dns in Kubernetes
 # -----------------------------------------------------------------------------

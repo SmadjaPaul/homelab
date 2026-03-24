@@ -86,7 +86,7 @@ spec:
     route:
       app:
         hostnames:
-          - autobrr.bjw-s.dev
+          - autobrr.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

@@ -14,9 +14,9 @@ spec:
       config:
         data:
           hyprmcp-gateway.yaml: |-
-            host: https://mcp.bjw-s.dev/
+            host: https://mcp.smadja.dev/
             authorization:
-              server: https://mcp-dex.bjw-s.dev/
+              server: https://mcp-dex.smadja.dev/
               serverMetadataProxyEnabled: true
               authorizationProxyEnabled: true
               dynamicClientRegistration:
@@ -90,7 +90,7 @@ spec:
     route:
       app:
         hostnames:
-          - mcp.bjw-s.dev
+          - mcp.smadja.dev
         parentRefs:
           - name: envoy-external
             namespace: network

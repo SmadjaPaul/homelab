@@ -83,7 +83,7 @@ spec:
     route:
       app:
         hostnames:
-          - prowlarr.bjw-s.dev
+          - prowlarr.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

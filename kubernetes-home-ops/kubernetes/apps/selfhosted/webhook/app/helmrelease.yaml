@@ -64,7 +64,7 @@ spec:
     route:
       app:
         hostnames:
-          - webhook.bjw-s.dev
+          - webhook.smadja.dev
         parentRefs:
           - name: envoy-external
             namespace: network

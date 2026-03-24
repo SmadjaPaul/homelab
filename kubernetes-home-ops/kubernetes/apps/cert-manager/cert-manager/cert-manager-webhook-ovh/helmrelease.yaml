@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -10,13 +10,13 @@ spec:
     name: cert-manager-webhook-ovh
   interval: 30m
   values:
-    groupName: acme.bjw-s.dev
+    groupName: acme.smadja.dev
     issuers:
       - name: letsencrypt-production
         create: true
         kind: ClusterIssuer
         acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
-        email: admin@bjw-s.dev
+        email: admin@smadja.dev
         ovhEndpointName: ovh-eu
         ovhAuthenticationMethod: application
         ovhAuthenticationRef:
@@ -34,7 +34,7 @@ spec:
         create: true
         kind: ClusterIssuer
         acmeServerUrl: https://acme-staging-v02.api.letsencrypt.org/directory
-        email: admin@bjw-s.dev
+        email: admin@smadja.dev
         ovhEndpointName: ovh-eu
         ovhAuthenticationMethod: application
         ovhAuthenticationRef:

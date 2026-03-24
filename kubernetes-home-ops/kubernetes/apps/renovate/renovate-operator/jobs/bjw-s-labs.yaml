@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/generators.external-secrets.io/githubaccesstoken_v1alpha1.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/generators.external-secrets.io/githubaccesstoken_v1alpha1.json
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: GithubAccessToken
 metadata:
@@ -13,7 +13,7 @@ spec:
         name: lab-assistant-pem # reference secret from step 1.
         key: private_key_pem
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/external-secrets.io/externalsecret_v1.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/external-secrets.io/externalsecret_v1.json
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -36,7 +36,7 @@ spec:
           kind: GithubAccessToken
           name: lab-assistant-auth-token
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/renovate-operator.mogenius.com/renovatejob_v1alpha1.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/renovate-operator.mogenius.com/renovatejob_v1alpha1.json
 apiVersion: renovate-operator.mogenius.com/v1alpha1
 kind: RenovateJob
 metadata:

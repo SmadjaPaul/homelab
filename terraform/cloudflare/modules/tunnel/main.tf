@@ -18,19 +18,19 @@ resource "random_password" "tunnel_secret" {
 resource "cloudflare_zero_trust_tunnel_cloudflared" "homelab" {
   count         = 1
   account_id    = var.account_id
-  name          = "homelab-tunnel"
+  name          = var.tunnel_name
   tunnel_secret = var.tunnel_id != "" ? var.tunnel_secret : (var.regenerate && length(random_password.tunnel_secret) > 0 ? random_password.tunnel_secret[0].result : var.tunnel_secret)
 
   # Don't let Terraform destroy or modify existing tunnels
   lifecycle {
-    ignore_changes = [tunnel_secret, name]
+    ignore_changes = all
   }
 }
 
 # Get the tunnel ID and secret to use
 locals {
   actual_tunnel_id     = var.tunnel_id != "" ? var.tunnel_id : cloudflare_zero_trust_tunnel_cloudflared.homelab[0].id
-  actual_tunnel_name   = "homelab-tunnel"
+  actual_tunnel_name   = var.tunnel_name
   actual_tunnel_secret = var.tunnel_secret
 }
 

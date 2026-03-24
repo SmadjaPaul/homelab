@@ -6,18 +6,23 @@ terraform {
   }
 }
 
+variable "name" {
+  description = "The name of the VM"
+  type        = string
+}
+
 resource "proxmox_virtual_environment_vm" "omni" {
   count = var.enable_omni ? 1 : 0
 
   # VM General Settings
   node_name   = var.proxmox_node
-  name        = "omni"
+  name        = var.name
   description = "Sidero Omni + Proxmox Infra Provider"
   tags        = ["infrastructure", "kubernetes", "omni", "talos"]
   started     = var.start_on_boot
 
   agent {
-    enabled = true
+    enabled = false
   }
 
   # Clone from template if available, otherwise create from scratch
@@ -32,7 +37,6 @@ resource "proxmox_virtual_environment_vm" "omni" {
   cpu {
     cores        = var.cores
     type         = "host"
-    architecture = "x86_64"
   }
 
   # VM Memory Settings
@@ -63,15 +67,16 @@ resource "proxmox_virtual_environment_vm" "omni" {
   bios = "ovmf"
 
   vga {
-    type = "serial0"
+    type = "std"
   }
 
   # CD-ROM for OS installation
   cdrom {
-    file_id = "nvme-vm:iso/debian-12.iso"
+    enabled   = true
+    file_id   = "tank-iso:iso/metal-amd64.iso"
+    interface = "ide3"
   }
 
-  # Boot order - CD first, then disk
   boot_order = ["ide3", "virtio0"]
 
   # Cloud-init configuration (without user_data_file_id for now)

@@ -29,7 +29,7 @@ spec:
             env:
               BICHON_HTTP_PORT: &httpPort 15630
               BICHON_LOG_LEVEL: info
-              BICHON_PUBLIC_URL: https://bichon.bjw-s.dev
+              BICHON_PUBLIC_URL: https://bichon.smadja.dev
               BICHON_ROOT_DIR: /data
             envFrom:
               - secretRef:
@@ -80,7 +80,7 @@ spec:
     route:
       app:
         hostnames:
-          - bichon.bjw-s.dev
+          - bichon.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

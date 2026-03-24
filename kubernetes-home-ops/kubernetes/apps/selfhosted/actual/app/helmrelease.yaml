@@ -75,7 +75,7 @@ spec:
     route:
       app:
         hostnames:
-          - actual.bjw-s.dev
+          - actual.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

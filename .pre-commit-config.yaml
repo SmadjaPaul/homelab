@@ -23,7 +23,11 @@ repos:
     hooks:
       - id: gitleaks
         name: 🔐 Detect secrets (gitleaks)
-        exclude: terraform/proxmox/.*
+        exclude: |
+          (?x)^(
+            terraform/proxmox/.*|
+            kubernetes-home-ops/kubernetes/talos/.*
+          )$
 
   # =============================================================================
   # Terraform
@@ -54,7 +58,7 @@ repos:
       - id: yamllint
         name: 📋 YAML lint
         args: [-c=.yamllint.yaml]
-        exclude: (_bmad|.*/charts/.*|.*/crds/.*|redis/.*)
+        exclude: (_bmad|.*/charts/.*|.*/crds/.*|redis/.*|kubernetes-home-ops/.*)
 
   # =============================================================================
   # General Code Quality
@@ -88,7 +92,8 @@ repos:
             \.github/workflows/deploy-oci-mgmt\.yml|
             scripts/update-oci-vault-ssh-key\.sh|
             \.env\.example$|
-            terraform/proxmox/.*
+            terraform/proxmox/.*|
+            kubernetes-home-ops/kubernetes/talos/.*
           )$  # Docs/examples; workflow+action use BEGIN/END only as repair strings
 
   # =============================================================================

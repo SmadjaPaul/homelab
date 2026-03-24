@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -23,7 +23,7 @@ spec:
         main:
           enabled: true
           hostnames:
-            - alertmanager.bjw-s.dev
+            - alertmanager.smadja.dev
           parentRefs:
             - name: envoy-internal
               namespace: network
@@ -33,7 +33,7 @@ spec:
           name: alertmanager
           global:
             resolveTimeout: 5m
-        externalUrl: https://alertmanager.bjw-s.dev
+        externalUrl: https://alertmanager.smadja.dev
         storage:
           volumeClaimTemplate:
             spec:
@@ -121,7 +121,7 @@ spec:
     ###
     prometheus:
       prometheusSpec:
-        externalUrl: https://prometheus.bjw-s.dev
+        externalUrl: https://prometheus.smadja.dev
         version: v2.55.1 # override 'unsupported Prometheus version' error
         image:
           registry: docker.io
@@ -157,7 +157,7 @@ spec:
         main:
           enabled: true
           hostnames:
-            - prometheus.bjw-s.dev
+            - prometheus.smadja.dev
           parentRefs:
             - name: envoy-internal
               namespace: network

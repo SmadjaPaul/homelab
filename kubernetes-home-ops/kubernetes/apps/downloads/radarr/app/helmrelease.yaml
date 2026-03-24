@@ -95,7 +95,7 @@ spec:
     route:
       app:
         hostnames:
-          - radarr.bjw-s.dev
+          - radarr.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

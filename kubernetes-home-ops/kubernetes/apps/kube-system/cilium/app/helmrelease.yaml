@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://k8s-schemas.bjw-s.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -17,7 +17,7 @@ spec:
     bgpControlPlane:
       enabled: true
     bpf:
-      datapathMode: netkit
+      datapathMode: veth
       masquerade: true
       preallocateMaps: true
     bpfClockProbe: true
@@ -31,7 +31,7 @@ spec:
       enabled: true
       annotations:
         grafana_folder: Cilium
-    devices: bond+
+    devices: eth0
     enableIPv4BIGTCP: true
     endpointRoutes:
       enabled: true
@@ -69,7 +69,7 @@ spec:
         enabled: true
         serviceMonitor:
           enabled: true
-      replicas: 2
+      replicas: 1
       rollOutPods: true
     pmtuDiscovery:
       enabled: true

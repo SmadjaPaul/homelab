@@ -28,8 +28,8 @@ spec:
               tag: 1.9.2
             env:
               KANIDM_ADMIN_BIND_PATH: /var/run/kanidmd.sock
-              KANIDM_DOMAIN: idm.bjw-s.dev
-              KANIDM_ORIGIN: https://idm.bjw-s.dev
+              KANIDM_DOMAIN: idm.smadja.dev
+              KANIDM_ORIGIN: https://idm.smadja.dev
               KANIDM_BINDADDRESS: "[::]:8443"
               KANIDM_LDAPBINDADDRESS: "[::]:3636"
               KANIDM_DB_PATH: /data/kanidm.db
@@ -54,7 +54,7 @@ spec:
             subPath: data
       certs:
         type: secret
-        name: idm-bjw-s-dev-tls
+        name: idm-smadja.dev-tls
         defaultMode: 0400
         globalMounts:
           - path: /certs
@@ -66,7 +66,7 @@ spec:
     route:
       app:
         hostnames:
-          - idm.bjw-s.dev
+          - idm.smadja.dev
         parentRefs:
           - name: envoy-external
             namespace: network

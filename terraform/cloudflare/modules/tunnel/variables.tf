@@ -13,6 +13,12 @@ variable "tunnel_secret" {
   description = "Cloudflare Tunnel secret (base64, 32+ bytes)"
 }
 
+variable "tunnel_name" {
+  type        = string
+  description = "Name of the Cloudflare Tunnel"
+  default     = "homelab-tunnel"
+}
+
 variable "domain" {
   type        = string
   description = "Root domain"

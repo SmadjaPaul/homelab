@@ -23,7 +23,7 @@ spec:
               tag: 1.28.1-alpine
             env:
               CRON_MIN: "*"
-              DOMAIN: freshrss.bjw-s.dev
+              DOMAIN: freshrss.smadja.dev
               LISTEN: &port 8080
             probes:
               liveness:
@@ -65,7 +65,7 @@ spec:
     route:
       app:
         hostnames:
-          - freshrss.bjw-s.dev
+          - freshrss.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

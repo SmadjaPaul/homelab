@@ -97,7 +97,7 @@ spec:
     route:
       app:
         hostnames:
-          - audiobookshelf.bjw-s.dev
+          - audiobookshelf.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

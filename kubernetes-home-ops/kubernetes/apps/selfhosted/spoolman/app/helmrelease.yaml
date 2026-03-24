@@ -87,7 +87,7 @@ spec:
     route:
       app:
         hostnames:
-          - spoolman.bjw-s.dev
+          - spoolman.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network

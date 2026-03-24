@@ -60,7 +60,7 @@ spec:
     route:
       app:
         hostnames:
-          - it-tools.bjw-s.dev
+          - it-tools.smadja.dev
         parentRefs:
           - name: envoy-internal
             namespace: network
