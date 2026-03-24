@@ -17,6 +17,8 @@ releases:
     namespace: network
     chart: oci://ghcr.io/home-operations/charts-mirror/external-dns
     version: 1.20.0
+    values:
+      - templates/values.yaml.gotmpl
 
   - name: keda
     namespace: kube-system

@@ -10,12 +10,12 @@ spec:
     name: cilium
   interval: 30m
   values:
-    autoDirectNodeRoutes: true
+    autoDirectNodeRoutes: false
     bandwidthManager:
       enabled: true
       bbr: true
     bgpControlPlane:
-      enabled: true
+      enabled: false
     bpf:
       datapathMode: veth
       masquerade: true
@@ -32,7 +32,8 @@ spec:
       annotations:
         grafana_folder: Cilium
     devices: eth0
-    enableIPv4BIGTCP: true
+    directRoutingDevice: eth0
+    enableIPv4BIGTCP: false
     endpointRoutes:
       enabled: true
     envoy:
@@ -57,7 +58,7 @@ spec:
     loadBalancer:
       acceleration: best-effort
       algorithm: maglev
-      mode: dsr
+      mode: snat
     localRedirectPolicies:
       enabled: true
     operator:
@@ -79,7 +80,7 @@ spec:
         enabled: true
         trustCRDsExist: true
     rollOutCiliumPods: true
-    routingMode: native
+    routingMode: tunnel
     securityContext:
       capabilities:
         ciliumAgent:

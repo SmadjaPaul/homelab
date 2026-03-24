@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+spec:
+  values:
+    fullnameOverride: external-dns
+    logLevel: info
+    domainFilters:
+      - smadja.dev
+    env:
+      - name: CF_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: external-dns-secret
+            key: api-token
+    extraArgs:
+      - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
+      - --crd-source-kind=DNSEndpoint
+      - --gateway-name=envoy-external
+    policy: sync
+    provider:
+      name: cloudflare
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    sources:
+      - crd
+      - gateway-httproute
+    txtOwnerId: home-ops
+    txtPrefix: "k8s."
