@@ -14,7 +14,7 @@ spec:
       name: actions-runner-controller
       namespace: actions-runner-system
   interval: 1h
-  path: ./kubernetes-home-ops/kubernetes-home-ops/kubernetes/apps/actions-runner-system/actions-runner-controller/operator
+  path: ./kubernetes-home-ops/kubernetes/apps/actions-runner-system/actions-runner-controller/operator
   prune: true
   sourceRef:
     kind: GitRepository

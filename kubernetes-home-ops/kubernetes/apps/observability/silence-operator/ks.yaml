@@ -14,7 +14,7 @@ spec:
       name: silence-operator
       namespace: observability
   interval: 1h
-  path: ./kubernetes-home-ops/kubernetes-home-ops/kubernetes/apps/observability/silence-operator/app
+  path: ./kubernetes-home-ops/kubernetes/apps/observability/silence-operator/app
   prune: true
   sourceRef:
     kind: GitRepository
@@ -36,7 +36,7 @@ spec:
     - name: silence-operator
       namespace: observability
   interval: 1h
-  path: ./kubernetes-home-ops/kubernetes-home-ops/kubernetes/apps/observability/silence-operator/silences
+  path: ./kubernetes-home-ops/kubernetes/apps/observability/silence-operator/silences
   prune: true
   sourceRef:
     kind: GitRepository
