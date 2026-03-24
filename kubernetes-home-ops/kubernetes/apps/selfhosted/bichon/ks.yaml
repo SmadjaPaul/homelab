@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: bichon
   interval: 1h
-  path: "./kubernetes/apps/selfhosted/bichon/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/selfhosted/bichon/app"
   postBuild:
     substitute:
       APP: bichon

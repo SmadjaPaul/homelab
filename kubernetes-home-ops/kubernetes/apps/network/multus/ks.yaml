@@ -14,7 +14,7 @@ spec:
       name: multus
       namespace: network
   interval: 1h
-  path: "./kubernetes/apps/network/multus/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/network/multus/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -36,7 +36,7 @@ spec:
     - name: multus
       namespace: network
   interval: 1h
-  path: "./kubernetes/apps/network/multus/networks"
+  path: "./kubernetes-home-ops/kubernetes/apps/network/multus/networks"
   prune: true
   sourceRef:
     kind: GitRepository

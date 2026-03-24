@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: spegel
   interval: 1h
-  path: "./kubernetes/apps/system/spegel/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/system/spegel/app"
   prune: true
   sourceRef:
     kind: GitRepository

@@ -14,7 +14,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/downloads/prowlarr/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/downloads/prowlarr/app"
   postBuild:
     substitute:
       APP: prowlarr

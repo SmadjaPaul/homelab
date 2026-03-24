@@ -14,7 +14,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/downloads/shelfmark/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/downloads/shelfmark/app"
   postBuild:
     substitute:
       APP: shelfmark

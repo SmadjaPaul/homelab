@@ -14,7 +14,7 @@ spec:
       name: tuppr
       namespace: system-upgrade
   interval: 1h
-  path: "./kubernetes/apps/system-upgrade/tuppr/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/system-upgrade/tuppr/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -35,7 +35,7 @@ spec:
   dependsOn:
     - name: tuppr
   interval: 1h
-  path: "./kubernetes/apps/system-upgrade/tuppr/upgrades"
+  path: "./kubernetes-home-ops/kubernetes/apps/system-upgrade/tuppr/upgrades"
   prune: true
   sourceRef:
     kind: GitRepository

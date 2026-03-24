@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: dex
   interval: 1h
-  path: "./kubernetes/apps/ai/dex/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/dex/app"
   prune: true
   sourceRef:
     kind: GitRepository

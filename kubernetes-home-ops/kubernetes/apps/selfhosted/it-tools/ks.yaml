@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: it-tools
   interval: 1h
-  path: "./kubernetes/apps/selfhosted/it-tools/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/selfhosted/it-tools/app"
   prune: true
   sourceRef:
     kind: GitRepository

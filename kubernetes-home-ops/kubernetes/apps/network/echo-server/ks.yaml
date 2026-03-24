@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: echo-server
   interval: 1h
-  path: "./kubernetes/apps/network/echo-server/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/network/echo-server/app"
   prune: true
   sourceRef:
     kind: GitRepository

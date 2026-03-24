@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: kguardian
   interval: 1h
-  path: "./kubernetes/apps/kguardian/kguardian/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/kguardian/kguardian/app"
   prune: true
   sourceRef:
     kind: GitRepository

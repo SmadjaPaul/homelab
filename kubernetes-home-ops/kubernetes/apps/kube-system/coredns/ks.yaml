@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: coredns
   interval: 1h
-  path: "./kubernetes/apps/kube-system/coredns/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/kube-system/coredns/app"
   prune: false # Never delete this
   sourceRef:
     kind: GitRepository

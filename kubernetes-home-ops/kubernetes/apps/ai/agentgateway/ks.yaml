@@ -14,7 +14,7 @@ spec:
       name: agentgateway-crds
       namespace: ai
   interval: 1h
-  path: "./kubernetes/apps/ai/agentgateway/crds"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/agentgateway/crds"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -41,7 +41,7 @@ spec:
       name: agentgateway
       namespace: ai
   interval: 1h
-  path: "./kubernetes/apps/ai/agentgateway/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/agentgateway/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -63,7 +63,7 @@ spec:
     - name: agentgateway
       namespace: ai
   interval: 1h
-  path: "./kubernetes/apps/ai/agentgateway/gateway"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/agentgateway/gateway"
   prune: true
   sourceRef:
     kind: GitRepository

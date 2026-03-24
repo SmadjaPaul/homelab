@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: newt
   interval: 1h
-  path: "./kubernetes/apps/network/newt/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/network/newt/app"
   prune: true
   sourceRef:
     kind: GitRepository

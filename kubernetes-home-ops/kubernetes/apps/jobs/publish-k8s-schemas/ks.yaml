@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: publish-k8s-schemas
   interval: 1h
-  path: "./kubernetes/apps/jobs/publish-k8s-schemas/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/jobs/publish-k8s-schemas/app"
   prune: true
   sourceRef:
     kind: GitRepository

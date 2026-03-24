@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: mumc
   interval: 1h
-  path: "./kubernetes/apps/media/mumc/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/media/mumc/app"
   postBuild:
     substitute:
       APP: mumc

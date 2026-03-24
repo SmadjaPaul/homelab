@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: mcp-gateway
   interval: 1h
-  path: "./kubernetes/apps/ai/mcp-gateway/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/mcp-gateway/app"
   prune: true
   sourceRef:
     kind: GitRepository

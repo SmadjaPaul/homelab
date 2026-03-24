@@ -17,7 +17,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/media/audiobookshelf/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/media/audiobookshelf/app"
   postBuild:
     substitute:
       APP: audiobookshelf

@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: ha-mcp
   interval: 1h
-  path: "./kubernetes/apps/ai/ha-mcp/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/ai/ha-mcp/app"
   prune: true
   sourceRef:
     kind: GitRepository

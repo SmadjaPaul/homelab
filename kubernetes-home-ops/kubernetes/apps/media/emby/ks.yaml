@@ -18,7 +18,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/media/emby/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/media/emby/app"
   postBuild:
     substitute:
       APP: emby

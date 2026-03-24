@@ -14,7 +14,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/selfhosted/manyfold/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/selfhosted/manyfold/app"
   postBuild:
     substitute:
       APP: manyfold

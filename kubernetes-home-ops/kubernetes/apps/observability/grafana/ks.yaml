@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: grafana
   interval: 1h
-  path: "./kubernetes/apps/observability/grafana/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/observability/grafana/app"
   prune: true
   sourceRef:
     kind: GitRepository

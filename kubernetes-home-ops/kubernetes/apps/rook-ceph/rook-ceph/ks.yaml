@@ -14,7 +14,7 @@ spec:
       name: rook-ceph
       namespace: rook-ceph
   interval: 1h
-  path: ./kubernetes-home-ops/kubernetes/apps/rook-ceph/rook-ceph/operator
+  path: ./kubernetes-home-ops/kubernetes-home-ops/kubernetes/apps/rook-ceph/rook-ceph/operator
   prune: true
   sourceRef:
     kind: GitRepository
@@ -51,7 +51,7 @@ spec:
       failed: status.ceph.health == 'HEALTH_ERR'
       current: status.ceph.health in ['HEALTH_OK', 'HEALTH_WARN']
   interval: 1h
-  path: "./kubernetes/apps/rook-ceph/rook-ceph/cluster"
+  path: "./kubernetes-home-ops/kubernetes/apps/rook-ceph/rook-ceph/cluster"
   prune: true
   sourceRef:
     kind: GitRepository

@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: webhook
   interval: 1h
-  path: "./kubernetes/apps/selfhosted/webhook/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/selfhosted/webhook/app"
   prune: true
   sourceRef:
     kind: GitRepository

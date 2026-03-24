@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: cilium
   interval: 1h
-  path: "./kubernetes/apps/kube-system/cilium/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/kube-system/cilium/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -30,7 +30,7 @@ spec:
       app.kubernetes.io/name: cilium
       app.kubernetes.io/component: config
   interval: 1h
-  path: "./kubernetes/apps/kube-system/cilium/config"
+  path: "./kubernetes-home-ops/kubernetes/apps/kube-system/cilium/config"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -51,7 +51,7 @@ spec:
       app.kubernetes.io/name: cilium
       app.kubernetes.io/component: config
   interval: 1h
-  path: "./kubernetes/apps/kube-system/cilium/netpols"
+  path: "./kubernetes-home-ops/kubernetes/apps/kube-system/cilium/netpols"
   prune: true
   sourceRef:
     kind: GitRepository

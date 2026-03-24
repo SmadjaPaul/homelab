@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: metrics-server
   interval: 1h
-  path: "./kubernetes/apps/kube-system/metrics-server/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/kube-system/metrics-server/app"
   prune: true
   sourceRef:
     kind: GitRepository

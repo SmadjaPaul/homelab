@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: keda
   interval: 1h
-  path: "./kubernetes/apps/system/keda/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/system/keda/app"
   prune: true
   sourceRef:
     kind: GitRepository

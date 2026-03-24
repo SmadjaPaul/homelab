@@ -12,7 +12,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: "./kubernetes/apps/media/arrem-sync/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/media/arrem-sync/app"
   postBuild:
     substitute:
       APP: arrem-sync

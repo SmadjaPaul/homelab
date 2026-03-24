@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: jellyplex-watched
   interval: 1h
-  path: "./kubernetes/apps/media/jellyplex-watched/app"
+  path: "./kubernetes-home-ops/kubernetes/apps/media/jellyplex-watched/app"
   postBuild:
     substitute:
       APP: jellyfin
