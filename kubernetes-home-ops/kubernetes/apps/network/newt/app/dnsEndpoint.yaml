@@ -1,16 +1,15 @@
----
-# yaml-language-server: $schema=https://k8s-schemas.smadja.dev/externaldns.k8s.io/dnsendpoint_v1alpha1.json
 apiVersion: externaldns.k8s.io/v1alpha1
 kind: DNSEndpoint
 metadata:
-  name: pangolin
+  name: cloudflare-tunnel
+  namespace: network
 spec:
   endpoints:
-    - dnsName: ingress-ext.smadja.dev
-      recordType: A
-      targets:
-        - 135.125.53.129
-    - dnsName: pangolin.smadja.dev
-      recordType: A
-      targets:
-        - 135.125.53.129
+  - dnsName: ingress-ext.smadja.dev
+    recordType: CNAME
+    targets:
+    - d4176ff3-bcaf-4d59-97ae-6c144d6399b7.cfargotunnel.com
+  - dnsName: pangolin.smadja.dev
+    recordType: CNAME
+    targets:
+    - d4176ff3-bcaf-4d59-97ae-6c144d6399b7.cfargotunnel.com
