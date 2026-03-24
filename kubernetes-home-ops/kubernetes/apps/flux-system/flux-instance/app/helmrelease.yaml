@@ -25,7 +25,7 @@ spec:
         kind: GitRepository
         url: https://github.com/SmadjaPaul/homelab.git
         ref: refs/heads/main
-        path: kubernetes/flux/cluster
+        path: kubernetes-home-ops/kubernetes/flux/cluster
         interval: 1h
       commonMetadata:
         labels:
