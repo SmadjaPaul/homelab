@@ -6,8 +6,8 @@ metadata:
   name: cluster-apps
   namespace: flux-system
 spec:
-  interval: 1h
-  path: ./kubernetes/apps
+  interval: 10m
+  path: ./kubernetes-home-ops/kubernetes/apps
   patches:
     - # Add HelmRelease defaults to all Kustomizations
       patch: |-
